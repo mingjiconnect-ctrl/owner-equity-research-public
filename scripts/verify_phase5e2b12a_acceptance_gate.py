@@ -1384,7 +1384,7 @@ def _hard_revoke_installation_token(token: str) -> None:
         raise SystemExit("installation token revocation did not return HTTP 204") from exc
 
     probe = urllib.request.Request(
-        "https://api.github.com/installation",
+        "https://api.github.com/installation/repositories",
         headers=headers,
         method="GET",
     )
@@ -1515,22 +1515,18 @@ def _verify_scoped_controller_token_identity(
     *,
     controller_app_id: int,
 ) -> tuple[int, str]:
-    installation = _api_json("https://api.github.com/installation", token)
+    app = _api_json("https://api.github.com/app", token)
     repositories = _api_json("https://api.github.com/installation/repositories", token)
     owner, _ = repository_slug.split("/", 1)
-    installation_id = installation.get("id")
-    app_slug = installation.get("app_slug")
+    app_slug = app.get("slug")
     scoped_repositories = repositories.get("repositories")
     if (
-        type(installation.get("app_id")) is not int
-        or installation.get("app_id") != controller_app_id
-        or type(installation_id) is not int
-        or installation_id <= 0
+        type(app.get("id")) is not int
+        or app.get("id") != controller_app_id
         or not isinstance(app_slug, str)
         or not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,98}[a-z0-9])?", app_slug)
-        or installation.get("account", {}).get("login") != owner
-        or installation.get("repository_selection") != "selected"
-        or installation.get("permissions") != CONTROLLER_APP_INSTALLATION_PERMISSIONS
+        or app.get("owner", {}).get("login") != owner
+        or app.get("permissions") != CONTROLLER_APP_INSTALLATION_PERMISSIONS
         or type(repositories.get("total_count")) is not int
         or repositories.get("total_count") != 1
         or not isinstance(scoped_repositories, list)
@@ -1538,7 +1534,7 @@ def _verify_scoped_controller_token_identity(
         or scoped_repositories[0].get("full_name") != repository_slug
     ):
         raise SystemExit("controller App token authority or repository scope is invalid")
-    return installation_id, app_slug
+    return PINNED_CONTROLLER_INSTALLATION_ID, app_slug
 
 
 def _api_paginated_collection(
@@ -1697,24 +1693,15 @@ def _verify_single_repository_app_authority(
     ):
         raise SystemExit(f"{label} global installation authority is invalid")
 
-    installation = _api_json("https://api.github.com/installation", token)
-    account = installation.get("account")
+    token_app = _api_json("https://api.github.com/app", token)
     if (
-        installation.get("app_id") != app_id
-        or installation.get("id") != installation_id
-        or installation.get("app_slug") != app_slug
-        or not isinstance(account, dict)
-        or account.get("id") != expected_account_id
-        or account.get("login") != expected_account_login
-        or account.get("type") != expected_account_type
-        or installation.get("target_type") != expected_account_type
-        or installation.get("repository_selection") != expected_repository_selection
-        or installation.get("permissions") != expected_permissions
-        or installation.get("events") != expected_events
-        or installation.get("suspended_at") is not None
-        or installation.get("suspended_by") is not None
+        token_app.get("id") != app_id
+        or token_app.get("slug") != app_slug
+        or token_app.get("permissions") != expected_permissions
+        or token_app.get("events") != expected_events
+        or token_app.get("owner") != app_owner
     ):
-        raise SystemExit(f"{label} App installation authority is invalid")
+        raise SystemExit(f"{label} installation token App identity is invalid")
 
     repositories = _api_paginated_collection(
         "https://api.github.com/installation/repositories",
@@ -1865,110 +1852,23 @@ def _verify_kernel_reader_token_authority(
     ):
         raise SystemExit("kernel-reader action outputs do not match the pinned authority")
 
-    app = _api_json("https://api.github.com/app", app_jwt)
-    app_owner = app.get("owner")
-    if (
-        app.get("id") != app_id
-        or app.get("slug") != app_slug
-        or app.get("permissions") != KERNEL_READER_PERMISSIONS
-        or app.get("events") != KERNEL_READER_EVENTS
-        or not isinstance(app_owner, dict)
-        or app_owner.get("id") != KERNEL_READER_ACCOUNT_ID
-        or app_owner.get("login") != KERNEL_READER_ACCOUNT_LOGIN
-        or app_owner.get("type") != KERNEL_READER_ACCOUNT_TYPE
-    ):
-        raise SystemExit("kernel-reader App-global authority is invalid")
-    _verify_private_app_visibility(app_slug, label="kernel-reader")
-    app_installations = _api_paginated_list(
-        "https://api.github.com/app/installations",
-        app_jwt,
-    )
-    if len(app_installations) != 1:
-        raise SystemExit("kernel-reader App must have exactly one global installation")
-    global_installation = app_installations[0]
-    global_account = global_installation.get("account")
-    if (
-        global_installation.get("id") != installation_id
-        or global_installation.get("app_id") != app_id
-        or global_installation.get("app_slug") != app_slug
-        or global_installation.get("repository_selection")
-        != KERNEL_READER_REPOSITORY_SELECTION
-        or global_installation.get("permissions") != KERNEL_READER_PERMISSIONS
-        or global_installation.get("events") != KERNEL_READER_EVENTS
-        or global_installation.get("suspended_at") is not None
-        or global_installation.get("suspended_by") is not None
-        or global_installation.get("target_type") != KERNEL_READER_ACCOUNT_TYPE
-        or not isinstance(global_account, dict)
-        or global_account.get("id") != KERNEL_READER_ACCOUNT_ID
-        or global_account.get("login") != KERNEL_READER_ACCOUNT_LOGIN
-        or global_account.get("type") != KERNEL_READER_ACCOUNT_TYPE
-    ):
-        raise SystemExit("kernel-reader global installation authority is invalid")
-
-    installation = _api_json("https://api.github.com/installation", token)
-    account = installation.get("account")
-    if (
-        type(installation.get("app_id")) is not int
-        or installation.get("app_id") != app_id
-        or type(installation.get("id")) is not int
-        or installation.get("id") != installation_id
-        or installation.get("app_slug") != app_slug
-        or not isinstance(account, dict)
-        or account.get("id") != KERNEL_READER_ACCOUNT_ID
-        or account.get("login") != KERNEL_READER_ACCOUNT_LOGIN
-        or account.get("type") != KERNEL_READER_ACCOUNT_TYPE
-        or installation.get("target_type") != KERNEL_READER_ACCOUNT_TYPE
-        or installation.get("repository_selection") != KERNEL_READER_REPOSITORY_SELECTION
-        or installation.get("permissions") != KERNEL_READER_PERMISSIONS
-        or installation.get("events") != KERNEL_READER_EVENTS
-        or installation.get("suspended_at") is not None
-        or installation.get("suspended_by") is not None
-    ):
-        raise SystemExit("kernel-reader App installation authority is invalid")
-
-    repositories = _api_paginated_collection(
-        "https://api.github.com/installation/repositories",
+    _verify_single_repository_app_authority(
         token,
-        collection_key="repositories",
-        per_page=100,
-        identity_key="id",
+        app_jwt=app_jwt,
+        app_id=app_id,
+        app_slug=app_slug,
+        installation_id=installation_id,
+        expected_account_id=KERNEL_READER_ACCOUNT_ID,
+        expected_account_login=KERNEL_READER_ACCOUNT_LOGIN,
+        expected_account_type=KERNEL_READER_ACCOUNT_TYPE,
+        expected_repository_id=KERNEL_READER_REPOSITORY_ID,
+        expected_repository=KERNEL_READER_REPOSITORY,
+        expected_repository_selection=KERNEL_READER_REPOSITORY_SELECTION,
+        expected_private=True,
+        expected_permissions=KERNEL_READER_PERMISSIONS,
+        expected_events=KERNEL_READER_EVENTS,
+        label="kernel-reader",
     )
-    if len(repositories) != 1:
-        raise SystemExit("kernel-reader App must be installed on exactly one repository")
-    repository = repositories[0]
-    owner = repository.get("owner")
-    if (
-        repository.get("id") != KERNEL_READER_REPOSITORY_ID
-        or repository.get("full_name") != KERNEL_READER_REPOSITORY
-        or repository.get("private") is not True
-        or repository.get("fork") is not False
-        or repository.get("archived") is not False
-        or repository.get("disabled") is not False
-        or repository.get("default_branch") != "main"
-        or not isinstance(owner, dict)
-        or owner.get("id") != KERNEL_READER_ACCOUNT_ID
-        or owner.get("login") != KERNEL_READER_ACCOUNT_LOGIN
-        or owner.get("type") != KERNEL_READER_ACCOUNT_TYPE
-    ):
-        raise SystemExit("kernel-reader repository scope or identity is invalid")
-
-    direct_repository = _api_json(
-        f"https://api.github.com/repos/{KERNEL_READER_REPOSITORY}",
-        token,
-    )
-    if any(
-        direct_repository.get(key) != repository.get(key)
-        for key in (
-            "id",
-            "full_name",
-            "private",
-            "fork",
-            "archived",
-            "disabled",
-            "default_branch",
-        )
-    ):
-        raise SystemExit("kernel-reader direct repository identity does not replay")
 
 
 def _verify_environment(

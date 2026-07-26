@@ -1139,17 +1139,15 @@ def _remote_evidence(  # noqa: F811
                 if authority_mode == "pending_repository_invitation"
                 else []
             )
-        if url == "https://api.github.com/installation":
+        if url == "https://api.github.com/app":
             return {
-                "id": 54321,
-                "app_id": (
+                "id": (
                     98765.0
                     if authority_mode == "floating_controller_app_id"
                     else 98765
                 ),
-                "app_slug": "phase5e-controller",
-                "account": {"login": "owner"},
-                "repository_selection": "selected",
+                "slug": "phase5e-controller",
+                "owner": {"login": "owner"},
                 "permissions": dict(acceptance_gate.CONTROLLER_APP_INSTALLATION_PERMISSIONS),
             }
         if url == "https://api.github.com/installation/repositories":
@@ -2212,7 +2210,7 @@ def test_remote_acceptance_rejects_controller_installation_identity_drift(
         monkeypatch=monkeypatch,
     )
     monkeypatch.setattr(acceptance_gate, "PINNED_CONTROLLER_INSTALLATION_ID", 99999)
-    with pytest.raises(SystemExit, match="installation identity drifted"):
+    with pytest.raises(SystemExit, match="closeout does not bind controller App authority"):
         verify_acceptance(
             repository=repository,
             base=base,
@@ -2246,7 +2244,7 @@ def test_remote_acceptance_requires_exact_controller_app_permissions(
 
     def api(url: str, token: str) -> dict[str, Any]:
         payload = json.loads(json.dumps(prior_api(url, token)))
-        if url == "https://api.github.com/installation":
+        if url == "https://api.github.com/app":
             if permission_attack == "missing":
                 payload["permissions"].pop("secrets")
             elif permission_attack == "extra":
@@ -2430,7 +2428,7 @@ def test_kernel_reader_authority_rejects_scope_permission_and_identity_drift(
     def api(url: str, token: str) -> dict[str, Any]:
         bare = url.split("?", 1)[0]
         if bare == "https://api.github.com/app":
-            assert token == "app-jwt"
+            assert token in {"app-jwt", "kernel-token"}
             return {
                 "id": 24680,
                 "slug": "phase5e-kernel-reader",
@@ -2443,8 +2441,8 @@ def test_kernel_reader_authority_rejects_scope_permission_and_identity_drift(
                     "login": acceptance_gate.KERNEL_READER_ACCOUNT_LOGIN,
                     "type": acceptance_gate.KERNEL_READER_ACCOUNT_TYPE,
                 },
-                "permissions": dict(acceptance_gate.KERNEL_READER_PERMISSIONS),
-                "events": [],
+                "permissions": permissions,
+                "events": ["push"] if attack == "nonempty_events" else [],
             }
         if bare == "https://api.github.com/app/installations":
             assert token == "app-jwt"
@@ -2454,45 +2452,32 @@ def test_kernel_reader_authority_rejects_scope_permission_and_identity_drift(
                     "app_id": 24680,
                     "app_slug": "phase5e-kernel-reader",
                     "account": {
-                        "id": acceptance_gate.KERNEL_READER_ACCOUNT_ID,
+                        "id": (
+                            1
+                            if attack == "wrong_account"
+                            else acceptance_gate.KERNEL_READER_ACCOUNT_ID
+                        ),
                         "login": acceptance_gate.KERNEL_READER_ACCOUNT_LOGIN,
                         "type": acceptance_gate.KERNEL_READER_ACCOUNT_TYPE,
                     },
                     "target_type": acceptance_gate.KERNEL_READER_ACCOUNT_TYPE,
-                    "repository_selection": "selected",
-                    "permissions": dict(acceptance_gate.KERNEL_READER_PERMISSIONS),
-                    "events": [],
-                    "suspended_at": None,
-                    "suspended_by": None,
+                    "repository_selection": (
+                        "all" if attack == "all_repositories" else "selected"
+                    ),
+                    "permissions": permissions,
+                    "events": ["push"] if attack == "nonempty_events" else [],
+                    "suspended_at": (
+                        "2026-07-22T00:00:00Z" if attack == "suspended" else None
+                    ),
+                    "suspended_by": (
+                        {"login": "owner"} if attack == "suspended" else None
+                    ),
                 }
             ]
             if attack == "two_global_installations":
                 installations.append({**installations[0], "id": 13580})
             return installations
         assert token == "kernel-token"
-        if bare == "https://api.github.com/installation":
-            return {
-                "id": 13579,
-                "app_id": 24680,
-                "app_slug": "phase5e-kernel-reader",
-                "account": {
-                    "id": (
-                        1
-                        if attack == "wrong_account"
-                        else acceptance_gate.KERNEL_READER_ACCOUNT_ID
-                    ),
-                    "login": acceptance_gate.KERNEL_READER_ACCOUNT_LOGIN,
-                    "type": acceptance_gate.KERNEL_READER_ACCOUNT_TYPE,
-                },
-                "target_type": acceptance_gate.KERNEL_READER_ACCOUNT_TYPE,
-                "repository_selection": (
-                    "all" if attack == "all_repositories" else "selected"
-                ),
-                "permissions": permissions,
-                "events": ["push"] if attack == "nonempty_events" else [],
-                "suspended_at": "2026-07-22T00:00:00Z" if attack == "suspended" else None,
-                "suspended_by": {"login": "owner"} if attack == "suspended" else None,
-            }
         if bare == "https://api.github.com/installation/repositories":
             repositories = [repository]
             if attack == "two_repositories":
@@ -2561,7 +2546,7 @@ def test_kernel_reader_authority_accepts_exact_single_repository_read_scope(
     def api(url: str, token: str) -> dict[str, Any]:
         bare = url.split("?", 1)[0]
         if bare == "https://api.github.com/app":
-            assert token == "app-jwt"
+            assert token in {"app-jwt", "kernel-token"}
             return {
                 "id": 24680,
                 "slug": "phase5e-kernel-reader",
@@ -2594,23 +2579,6 @@ def test_kernel_reader_authority_accepts_exact_single_repository_read_scope(
                 }
             ]
         assert token == "kernel-token"
-        if bare == "https://api.github.com/installation":
-            return {
-                "id": 13579,
-                "app_id": 24680,
-                "app_slug": "phase5e-kernel-reader",
-                "account": {
-                    "id": acceptance_gate.KERNEL_READER_ACCOUNT_ID,
-                    "login": acceptance_gate.KERNEL_READER_ACCOUNT_LOGIN,
-                    "type": acceptance_gate.KERNEL_READER_ACCOUNT_TYPE,
-                },
-                "target_type": acceptance_gate.KERNEL_READER_ACCOUNT_TYPE,
-                "repository_selection": "selected",
-                "permissions": dict(acceptance_gate.KERNEL_READER_PERMISSIONS),
-                "events": [],
-                "suspended_at": None,
-                "suspended_by": None,
-            }
         if bare == "https://api.github.com/installation/repositories":
             return {"total_count": 1, "repositories": [repository]}
         if bare == f"https://api.github.com/repos/{acceptance_gate.KERNEL_READER_REPOSITORY}":
