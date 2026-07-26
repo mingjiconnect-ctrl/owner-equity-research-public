@@ -2106,48 +2106,75 @@ def _verify_remote_repository_governance(
         f"https://api.github.com/repos/{repository_slug}/rulesets?includes_parents=true",
         token,
     )
-    if (
-        repository.get("full_name") != repository_slug
-        or repository.get("owner", {}).get("login") != repository_slug.split("/", 1)[0]
-        or repository.get("owner", {}).get("type") != "User"
-        or repository.get("fork") is not False
-        or repository.get("default_branch") != "main"
-        or repository.get("private") is not False
-        or repository.get("allow_merge_commit") is not True
-        or repository.get("allow_squash_merge") is not False
-        or repository.get("allow_rebase_merge") is not False
-        or not isinstance(status_checks, dict)
-        or status_checks.get("strict") is not True
-        or (
-            raw_contexts is not None
-            and (
-                not isinstance(raw_contexts, list)
-                or len(raw_contexts) != len(REQUIRED_PROTECTION_CHECKS)
-                or set(raw_contexts) != REQUIRED_PROTECTION_CHECKS
-            )
-        )
-        or set(pinned_checks) != REQUIRED_PROTECTION_CHECKS
-        or any(
-            pinned_checks[context] != GITHUB_ACTIONS_APP_ID
+    legacy_contexts_valid = raw_contexts is None or (
+        isinstance(raw_contexts, list)
+        and len(raw_contexts) == len(REQUIRED_PROTECTION_CHECKS)
+        and set(raw_contexts) == REQUIRED_PROTECTION_CHECKS
+    )
+    governance_gates = {
+        "repository-full-name": repository.get("full_name") == repository_slug,
+        "repository-owner": (
+            repository.get("owner", {}).get("login")
+            == repository_slug.split("/", 1)[0]
+            and repository.get("owner", {}).get("type") == "User"
+        ),
+        "repository-origin": repository.get("fork") is False,
+        "repository-default-branch": repository.get("default_branch") == "main",
+        "repository-public": repository.get("private") is False,
+        "merge-commit-only": (
+            repository.get("allow_merge_commit") is True
+            and repository.get("allow_squash_merge") is False
+            and repository.get("allow_rebase_merge") is False
+        ),
+        "status-check-shape": isinstance(status_checks, dict),
+        "status-check-strict": (
+            isinstance(status_checks, dict) and status_checks.get("strict") is True
+        ),
+        "legacy-context-mirror": legacy_contexts_valid,
+        "pinned-check-set": set(pinned_checks) == REQUIRED_PROTECTION_CHECKS,
+        "actions-check-authority": all(
+            pinned_checks.get(context) == GITHUB_ACTIONS_APP_ID
             for context in GITHUB_ACTIONS_CHECKS
-        )
-        or any(
-            pinned_checks[context] != controller_app_id
+        ),
+        "controller-check-authority": all(
+            pinned_checks.get(context) == controller_app_id
             for context in CONTROLLER_APP_CHECKS
-        )
-        or not isinstance(reviews, dict)
-        or reviews.get("required_approving_review_count") != 0
-        or reviews.get("dismiss_stale_reviews") is not False
-        or reviews.get("require_last_push_approval") is not False
-        or not no_bypass
-        or protection.get("enforce_admins", {}).get("enabled") is not True
-        or protection.get("allow_force_pushes", {}).get("enabled") is not False
-        or protection.get("allow_deletions", {}).get("enabled") is not False
-        or protection.get("required_conversation_resolution", {}).get("enabled") is not True
-        or rulesets != []
-    ):
+        ),
+        "review-shape": isinstance(reviews, dict),
+        "review-count": (
+            isinstance(reviews, dict)
+            and reviews.get("required_approving_review_count") == 0
+        ),
+        "dismiss-stale-reviews": (
+            isinstance(reviews, dict) and reviews.get("dismiss_stale_reviews") is False
+        ),
+        "last-push-approval": (
+            isinstance(reviews, dict)
+            and reviews.get("require_last_push_approval") is False
+        ),
+        "review-bypass": no_bypass,
+        "admin-enforcement": (
+            protection.get("enforce_admins", {}).get("enabled") is True
+        ),
+        "force-push-disabled": (
+            protection.get("allow_force_pushes", {}).get("enabled") is False
+        ),
+        "deletion-disabled": (
+            protection.get("allow_deletions", {}).get("enabled") is False
+        ),
+        "conversation-resolution": (
+            protection.get("required_conversation_resolution", {}).get("enabled")
+            is True
+        ),
+        "ruleset-absence": rulesets == [],
+    }
+    failed_gates = sorted(
+        gate for gate, accepted in governance_gates.items() if not accepted
+    )
+    if failed_gates:
         raise SystemExit(
-            "public main branch lacks the required non-bypass acceptance protections"
+            "public main branch lacks the required non-bypass acceptance protections: "
+            + ",".join(failed_gates)
         )
     _verify_environment_and_secret_authority(
         repository_slug,
