@@ -422,6 +422,7 @@ def test_three_runtime_audit_aggregator_emits_only_sanitized_manifest(
         b'<properties><property name="phase5e_nodeid" '
         b'value="tests/test_one.py::test_one"/></properties>'
         b'<failure message="redacted" type="AssertionError">private trace</failure>'
+        b"<system-out>private stdout</system-out>"
         b"</testcase></testsuite></testsuites>"
     )
     blocked_evidence = {
@@ -453,6 +454,7 @@ def test_three_runtime_audit_aggregator_emits_only_sanitized_manifest(
             "runtime_id": runtime_id,
             "failed_tests": 1,
             "skipped_tests": 0,
+            "outcomes_reconciled": True,
             "blocked_test_nodeids": [
                 {"nodeid": "tests/test_one.py::test_one", "status": "failed"}
             ],
@@ -461,6 +463,7 @@ def test_three_runtime_audit_aggregator_emits_only_sanitized_manifest(
     ]
     serialized = emergency_output.read_text(encoding="utf-8")
     assert "private trace" not in serialized
+    assert "private stdout" not in serialized
     assert "redacted" not in serialized
 
 

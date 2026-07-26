@@ -291,18 +291,23 @@ def _blocked_junit_diagnostics(
         ):
             raise ValueError("blocked JUnit testcase count does not reconcile")
         blocked: list[dict[str, str]] = []
-        observed_failed = 0
-        observed_skipped = 0
         for case in cases:
             if set(case.attrib) != {"classname", "name", "time"}:
                 raise ValueError("blocked JUnit testcase attribute shape is open")
             children = tuple(case)
-            if not children or children[0].tag != "properties" or children[0].attrib:
+            property_groups = tuple(child for child in children if child.tag == "properties")
+            if len(property_groups) != 1 or property_groups[0].attrib:
                 raise ValueError("blocked JUnit testcase properties are malformed")
-            properties = tuple(children[0])
-            if len(properties) != 1:
+            properties = tuple(property_groups[0])
+            matching_properties = tuple(
+                item
+                for item in properties
+                if item.tag == "property"
+                and item.attrib.get("name") == "phase5e_nodeid"
+            )
+            if len(matching_properties) != 1:
                 raise ValueError("blocked JUnit testcase does not bind one node id")
-            item = properties[0]
+            item = matching_properties[0]
             nodeid = item.attrib.get("value")
             if (
                 item.tag != "property"
@@ -316,35 +321,24 @@ def _blocked_junit_diagnostics(
                 or tuple(item)
             ):
                 raise ValueError("blocked JUnit testcase node id is malformed")
-            outcomes = children[1:]
+            outcomes = tuple(
+                child for child in children if child.tag in {"failure", "error", "skipped"}
+            )
             if len(outcomes) > 1:
                 raise ValueError("blocked JUnit testcase has multiple outcomes")
             if not outcomes:
                 continue
             outcome = outcomes[0]
-            if (
-                outcome.tag not in {"failure", "error", "skipped"}
-                or not set(outcome.attrib).issubset({"message", "type"})
-                or tuple(outcome)
-            ):
-                raise ValueError("blocked JUnit testcase outcome shape is open")
             status = "skipped" if outcome.tag == "skipped" else "failed"
-            if status == "skipped":
-                observed_skipped += 1
-            else:
-                observed_failed += 1
             blocked.append({"nodeid": nodeid, "status": status})
-        if (
-            observed_failed != failed_count
-            or observed_skipped != skipped_count
-            or len({item["nodeid"] for item in blocked}) != len(blocked)
-        ):
-            raise ValueError("blocked JUnit outcomes do not reconcile")
+        if len({item["nodeid"] for item in blocked}) != len(blocked):
+            raise ValueError("blocked JUnit test identities are duplicated")
         diagnostics.append(
             {
                 "runtime_id": runtime_id,
                 "failed_tests": failed_count,
                 "skipped_tests": skipped_count,
+                "outcomes_reconciled": len(blocked) == failed_count + skipped_count,
                 "blocked_test_nodeids": sorted(
                     blocked, key=lambda item: (item["nodeid"], item["status"])
                 ),
@@ -717,10 +711,18 @@ def _write_emergency_manifest(
     runtime_diagnostics: tuple[dict[str, Any], ...] = ()
     if isinstance(error, ValueError) and str(error) == "JUnit contains a failure or skip":
         error_code = "protected_runtime_junit_blocked"
+        diagnostic_error_fingerprint: str | None = None
         try:
             runtime_diagnostics = _blocked_junit_diagnostics(runtime_roots)
-        except (OSError, ValueError, ET.ParseError):
+        except (OSError, ValueError, ET.ParseError) as diagnostic_error:
             error_code = "protected_runtime_junit_diagnostics_failed"
+            diagnostic_error_fingerprint = hashlib.sha256(
+                f"{type(diagnostic_error).__name__}:{diagnostic_error}".encode(
+                    "utf-8", errors="replace"
+                )
+            ).hexdigest()
+    else:
+        diagnostic_error_fingerprint = None
     payload = {
         "schema_version": "1.0.0",
         "status": "blocked",
@@ -732,6 +734,7 @@ def _write_emergency_manifest(
         "error_fingerprint": hashlib.sha256(
             f"{type(error).__name__}:{error}".encode("utf-8", errors="replace")
         ).hexdigest(),
+        "diagnostic_error_fingerprint": diagnostic_error_fingerprint,
         "runtime_diagnostics": list(runtime_diagnostics),
     }
     raw = (json.dumps(payload, allow_nan=False, indent=2, sort_keys=True) + "\n").encode()
