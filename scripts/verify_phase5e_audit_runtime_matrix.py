@@ -296,31 +296,45 @@ def _blocked_junit_diagnostics(
                 raise ValueError("blocked JUnit testcase attribute shape is open")
             children = tuple(case)
             property_groups = tuple(child for child in children if child.tag == "properties")
-            if len(property_groups) != 1 or property_groups[0].attrib:
+            if any(group.attrib for group in property_groups):
                 raise ValueError("blocked JUnit testcase properties are malformed")
-            properties = tuple(property_groups[0])
+            properties = tuple(item for group in property_groups for item in group)
             matching_properties = tuple(
                 item
                 for item in properties
                 if item.tag == "property"
                 and item.attrib.get("name") == "phase5e_nodeid"
             )
-            if len(matching_properties) != 1:
-                raise ValueError("blocked JUnit testcase does not bind one node id")
-            item = matching_properties[0]
-            nodeid = item.attrib.get("value")
-            if (
-                item.tag != "property"
-                or set(item.attrib) != {"name", "value"}
-                or item.attrib["name"] != "phase5e_nodeid"
-                or not isinstance(nodeid, str)
-                or not nodeid.startswith("tests/")
-                or "::" not in nodeid
-                or len(nodeid) > 512
-                or any(ord(character) < 32 for character in nodeid)
-                or tuple(item)
-            ):
-                raise ValueError("blocked JUnit testcase node id is malformed")
+            if len(matching_properties) == 1:
+                item = matching_properties[0]
+                nodeid = item.attrib.get("value")
+                identity_kind = "nodeid"
+                if (
+                    item.tag != "property"
+                    or set(item.attrib) != {"name", "value"}
+                    or item.attrib["name"] != "phase5e_nodeid"
+                    or not isinstance(nodeid, str)
+                    or not nodeid.startswith("tests/")
+                    or "::" not in nodeid
+                    or len(nodeid) > 512
+                    or any(ord(character) < 32 for character in nodeid)
+                    or tuple(item)
+                ):
+                    raise ValueError("blocked JUnit testcase node id is malformed")
+            elif not matching_properties:
+                classname = case.attrib["classname"]
+                name = case.attrib["name"]
+                nodeid = f"{classname}::{name}"
+                identity_kind = "junit_testcase"
+                if (
+                    not classname.startswith("tests")
+                    or not name
+                    or len(nodeid) > 512
+                    or any(ord(character) < 32 for character in nodeid)
+                ):
+                    raise ValueError("blocked JUnit fallback test identity is malformed")
+            else:
+                raise ValueError("blocked JUnit testcase binds multiple node ids")
             outcomes = tuple(
                 child for child in children if child.tag in {"failure", "error", "skipped"}
             )
@@ -330,8 +344,10 @@ def _blocked_junit_diagnostics(
                 continue
             outcome = outcomes[0]
             status = "skipped" if outcome.tag == "skipped" else "failed"
-            blocked.append({"nodeid": nodeid, "status": status})
-        if len({item["nodeid"] for item in blocked}) != len(blocked):
+            blocked.append(
+                {"identity": nodeid, "identity_kind": identity_kind, "status": status}
+            )
+        if len({item["identity"] for item in blocked}) != len(blocked):
             raise ValueError("blocked JUnit test identities are duplicated")
         diagnostics.append(
             {
@@ -340,7 +356,7 @@ def _blocked_junit_diagnostics(
                 "skipped_tests": skipped_count,
                 "outcomes_reconciled": len(blocked) == failed_count + skipped_count,
                 "blocked_test_nodeids": sorted(
-                    blocked, key=lambda item: (item["nodeid"], item["status"])
+                    blocked, key=lambda item: (item["identity"], item["status"])
                 ),
             }
         )
