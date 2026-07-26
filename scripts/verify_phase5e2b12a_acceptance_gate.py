@@ -26,20 +26,37 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-try:
-    from scripts.public_bootstrap import (
-        commit_exists,
-        public_root_commit,
-        verify_public_bootstrap_snapshot,
-    )
-except ModuleNotFoundError:  # direct script execution
-    from public_bootstrap import (  # type: ignore[no-redef]
-        commit_exists,
-        public_root_commit,
-        verify_public_bootstrap_snapshot,
-    )
-
 _SCRIPT_DIR = Path(__file__).resolve().parent
+
+
+def _load_public_bootstrap_module() -> Any:
+    """Load the sibling bootstrap verifier without trusting import search paths."""
+
+    path = _SCRIPT_DIR / "public_bootstrap.py"
+    if path.is_symlink() or not path.is_file() or path.parent != _SCRIPT_DIR:
+        raise RuntimeError("public bootstrap verifier is not a regular local file")
+    name = "_phase5e_public_bootstrap"
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("public bootstrap verifier cannot be loaded")
+    module = importlib.util.module_from_spec(spec)
+    prior = sys.modules.get(name)
+    sys.modules[name] = module
+    try:
+        spec.loader.exec_module(module)
+    except BaseException:
+        if prior is None:
+            sys.modules.pop(name, None)
+        else:
+            sys.modules[name] = prior
+        raise
+    return module
+
+
+_PUBLIC_BOOTSTRAP_MODULE = _load_public_bootstrap_module()
+commit_exists = _PUBLIC_BOOTSTRAP_MODULE.commit_exists
+public_root_commit = _PUBLIC_BOOTSTRAP_MODULE.public_root_commit
+verify_public_bootstrap_snapshot = _PUBLIC_BOOTSTRAP_MODULE.verify_public_bootstrap_snapshot
 
 
 def _load_absolute_control_module(path: Path, name: str) -> Any:
