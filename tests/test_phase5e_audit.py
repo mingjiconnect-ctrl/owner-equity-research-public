@@ -876,6 +876,9 @@ def test_phase5e2b12a_repository_wide_changed_path_boundary_is_closed() -> None:
         PUBLIC_CANONICAL_MIGRATION_OPTIONAL_CHANGED_PATHS
         == {
             "docs/public-phase5e2b12a-revalidation.json",
+            "scripts/phase5e-audit-requirements.lock",
+            "scripts/phase5e-audit-runtime-matrix.json",
+            "scripts/phase5e-audit-wheelhouse.sha256",
             "scripts/phase5e_pid1_reaper.py",
         }
     )
@@ -1009,6 +1012,16 @@ def test_candidate_owned_ci_has_no_private_kernel_secret_or_write_token() -> Non
 
 
 def test_phase5e_audit_hashes_policy_and_control_surface() -> None:
+    lock_text = (ROOT / "scripts/phase5e-audit-requirements.lock").read_text(
+        encoding="utf-8"
+    )
+    ruff_version = re.search(
+        r"^ruff==([0-9]+)\.([0-9]+)\.([0-9]+)\b",
+        lock_text,
+        re.MULTILINE,
+    )
+    assert ruff_version is not None
+    assert tuple(int(part) for part in ruff_version.groups()) >= (0, 14, 14)
     required = {
         ".github/workflows/ci.yml",
         ".github/workflows/phase5e2b12a-acceptance-gate.yml",
