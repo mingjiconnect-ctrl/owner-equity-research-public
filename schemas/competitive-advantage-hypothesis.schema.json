@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/competitive-advantage-hypothesis.schema.json",
+  "title": "CompetitiveAdvantageHypothesis",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "hypothesis_id", "issuer_id", "as_of_date", "assessment_period", "mechanism", "mechanism_policy_id", "mechanism_policy_version", "scope", "status", "business_model_snapshot_id", "competitive_context_snapshot_id", "hypothesis_claim_id", "durability_claim_id", "reinvestment_claim_id", "counterevidence_claim_ids", "claim_review_decision_ids", "evidence_bindings", "counterevidence_resolutions", "reinvestment_relevance", "predecessor_hypothesis_id", "trend", "trend_claim_id", "missing_evidence"],
+  "properties": {
+    "schema_version": {"const": "2.0.0"},
+    "hypothesis_id": {"type": "string", "minLength": 1},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "as_of_date": {"type": "string", "format": "date"},
+    "assessment_period": {"$ref": "#/$defs/period"},
+    "mechanism": {"$ref": "#/$defs/mechanism"},
+    "mechanism_policy_id": {"$ref": "#/$defs/mechanism"},
+    "mechanism_policy_version": {"const": "1.0.0"},
+    "scope": {"$ref": "#/$defs/scope"},
+    "status": {"enum": ["proposed", "supported", "contested", "falsified", "blocked"]},
+    "business_model_snapshot_id": {"type": "string", "minLength": 1},
+    "competitive_context_snapshot_id": {"type": "string", "minLength": 1},
+    "hypothesis_claim_id": {"type": ["string", "null"], "minLength": 1},
+    "durability_claim_id": {"type": ["string", "null"], "minLength": 1},
+    "reinvestment_claim_id": {"type": ["string", "null"], "minLength": 1},
+    "counterevidence_claim_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "claim_review_decision_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "evidence_bindings": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/evidence_binding"}},
+    "counterevidence_resolutions": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/resolution"}},
+    "reinvestment_relevance": {"enum": ["direct", "indirect", "none", "unknown"]},
+    "predecessor_hypothesis_id": {"type": ["string", "null"], "minLength": 1},
+    "trend": {"enum": ["strengthening", "stable", "eroding", "unknown"]},
+    "trend_claim_id": {"type": ["string", "null"], "minLength": 1},
+    "missing_evidence": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  },
+  "allOf": [
+    {"if": {"properties": {"status": {"enum": ["proposed", "supported", "contested", "falsified"]}}}, "then": {"properties": {"hypothesis_claim_id": {"type": "string"}}}},
+    {"if": {"properties": {"status": {"enum": ["supported", "contested", "falsified"]}}}, "then": {"properties": {"durability_claim_id": {"type": "string"}, "reinvestment_claim_id": {"type": "string"}}}},
+    {"if": {"properties": {"status": {"enum": ["contested", "falsified"]}}}, "then": {"properties": {"counterevidence_claim_ids": {"minItems": 1}}}},
+    {"if": {"properties": {"status": {"const": "blocked"}}}, "then": {"properties": {"missing_evidence": {"minItems": 1}}}},
+    {"if": {"properties": {"trend": {"enum": ["strengthening", "stable", "eroding"]}}}, "then": {"properties": {"predecessor_hypothesis_id": {"type": "string"}, "trend_claim_id": {"type": "string"}}}}
+  ],
+  "$defs": {
+    "mechanism": {"enum": ["switching_cost", "network_effect", "scale_cost_advantage", "brand_pricing_power", "intellectual_property", "regulatory_license", "distribution", "data_learning", "efficient_scale", "process_execution"]},
+    "period": {"type": "object", "additionalProperties": false, "required": ["start", "end"], "properties": {"start": {"type": "string", "format": "date"}, "end": {"type": "string", "format": "date"}}},
+    "scope": {"type": "object", "additionalProperties": false, "required": ["scope_type", "segment_definition_ids", "business_unit", "product_service", "geography", "customer_group", "channel"], "properties": {"scope_type": {"enum": ["issuer_wide", "segment_specific", "product_market"]}, "segment_definition_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}, "business_unit": {"type": ["string", "null"], "minLength": 1}, "product_service": {"type": ["string", "null"], "minLength": 1}, "geography": {"type": ["string", "null"], "minLength": 1}, "customer_group": {"type": ["string", "null"], "minLength": 1}, "channel": {"type": ["string", "null"], "minLength": 1}}},
+    "evidence_binding": {"type": "object", "additionalProperties": false, "required": ["binding_id", "role_id", "polarity", "fact_id", "calculation_result_id", "context_observation_id"], "properties": {"binding_id": {"type": "string", "minLength": 1}, "role_id": {"type": "string", "minLength": 1}, "polarity": {"enum": ["support", "counterevidence"]}, "fact_id": {"type": ["string", "null"], "minLength": 1}, "calculation_result_id": {"type": ["string", "null"], "minLength": 1}, "context_observation_id": {"type": ["string", "null"], "minLength": 1}}},
+    "resolution": {"type": "object", "additionalProperties": false, "required": ["counterevidence_claim_id", "status", "resolution_claim_id"], "properties": {"counterevidence_claim_id": {"type": "string", "minLength": 1}, "status": {"enum": ["unresolved", "resolved", "falsifying", "blocked"]}, "resolution_claim_id": {"type": ["string", "null"], "minLength": 1}}}
+  }
+}

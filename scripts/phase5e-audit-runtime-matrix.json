@@ -1,0 +1,35 @@
+{
+  "platform": {
+    "architecture": "x86_64",
+    "implementation": "CPython",
+    "linux_platform": "manylinux2014_x86_64",
+    "operating_system": "Linux",
+    "threading": "gil"
+  },
+  "runtimes": [
+    {
+      "abi": "cp311",
+      "python_version": "3.11.15",
+      "runtime_id": "cp311",
+      "wheel_count": 25,
+      "wheel_manifest_sha256": "78ca8a3becdac5c860679b204a7f6a1adebe04a38227034f3a698da256a77ff0"
+    },
+    {
+      "abi": "cp312",
+      "python_version": "3.12.13",
+      "runtime_id": "cp312",
+      "wheel_count": 25,
+      "wheel_manifest_sha256": "10ea11515b4b0b9568a63285cc795afe10053ea9fcb34e1d5f921cf0379b8cb1"
+    },
+    {
+      "abi": "cp313",
+      "python_version": "3.13.13",
+      "runtime_id": "cp313",
+      "wheel_count": 25,
+      "wheel_manifest_sha256": "dda2358548e9cf893f227b5a0a9a9c5f37b81c050ec3283a8888a1528058a396"
+    }
+  ],
+  "schema_version": "1.0.0",
+  "union_wheel_count": 33,
+  "union_wheel_manifest_sha256": "4ff44cd3caa84f3fbc61f77bab2ebdbb8c96f839a6da05d2ad40588b0d4a1389"
+}

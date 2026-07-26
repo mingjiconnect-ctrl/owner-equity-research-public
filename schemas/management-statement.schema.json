@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/management-statement.schema.json",
+  "title": "ManagementStatement",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "statement_id", "issuer_id", "speaker_name", "speaker_role",
+    "statement_date", "statement_type", "kpi_concept", "definition_change",
+    "source_document_id", "source_locator", "statement_text", "statement_sha256",
+    "extraction_method", "verification_status", "reviewer_id", "reviewed_at",
+    "lifecycle_status", "predecessor_statement_ids", "kpi_definition_fact_ids",
+    "commitment_eligibility", "metric_bindings", "missing_evidence"
+  ],
+  "properties": {
+    "schema_version": {"const": "2.0.0"},
+    "statement_id": {"type": "string", "minLength": 1},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "speaker_name": {"type": "string", "minLength": 1},
+    "speaker_role": {"type": "string", "minLength": 1},
+    "statement_date": {"type": "string", "format": "date"},
+    "statement_type": {"enum": ["guidance", "strategic_goal", "operating_target", "cost_target", "product_geography_expansion", "acquisition_synergy", "capital_allocation_policy", "kpi_definition", "risk_disclosure", "other"]},
+    "kpi_concept": {"type": ["string", "null"], "minLength": 1},
+    "definition_change": {"enum": ["initial", "unchanged", "renamed", "redefined", "discontinued", "not_applicable"]},
+    "source_document_id": {"type": "string", "minLength": 1},
+    "source_locator": {"type": "string", "minLength": 1},
+    "statement_text": {"type": "string", "minLength": 1},
+    "statement_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "extraction_method": {"enum": ["deterministic", "manual", "language_model"]},
+    "verification_status": {"enum": ["pending", "human_confirmed", "blocked", "rejected"]},
+    "reviewer_id": {"type": ["string", "null"], "minLength": 1},
+    "reviewed_at": {"type": ["string", "null"], "format": "date-time"},
+    "lifecycle_status": {"enum": ["current", "withdrawn", "superseded"]},
+    "predecessor_statement_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "kpi_definition_fact_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "commitment_eligibility": {"enum": ["measurable", "narrative_only", "blocked"]},
+    "metric_bindings": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/metric_binding"}},
+    "missing_evidence": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  },
+  "allOf": [
+    {"if": {"properties": {"verification_status": {"enum": ["human_confirmed", "rejected"]}}}, "then": {"properties": {"reviewer_id": {"type": "string"}, "reviewed_at": {"type": "string", "format": "date-time"}}}},
+    {"if": {"properties": {"verification_status": {"enum": ["pending", "blocked"]}}}, "then": {"properties": {"reviewer_id": {"type": "null"}, "reviewed_at": {"type": "null"}}}},
+    {"if": {"properties": {"verification_status": {"const": "blocked"}}}, "then": {"properties": {"missing_evidence": {"minItems": 1}}}},
+    {"if": {"properties": {"commitment_eligibility": {"const": "measurable"}}}, "then": {"properties": {"metric_bindings": {"minItems": 1}}}},
+    {"if": {"properties": {"commitment_eligibility": {"const": "narrative_only"}}}, "then": {"properties": {"metric_bindings": {"maxItems": 0}}}},
+    {"if": {"properties": {"commitment_eligibility": {"const": "blocked"}}}, "then": {"properties": {"missing_evidence": {"minItems": 1}}}}
+  ],
+  "$defs": {
+    "metric_binding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["component_id", "metric_concept", "role", "fact_id"],
+      "properties": {
+        "component_id": {"type": "string", "minLength": 1},
+        "metric_concept": {"type": "string", "minLength": 1},
+        "role": {"enum": ["point", "lower_bound", "upper_bound", "milestone"]},
+        "fact_id": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/management-statement-candidate.schema.json",
+  "title": "ManagementStatementCandidate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "candidate_id", "issuer_id", "source_document_id", "source_locator", "excerpt_sha256", "statement_text", "statement_sha256", "speaker_name", "speaker_role", "statement_date", "statement_type", "kpi_concept", "extraction_method", "metric_mentions", "validation_status", "validation_issues"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "candidate_id": {"type": "string", "minLength": 1},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "source_document_id": {"type": "string", "minLength": 1},
+    "source_locator": {"type": "string", "pattern": "^text:[0-9]+:[0-9]+$"},
+    "excerpt_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "statement_text": {"type": "string", "minLength": 1},
+    "statement_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "speaker_name": {"type": "string", "minLength": 1},
+    "speaker_role": {"type": "string", "minLength": 1},
+    "statement_date": {"type": "string", "format": "date"},
+    "statement_type": {"enum": ["guidance", "strategic_goal", "operating_target", "cost_target", "product_geography_expansion", "acquisition_synergy", "capital_allocation_policy", "kpi_definition", "risk_disclosure", "other"]},
+    "kpi_concept": {"type": ["string", "null"], "minLength": 1},
+    "extraction_method": {"enum": ["deterministic", "manual", "language_model"]},
+    "metric_mentions": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/metric_mention"}},
+    "validation_status": {"enum": ["pending", "validated", "blocked", "rejected"]},
+    "validation_issues": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  },
+  "allOf": [
+    {"if": {"properties": {"validation_status": {"const": "blocked"}}}, "then": {"properties": {"validation_issues": {"minItems": 1}}}}
+  ],
+  "$defs": {
+    "period": {"type": "object", "additionalProperties": false, "required": ["start", "end"], "properties": {"start": {"type": ["string", "null"], "format": "date"}, "end": {"type": ["string", "null"], "format": "date"}}},
+    "scope": {"type": "object", "additionalProperties": false, "required": ["scope_type", "scope_id", "scope_label"], "properties": {"scope_type": {"enum": ["issuer", "segment", "product", "geography", "customer_cohort", "other"]}, "scope_id": {"type": "string", "minLength": 1}, "scope_label": {"type": "string", "minLength": 1}}},
+    "basis": {"type": "object", "additionalProperties": false, "required": ["accounting_basis", "currency_basis", "growth_basis", "aggregation_basis"], "properties": {"accounting_basis": {"enum": ["gaap", "non_gaap", "operational", "not_applicable"]}, "currency_basis": {"enum": ["reported", "constant_currency", "not_applicable"]}, "growth_basis": {"enum": ["reported", "organic", "inorganic", "not_applicable"]}, "aggregation_basis": {"enum": ["period", "point_in_time", "cumulative", "average"]}}},
+    "metric_mention": {
+      "type": "object", "additionalProperties": false,
+      "required": ["component_id", "metric_concept", "role", "value_type", "value", "unit", "currency", "period", "scope", "measurement_basis"],
+      "properties": {
+        "component_id": {"type": "string", "minLength": 1},
+        "metric_concept": {"type": "string", "minLength": 1},
+        "role": {"enum": ["point", "lower_bound", "upper_bound", "milestone"]},
+        "value_type": {"enum": ["number", "text", "boolean"]},
+        "value": {"type": ["number", "string", "boolean"]},
+        "unit": {"type": ["string", "null"]},
+        "currency": {"type": ["string", "null"], "pattern": "^[A-Z]{3}$"},
+        "period": {"$ref": "#/$defs/period"},
+        "scope": {"$ref": "#/$defs/scope"},
+        "measurement_basis": {"$ref": "#/$defs/basis"}
+      }
+    }
+  }
+}

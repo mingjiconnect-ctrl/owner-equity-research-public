@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/report-spec.schema.json",
+  "title": "ReportSpec",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "report_spec_id", "language", "audience", "sections", "output_formats", "partial_and_blocked_states_required"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "report_spec_id": {"type": "string", "minLength": 1},
+    "language": {"type": "string", "minLength": 2},
+    "audience": {"type": "string", "minLength": 1},
+    "sections": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["section_id", "title", "required_input_types"],
+        "properties": {
+          "section_id": {"type": "string", "minLength": 1},
+          "title": {"type": "string", "minLength": 1},
+          "required_input_types": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["SourceDocument", "Fact", "Claim", "Assumption", "CalculationResult", "FiscalPeriod", "QuarterlyReconciliation", "QuarterlyUpdate", "FilingArtifact", "ExtractionCandidate", "EvidencePromotion", "SegmentDefinition", "SegmentSnapshot", "FootnoteReview", "AccountingQualityFinding", "AccountingQualityReview", "ContextObservation", "CompetitiveContextSnapshot", "AnalyticalClaimCandidate", "AnalyticalClaimReviewDecision", "BusinessModelSnapshot", "CompetitiveAdvantageHypothesis", "BusinessQualityReview", "ManagementStatementCandidate", "ManagementStatementReviewDecision", "ManagementStatement", "ManagementCommitment", "ManagementOutcome", "CapitalAllocationEventCandidate", "CapitalAllocationEventReviewDecision", "CapitalAllocationEvent", "CapitalAllocationOutcome", "SourceSearchReceipt", "ManagementReview", "CapitalAllocationReview", "ResearchBundle", "ValuationAssumptionCandidate", "ValuationAssumptionReviewDecision", "MarketReferenceSnapshot", "ValuationHandoff", "Score", "RunManifest"]}}
+        }
+      }
+    },
+    "output_formats": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["json", "markdown", "latex_pdf"]}},
+    "partial_and_blocked_states_required": {"const": true}
+  }
+}

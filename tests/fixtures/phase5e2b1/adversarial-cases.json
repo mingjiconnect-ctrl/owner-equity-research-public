@@ -1,0 +1,116 @@
+{
+  "schema_version": "1.0.0",
+  "owner_phase": "Phase 5E-2B.1",
+  "baseline_commit": "1449e544d9907297c43c8d930d33170c45a60abb",
+  "opening_shares": "100000000",
+  "cases": [
+    {
+      "case_id": "same-repurchase-8k-10q",
+      "member_sources": ["8-K", "10-Q"],
+      "legal_event_ids": ["buyback:2026-q2:execution-01", "buyback:2026-q2:execution-01"],
+      "magnitudes": ["5000000", "5000000"],
+      "dates": ["2026-06-30", "2026-06-30"],
+      "expected_status": "grouped",
+      "expected_canonical_event_count": 1,
+      "expected_current_shares": "95000000"
+    },
+    {
+      "case_id": "same-issuance-8k-10q-ir",
+      "member_sources": ["8-K", "10-Q", "official_ir"],
+      "legal_event_ids": ["offering:2026-01", "offering:2026-01", "offering:2026-01"],
+      "magnitudes": ["5000000", "5000000", "5000000"],
+      "dates": ["2026-06-30", "2026-06-30", "2026-06-30"],
+      "expected_status": "grouped",
+      "expected_canonical_event_count": 1,
+      "expected_current_shares": "105000000"
+    },
+    {
+      "case_id": "same-legal-id-magnitude-conflict",
+      "member_sources": ["8-K", "10-Q"],
+      "legal_event_ids": ["buyback:2026-q2:execution-01", "buyback:2026-q2:execution-01"],
+      "magnitudes": ["5000000", "6000000"],
+      "dates": ["2026-06-30", "2026-06-30"],
+      "expected_status": "blocked_share_event_conflict"
+    },
+    {
+      "case_id": "same-legal-id-date-conflict",
+      "member_sources": ["8-K", "10-Q"],
+      "legal_event_ids": ["buyback:2026-q2:execution-01", "buyback:2026-q2:execution-01"],
+      "magnitudes": ["5000000", "5000000"],
+      "dates": ["2026-06-29", "2026-06-30"],
+      "expected_status": "blocked_share_event_conflict"
+    },
+    {
+      "case_id": "different-fact-ids-same-event",
+      "member_sources": ["8-K", "10-Q"],
+      "legal_event_ids": ["buyback:2026-q2:execution-01", "buyback:2026-q2:execution-01"],
+      "fact_ids": ["fact:event:8k", "fact:event:10q"],
+      "magnitudes": ["5000000", "5000000"],
+      "dates": ["2026-06-30", "2026-06-30"],
+      "expected_status": "grouped",
+      "expected_canonical_event_count": 1
+    },
+    {
+      "case_id": "same-date-amount-no-distinct-legal-id",
+      "member_sources": ["8-K", "10-Q"],
+      "legal_event_ids": [null, null],
+      "magnitudes": ["5000000", "5000000"],
+      "dates": ["2026-06-30", "2026-06-30"],
+      "expected_status": "blocked_share_event_identity_ambiguous"
+    },
+    {
+      "case_id": "same-date-amount-distinct-legal-ids",
+      "member_sources": ["8-K", "8-K"],
+      "legal_event_ids": ["offering:2026-01", "offering:2026-02"],
+      "magnitudes": ["5000000", "5000000"],
+      "dates": ["2026-06-30", "2026-06-30"],
+      "expected_status": "grouped",
+      "expected_canonical_event_count": 2
+    },
+    {
+      "case_id": "duplicate-option-exercise-transition",
+      "member_sources": ["10-Q", "official_ir"],
+      "legal_event_ids": ["option-plan:exercise-01", "option-plan:exercise-01"],
+      "magnitudes": ["1000000", "1000000"],
+      "dates": ["2026-06-30", "2026-06-30"],
+      "expected_status": "grouped",
+      "expected_claim_transition_count": 1
+    },
+    {
+      "case_id": "input-order-reversal",
+      "member_sources": ["official_ir", "10-Q", "8-K"],
+      "legal_event_ids": ["offering:2026-01", "offering:2026-01", "offering:2026-01"],
+      "magnitudes": ["5000000", "5000000", "5000000"],
+      "dates": ["2026-06-30", "2026-06-30", "2026-06-30"],
+      "expected_status": "grouped",
+      "expected_order_independent": true
+    },
+    {
+      "case_id": "corroboration-closure-only-change",
+      "member_sources": ["8-K", "10-Q"],
+      "legal_event_ids": ["buyback:2026-q2:execution-01", "buyback:2026-q2:execution-01"],
+      "magnitudes": ["5000000", "5000000"],
+      "dates": ["2026-06-30", "2026-06-30"],
+      "expected_status": "grouped",
+      "expected_value_stable": true,
+      "expected_closure_change": true
+    },
+    {
+      "case_id": "ineligible-member-evidence",
+      "member_sources": ["secondary"],
+      "legal_event_ids": ["buyback:2026-q2:execution-01"],
+      "magnitudes": ["5000000"],
+      "dates": ["2026-07-17"],
+      "expected_status": "blocked"
+    },
+    {
+      "case_id": "cumulative-period-total",
+      "member_sources": ["10-Q", "10-K"],
+      "legal_event_ids": ["buyback:2026:ytd", "buyback:2026:ytd"],
+      "magnitudes": ["5000000", "8000000"],
+      "dates": ["2026-03-31", "2026-06-30"],
+      "event_grain": "cumulative_to_date",
+      "expected_status": "blocked_share_event_cumulative_amount"
+    }
+  ]
+}

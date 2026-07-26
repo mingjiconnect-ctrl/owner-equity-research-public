@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0.0",
+  "contract": "MarketReferenceSnapshot",
+  "from_version": "1.0.0",
+  "to_version": "2.0.0",
+  "migration_strategy": "preproduction_hard_break",
+  "automatic_migration": false,
+  "dual_write": false,
+  "legacy_runtime_accepted": false,
+  "legacy_fixture_disposition": "negative_test_only",
+  "public_schema_count_before": 43,
+  "public_schema_count_after": 43,
+  "changed_public_schemas": [
+    "schemas/market-reference-snapshot.schema.json"
+  ]
+}

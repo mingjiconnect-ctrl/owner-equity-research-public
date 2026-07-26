@@ -1,0 +1,20 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema", "$id":"https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/extraction-candidate.schema.json",
+  "title":"ExtractionCandidate", "type":"object", "additionalProperties":false,
+  "required":["schema_version","candidate_id","issuer_id","source_document_id","artifact_id","candidate_kind","concept","value_type","value","unit","currency","period","dimensions","locator","extraction_method","extractor_id","extractor_version","validation_status","validation_issues","high_impact"],
+  "properties":{
+    "schema_version":{"const":"1.0.0"}, "candidate_id":{"type":"string","minLength":1}, "issuer_id":{"type":"string","minLength":1}, "source_document_id":{"type":"string","minLength":1}, "artifact_id":{"type":"string","minLength":1},
+    "candidate_kind":{"enum":["numeric_fact","narrative_fact","claim_draft"]}, "concept":{"type":"string","minLength":1}, "value_type":{"enum":["number","text","boolean","null"]}, "value":{"type":["number","string","boolean","null"]},
+    "unit":{"type":["string","null"]}, "currency":{"type":["string","null"],"pattern":"^[A-Z]{3}$"}, "period":{"$ref":"#/$defs/period"}, "dimensions":{"type":"object","additionalProperties":{"type":"string","minLength":1}},
+    "locator":{"type":"object","additionalProperties":false,"required":["kind","value","excerpt_sha256"],"properties":{"kind":{"enum":["xpath","ixbrl_context","table_cell","text_span"]},"value":{"type":"string","minLength":1},"excerpt_sha256":{"$ref":"#/$defs/sha"}}},
+    "extraction_method":{"enum":["deterministic_table","deterministic_ixbrl","language_model","manual"]}, "extractor_id":{"type":"string","minLength":1}, "extractor_version":{"type":"string","minLength":1},
+    "validation_status":{"enum":["pending","validated","blocked","rejected"]}, "validation_issues":{"type":"array","uniqueItems":true,"items":{"type":"string","minLength":1}}, "high_impact":{"type":"boolean"}
+  },
+  "allOf":[
+    {"if":{"properties":{"value_type":{"const":"number"}}},"then":{"properties":{"value":{"type":"number"}},"required":["unit"]}},
+    {"if":{"properties":{"value_type":{"const":"text"}}},"then":{"properties":{"value":{"type":"string"}}}},
+    {"if":{"properties":{"value_type":{"const":"boolean"}}},"then":{"properties":{"value":{"type":"boolean"}}}},
+    {"if":{"properties":{"value_type":{"const":"null"}}},"then":{"properties":{"value":{"type":"null"}}}}
+  ],
+  "$defs":{"sha":{"type":"string","pattern":"^[a-f0-9]{64}$"},"period":{"type":"object","additionalProperties":false,"required":["start","end"],"properties":{"start":{"type":["string","null"],"format":"date"},"end":{"type":["string","null"],"format":"date"}}}}
+}

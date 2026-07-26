@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "owner-equity-research"
+version = "0.5.0.dev11"
+description = "Auditable equity-research evidence and deterministic integration artifacts"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "jsonschema>=4.23,<5",
+  "httpx>=0.27,<1",
+  "lxml>=5.3,<7",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pyyaml>=6.0,<7",
+  "pytest>=8.3,<9",
+  "ruff>=0.9,<1",
+]
+
+[project.scripts]
+owner-research-validate = "owner_research.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/owner_research"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"schemas" = "owner_research/schemas"
+"component-lock.json" = "owner_research/component-lock.json"
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

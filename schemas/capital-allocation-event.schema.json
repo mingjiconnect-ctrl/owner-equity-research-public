@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/capital-allocation-event.schema.json",
+  "title": "CapitalAllocationEvent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "event_id", "issuer_id", "event_policy_id", "event_policy_version", "economic_event_key", "event_version", "predecessor_event_id", "supersedes_event_ids", "event_type", "event_subtype", "scope", "identity_components", "announcement_date", "execution_period", "lifecycle_status", "source_bindings", "fact_bindings", "claim_bindings", "rationale_statement_ids", "related_commitment_ids", "growth_classification", "missing_evidence"],
+  "properties": {
+    "schema_version": {"const": "2.0.0"}, "event_id": {"type": "string", "minLength": 1}, "issuer_id": {"type": "string", "minLength": 1},
+    "event_policy_id": {"type": "string", "minLength": 1}, "event_policy_version": {"const": "1.0.0"}, "economic_event_key": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "event_version": {"type": "integer", "minimum": 1}, "predecessor_event_id": {"type": ["string", "null"], "minLength": 1}, "supersedes_event_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "event_type": {"type": "string", "minLength": 1}, "event_subtype": {"type": "string", "minLength": 1}, "scope": {"$ref": "capital-allocation-event-candidate.schema.json#/$defs/scope"}, "identity_components": {"type": "array", "minItems": 1, "items": {"$ref": "capital-allocation-event-candidate.schema.json#/$defs/identity"}},
+    "announcement_date": {"type": "string", "format": "date"}, "execution_period": {"type": "object", "additionalProperties": false, "required": ["start", "end"], "properties": {"start": {"type": ["string", "null"], "format": "date"}, "end": {"type": ["string", "null"], "format": "date"}}},
+    "lifecycle_status": {"enum": ["announced", "in_progress", "completed", "cancelled", "blocked"]},
+    "source_bindings": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/source_binding"}}, "fact_bindings": {"type": "array", "items": {"$ref": "#/$defs/fact_binding"}}, "claim_bindings": {"type": "array", "items": {"$ref": "#/$defs/claim_binding"}},
+    "rationale_statement_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}, "related_commitment_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "growth_classification": {"enum": ["organic", "inorganic", "mixed", "not_applicable", "unknown"]}, "missing_evidence": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  },
+  "allOf": [{"if": {"properties": {"lifecycle_status": {"const": "blocked"}}}, "then": {"properties": {"missing_evidence": {"minItems": 1}}}}],
+  "$defs": {
+    "source_binding": {"type": "object", "additionalProperties": false, "required": ["binding_id", "candidate_id", "decision_id", "source_document_id", "role_id"], "properties": {"binding_id": {"type": "string", "minLength": 1}, "candidate_id": {"type": "string", "minLength": 1}, "decision_id": {"type": "string", "minLength": 1}, "source_document_id": {"type": "string", "minLength": 1}, "role_id": {"type": "string", "minLength": 1}}},
+    "fact_binding": {"type": "object", "additionalProperties": false, "required": ["binding_id", "candidate_id", "decision_id", "fact_id", "role_id"], "properties": {"binding_id": {"type": "string", "minLength": 1}, "candidate_id": {"type": "string", "minLength": 1}, "decision_id": {"type": "string", "minLength": 1}, "fact_id": {"type": "string", "minLength": 1}, "role_id": {"type": "string", "minLength": 1}}},
+    "claim_binding": {"type": "object", "additionalProperties": false, "required": ["binding_id", "claim_id", "review_decision_id", "role_id"], "properties": {"binding_id": {"type": "string", "minLength": 1}, "claim_id": {"type": "string", "minLength": 1}, "review_decision_id": {"type": "string", "minLength": 1}, "role_id": {"type": "string", "minLength": 1}}}
+  }
+}

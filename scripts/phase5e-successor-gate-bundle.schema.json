@@ -1,0 +1,317 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://owner-research.local/internal/phase5e-successor-gate-bundle.schema.json",
+  "title": "Phase 5E Successor Gate Bundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "gate_id",
+    "owner_phase",
+    "predecessor_state_fingerprint",
+    "gate_bootstrap_branch",
+    "gate_acceptance_branch",
+    "gate_bootstrap_diff",
+    "gate_acceptance_diff",
+    "successor_implementation_branch",
+    "successor_acceptance_branch",
+    "successor_implementation_diff",
+    "successor_acceptance_diff",
+    "pending_gate_state",
+    "accepted_gate_state",
+    "successor_pending_state",
+    "successor_accepted_state",
+    "post_successor_closeout",
+    "next_gate_seed",
+    "audit",
+    "semantic_oracle",
+    "adversarial_cases",
+    "frozen_paths",
+    "forbidden_prefixes",
+    "component_lock_sha256",
+    "public_schema_count",
+    "public_schema_set_sha256",
+    "kernel_release",
+    "execution_mode",
+    "successor_production_authorized_by_bundle"
+  ],
+  "properties": {
+    "schema_version": {"const": "2.0.0"},
+    "gate_id": {"type": "string", "pattern": "^phase5e[0-9a-z]+$"},
+    "owner_phase": {"type": "string", "minLength": 1},
+    "predecessor_state_fingerprint": {"$ref": "#/$defs/sha256"},
+    "gate_bootstrap_branch": {"$ref": "#/$defs/branch"},
+    "gate_acceptance_branch": {"$ref": "#/$defs/branch"},
+    "gate_bootstrap_diff": {"$ref": "#/$defs/diff"},
+    "gate_acceptance_diff": {"$ref": "#/$defs/diff"},
+    "successor_implementation_branch": {"$ref": "#/$defs/branch"},
+    "successor_acceptance_branch": {"$ref": "#/$defs/branch"},
+    "successor_implementation_diff": {"$ref": "#/$defs/diff"},
+    "successor_acceptance_diff": {"$ref": "#/$defs/diff"},
+    "pending_gate_state": {"$ref": "#/$defs/state"},
+    "accepted_gate_state": {"$ref": "#/$defs/state"},
+    "successor_pending_state": {"$ref": "#/$defs/state"},
+    "successor_accepted_state": {"$ref": "#/$defs/state"},
+    "post_successor_closeout": {"$ref": "#/$defs/post_successor_closeout"},
+    "next_gate_seed": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/authority_seed"}
+      ]
+    },
+    "audit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile_id",
+        "audit_version",
+        "protected_oracle_path",
+        "protected_oracle_sha256",
+        "predecessor_test_count",
+        "predecessor_nodeid_sha256",
+        "expected_added_test_nodeids",
+        "expected_check_ids"
+      ],
+      "properties": {
+        "profile_id": {"type": "string", "pattern": "^phase5e-[a-z0-9-]+$"},
+        "audit_version": {"type": "string", "pattern": "^[0-9]+(?:\\.[0-9]+){2,4}$"},
+        "protected_oracle_path": {"$ref": "#/$defs/path"},
+        "protected_oracle_sha256": {"$ref": "#/$defs/sha256"},
+        "predecessor_test_count": {"type": "integer", "minimum": 1},
+        "predecessor_nodeid_sha256": {"$ref": "#/$defs/sha256"},
+        "expected_added_test_nodeids": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        },
+        "expected_check_ids": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[a-z0-9-]+$"},
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      }
+    },
+    "semantic_oracle": {"$ref": "#/$defs/hashed_path"},
+    "adversarial_cases": {"$ref": "#/$defs/hashed_path"},
+    "frozen_paths": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/path"},
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "forbidden_prefixes": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/path"},
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "component_lock_sha256": {"$ref": "#/$defs/sha256"},
+    "public_schema_count": {"const": 43},
+    "public_schema_set_sha256": {"$ref": "#/$defs/sha256"},
+    "kernel_release": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tag", "tag_object", "commit", "wheel_sha256", "schema_sha256"],
+      "properties": {
+        "tag": {"const": "v2.0.0-rc.2"},
+        "tag_object": {"const": "4e19ce6a59bc4321ebcd368e807ed764f4e8abde"},
+        "commit": {"const": "be9b0773d5a78f5f8a33ba982494512668df85fe"},
+        "wheel_sha256": {"const": "fb27d01b1ee75fbd542371510150e890516d306218d33f3608f2aa3caa0e55a5"},
+        "schema_sha256": {
+          "type": "object",
+          "additionalProperties": {"$ref": "#/$defs/sha256"},
+          "minProperties": 8,
+          "maxProperties": 8
+        }
+      }
+    },
+    "execution_mode": {"const": "protected_base_only_after_gate_acceptance"},
+    "successor_production_authorized_by_bundle": {"const": false}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "branch": {"type": "string", "pattern": "^(?:feature|fix)/[a-z0-9][a-z0-9._/-]*$"},
+    "path": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*[?#])[A-Za-z0-9._/-]+$"
+    },
+    "diff": {
+      "type": "object",
+      "additionalProperties": {"enum": ["A", "M"]},
+      "minProperties": 1,
+      "propertyNames": {"$ref": "#/$defs/path"}
+    },
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["current_phase", "status", "authorized_next", "prohibited", "release_tag"],
+      "properties": {
+        "current_phase": {"type": "string", "minLength": 1},
+        "status": {"enum": ["implementation_complete_pending_acceptance", "accepted_closed"]},
+        "authorized_next": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "maxItems": 1,
+          "uniqueItems": true
+        },
+        "prohibited": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "release_tag": {"type": "null"}
+      }
+    },
+    "hashed_path": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"$ref": "#/$defs/path"},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "audit_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile_id",
+        "audit_version",
+        "protected_oracle_path",
+        "protected_oracle_sha256",
+        "expected_added_test_nodeids",
+        "mandatory_check_ids",
+        "predecessor_test_count",
+        "predecessor_nodeid_sha256"
+      ],
+      "properties": {
+        "profile_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+        "audit_version": {"type": "string", "pattern": "^[0-9]+(?:\\.[0-9]+){2,4}$"},
+        "protected_oracle_path": {"$ref": "#/$defs/path"},
+        "protected_oracle_sha256": {"$ref": "#/$defs/sha256"},
+        "expected_added_test_nodeids": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        },
+        "mandatory_check_ids": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "predecessor_test_count": {"type": "integer", "minimum": 1},
+        "predecessor_nodeid_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "post_successor_closeout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "branch",
+        "closeout_path",
+        "diff",
+        "accepted_state",
+        "implementation_audit_profile",
+        "implementation_audit_version",
+        "transition_audit_profile",
+        "transition_audit_version",
+        "transition_check_ids",
+        "expected_test_count",
+        "expected_nodeid_sha256"
+      ],
+      "properties": {
+        "branch": {"$ref": "#/$defs/branch"},
+        "closeout_path": {"$ref": "#/$defs/path"},
+        "diff": {"$ref": "#/$defs/diff"},
+        "accepted_state": {"$ref": "#/$defs/state"},
+        "implementation_audit_profile": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+        "implementation_audit_version": {"type": "string", "pattern": "^[0-9]+(?:\\.[0-9]+){2,4}$"},
+        "transition_audit_profile": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+        "transition_audit_version": {"type": "string", "pattern": "^[0-9]+(?:\\.[0-9]+){2,4}$"},
+        "transition_check_ids": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "expected_test_count": {"type": "integer", "minimum": 1},
+        "expected_nodeid_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "authority_seed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gate_id",
+        "owner_phase",
+        "next_owner_phase",
+        "next_gate_authority_sha256",
+        "bootstrap_branch",
+        "acceptance_branch",
+        "bundle_directory",
+        "closeout_path",
+        "successor_closeout_path",
+        "successor_implementation_branch",
+        "successor_acceptance_branch",
+        "gate_bootstrap_diff",
+        "gate_acceptance_diff",
+        "successor_implementation_diff",
+        "successor_acceptance_diff",
+        "pending_gate_state",
+        "accepted_gate_state",
+        "successor_pending_state",
+        "successor_accepted_state",
+        "frozen_paths",
+        "forbidden_prefixes",
+        "audit_policy"
+      ],
+      "properties": {
+        "gate_id": {"type": "string", "pattern": "^phase5e[0-9a-z]+$"},
+        "owner_phase": {"type": "string", "minLength": 1},
+        "next_owner_phase": {
+          "oneOf": [
+            {"type": "string", "minLength": 1},
+            {"type": "null"}
+          ]
+        },
+        "next_gate_authority_sha256": {
+          "oneOf": [
+            {"$ref": "#/$defs/sha256"},
+            {"type": "null"}
+          ]
+        },
+        "bootstrap_branch": {"$ref": "#/$defs/branch"},
+        "acceptance_branch": {"$ref": "#/$defs/branch"},
+        "bundle_directory": {"$ref": "#/$defs/path"},
+        "closeout_path": {"$ref": "#/$defs/path"},
+        "successor_closeout_path": {"$ref": "#/$defs/path"},
+        "successor_implementation_branch": {"$ref": "#/$defs/branch"},
+        "successor_acceptance_branch": {"$ref": "#/$defs/branch"},
+        "gate_bootstrap_diff": {"$ref": "#/$defs/diff"},
+        "gate_acceptance_diff": {"$ref": "#/$defs/diff"},
+        "successor_implementation_diff": {"$ref": "#/$defs/diff"},
+        "successor_acceptance_diff": {"$ref": "#/$defs/diff"},
+        "pending_gate_state": {"$ref": "#/$defs/state"},
+        "accepted_gate_state": {"$ref": "#/$defs/state"},
+        "successor_pending_state": {"$ref": "#/$defs/state"},
+        "successor_accepted_state": {"$ref": "#/$defs/state"},
+        "frozen_paths": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/path"},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "forbidden_prefixes": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/path"},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "audit_policy": {"$ref": "#/$defs/audit_policy"}
+      }
+    }
+  }
+}

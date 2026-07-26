@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/source-search-receipt.schema.json",
+  "title": "SourceSearchReceipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "receipt_id", "issuer_id", "source_family", "query_scope", "period", "cutoff_date", "searched_endpoints", "result_document_ids", "completed_at", "tool_version", "request_fingerprint", "status", "issues"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "receipt_id": {"type": "string", "minLength": 1},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "source_family": {"enum": ["10-K", "10-Q", "8-K", "DEF14A", "registration_or_prospectus", "tender_or_merger_material", "credit_or_indentures", "official_ir"]},
+    "query_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cik", "event_types"],
+      "properties": {
+        "cik": {"type": "string", "pattern": "^[0-9]{10}$"},
+        "event_types": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "period": {"type": "object", "additionalProperties": false, "required": ["start", "end"], "properties": {"start": {"type": "string", "format": "date"}, "end": {"type": "string", "format": "date"}}},
+    "cutoff_date": {"type": "string", "format": "date"},
+    "searched_endpoints": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "result_document_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "completed_at": {"type": "string", "format": "date-time"},
+    "tool_version": {"type": "string", "minLength": 1},
+    "request_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "status": {"enum": ["completed", "blocked"]},
+    "issues": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  },
+  "allOf": [
+    {"if": {"properties": {"status": {"const": "completed"}}}, "then": {"properties": {"issues": {"maxItems": 0}}}},
+    {"if": {"properties": {"status": {"const": "blocked"}}}, "then": {"properties": {"issues": {"minItems": 1}}}}
+  ]
+}

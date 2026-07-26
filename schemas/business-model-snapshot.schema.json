@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/business-model-snapshot.schema.json",
+  "title": "BusinessModelSnapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "snapshot_id", "issuer_id", "as_of_date", "status", "source_document_ids", "segment_snapshot_ids", "material_scopes", "components", "component_coverage", "shared_scope_relations", "missing_evidence"],
+  "properties": {
+    "schema_version": {"const": "3.0.0"},
+    "snapshot_id": {"type": "string", "minLength": 1},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "as_of_date": {"type": "string", "format": "date"},
+    "status": {"enum": ["complete", "partial", "blocked"]},
+    "source_document_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "segment_snapshot_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "material_scopes": {"type": "array", "items": {"$ref": "#/$defs/material_scope"}},
+    "components": {"type": "array", "items": {"$ref": "#/$defs/component"}},
+    "component_coverage": {"type": "array", "items": {"$ref": "#/$defs/coverage"}},
+    "shared_scope_relations": {"type": "array", "items": {"$ref": "#/$defs/shared_scope_relation"}},
+    "missing_evidence": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  },
+  "allOf": [
+    {"if": {"properties": {"status": {"const": "complete"}}}, "then": {"properties": {"material_scopes": {"minItems": 1}, "component_coverage": {"minItems": 8}, "missing_evidence": {"maxItems": 0}}}},
+    {"if": {"properties": {"status": {"const": "blocked"}}}, "then": {"properties": {"missing_evidence": {"minItems": 1}}}}
+  ],
+  "$defs": {
+    "scope": {"type": "object", "additionalProperties": false, "required": ["scope_type", "segment_definition_ids", "business_unit", "product_service", "geography", "customer_group", "channel"], "properties": {"scope_type": {"enum": ["issuer_wide", "segment_specific", "product_market"]}, "segment_definition_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}, "business_unit": {"type": ["string", "null"], "minLength": 1}, "product_service": {"type": ["string", "null"], "minLength": 1}, "geography": {"type": ["string", "null"], "minLength": 1}, "customer_group": {"type": ["string", "null"], "minLength": 1}, "channel": {"type": ["string", "null"], "minLength": 1}}},
+    "component_type": {"enum": ["customer", "value_proposition", "revenue_model", "cost_structure", "distribution", "key_resource", "key_partner", "regulatory_dependency"]},
+    "attribute_role": {"enum": ["customer_identity", "purchase_reason", "revenue_formation", "pricing_method", "cost_structure", "capital_requirements", "distribution_method", "key_resources", "key_partners", "regulatory_dependencies", "demand_recurrence", "customer_concentration", "supplier_concentration"]},
+    "material_scope": {"type": "object", "additionalProperties": false, "required": ["scope_id", "scope", "derivation", "segment_snapshot_id", "segment_definition_ids", "materiality_claim_id"], "properties": {"scope_id": {"type": "string", "minLength": 1}, "scope": {"$ref": "#/$defs/scope"}, "derivation": {"enum": ["reportable_segment", "single_reportable_segment", "confirmed_product_market"]}, "segment_snapshot_id": {"type": ["string", "null"], "minLength": 1}, "segment_definition_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}, "materiality_claim_id": {"type": ["string", "null"], "minLength": 1}}},
+    "attribute_binding": {"type": "object", "additionalProperties": false, "required": ["binding_id", "role", "fact_ids", "claim_ids", "review_decision_ids"], "properties": {"binding_id": {"type": "string", "minLength": 1}, "role": {"$ref": "#/$defs/attribute_role"}, "fact_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}, "claim_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}, "review_decision_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}},
+    "component": {"type": "object", "additionalProperties": false, "required": ["component_id", "component_type", "scope_id", "scope", "attribute_roles", "attribute_evidence_bindings", "fact_ids", "claim_ids"], "properties": {"component_id": {"type": "string", "minLength": 1}, "component_type": {"$ref": "#/$defs/component_type"}, "scope_id": {"type": "string", "minLength": 1}, "scope": {"$ref": "#/$defs/scope"}, "attribute_roles": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/attribute_role"}}, "attribute_evidence_bindings": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/attribute_binding"}}, "fact_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}, "claim_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}},
+    "coverage": {"type": "object", "additionalProperties": false, "required": ["scope_id", "component_type", "status", "component_ids", "claim_ids", "review_decision_ids", "missing_evidence"], "properties": {"scope_id": {"type": "string", "minLength": 1}, "component_type": {"$ref": "#/$defs/component_type"}, "status": {"enum": ["reviewed", "not_applicable", "blocked"]}, "component_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}, "claim_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}, "review_decision_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}, "missing_evidence": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}},
+    "shared_scope_relation": {"type": "object", "additionalProperties": false, "required": ["component_id", "covered_scope_ids", "claim_id", "review_decision_id"], "properties": {"component_id": {"type": "string", "minLength": 1}, "covered_scope_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}, "claim_id": {"type": "string", "minLength": 1}, "review_decision_id": {"type": "string", "minLength": 1}}}
+  }
+}

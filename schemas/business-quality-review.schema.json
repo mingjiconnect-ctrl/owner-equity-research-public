@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/business-quality-review.schema.json",
+  "title": "BusinessQualityReview",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "review_id", "issuer_id", "review_period", "as_of_date", "status", "business_model_snapshot_id", "competitive_context_snapshot_id", "hypothesis_ids", "mechanism_coverage", "claim_ids", "analytical_claim_review_decision_ids", "context_observation_ids", "calculation_result_ids", "coverage", "missing_evidence"],
+  "properties": {
+    "schema_version": {"const": "2.0.0"},
+    "review_id": {"type": "string", "minLength": 1},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "review_period": {"type": "object", "additionalProperties": false, "required": ["start", "end"], "properties": {"start": {"type": "string", "format": "date"}, "end": {"type": "string", "format": "date"}}},
+    "as_of_date": {"type": "string", "format": "date"},
+    "status": {"enum": ["complete", "partial", "blocked"]},
+    "business_model_snapshot_id": {"type": "string", "minLength": 1},
+    "competitive_context_snapshot_id": {"type": "string", "minLength": 1},
+    "hypothesis_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "mechanism_coverage": {"type": "array", "minItems": 10, "maxItems": 10, "items": {"$ref": "#/$defs/mechanism_coverage"}},
+    "claim_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "analytical_claim_review_decision_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "context_observation_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "calculation_result_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "coverage": {"$ref": "#/$defs/coverage"},
+    "missing_evidence": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  },
+  "allOf": [
+    {"if": {"properties": {"status": {"enum": ["complete", "partial"]}}}, "then": {"properties": {"claim_ids": {"minItems": 1}}}},
+    {"if": {"properties": {"status": {"const": "complete"}}}, "then": {"properties": {"missing_evidence": {"maxItems": 0}}}},
+    {"if": {"properties": {"status": {"const": "blocked"}}}, "then": {"properties": {"missing_evidence": {"minItems": 1}}}}
+  ],
+  "$defs": {
+    "mechanism_coverage": {"type": "object", "additionalProperties": false, "required": ["mechanism", "status", "hypothesis_ids", "claim_ids", "missing_evidence"], "properties": {"mechanism": {"enum": ["switching_cost", "network_effect", "scale_cost_advantage", "brand_pricing_power", "intellectual_property", "regulatory_license", "distribution", "data_learning", "efficient_scale", "process_execution"]}, "status": {"enum": ["reviewed", "not_applicable", "blocked"]}, "hypothesis_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}, "claim_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}, "missing_evidence": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}},
+    "coverage": {"type": "object", "additionalProperties": false, "required": ["reviewed_component_count", "not_applicable_component_count", "blocked_component_count", "proposed_hypothesis_count", "supported_hypothesis_count", "contested_hypothesis_count", "falsified_hypothesis_count", "blocked_hypothesis_count", "strengthening_count", "stable_count", "eroding_count", "unknown_trend_count", "confirmed_claim_count", "unresolved_counterevidence_count"], "properties": {"reviewed_component_count": {"type": "integer", "minimum": 0}, "not_applicable_component_count": {"type": "integer", "minimum": 0}, "blocked_component_count": {"type": "integer", "minimum": 0}, "proposed_hypothesis_count": {"type": "integer", "minimum": 0}, "supported_hypothesis_count": {"type": "integer", "minimum": 0}, "contested_hypothesis_count": {"type": "integer", "minimum": 0}, "falsified_hypothesis_count": {"type": "integer", "minimum": 0}, "blocked_hypothesis_count": {"type": "integer", "minimum": 0}, "strengthening_count": {"type": "integer", "minimum": 0}, "stable_count": {"type": "integer", "minimum": 0}, "eroding_count": {"type": "integer", "minimum": 0}, "unknown_trend_count": {"type": "integer", "minimum": 0}, "confirmed_claim_count": {"type": "integer", "minimum": 0}, "unresolved_counterevidence_count": {"type": "integer", "minimum": 0}}}
+  }
+}

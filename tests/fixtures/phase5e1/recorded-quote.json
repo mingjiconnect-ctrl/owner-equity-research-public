@@ -1,0 +1,19 @@
+{
+  "provider_id": "provider:recorded-fixture",
+  "provider_version": "1.0.0",
+  "endpoint": "recorded://market/acme",
+  "security_id": "security:acme:common",
+  "ticker": "ACME",
+  "exchange": "XNYS",
+  "share_class": "common",
+  "trading_calendar_id": "calendar:XNYS:1.0.0",
+  "trading_date": "2026-06-30",
+  "quote_timestamp": "2026-06-30T20:00:00+00:00",
+  "session_kind": "regular",
+  "session_status": "completed",
+  "instrument_status": "active",
+  "price_basis": "official_unadjusted_close",
+  "quote_price": "50.125",
+  "quote_currency": "USD",
+  "raw_response_text": "{\"close\":\"50.125\",\"date\":\"2026-06-30\"}"
+}

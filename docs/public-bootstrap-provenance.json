@@ -1,0 +1,14 @@
+{
+  "bootstrap_policy": "single_clean_public_root_from_verified_private_source_snapshot",
+  "private_source": {
+    "commit": "253c869af34d3aa6dc2068171b5a8bd06a0cff95",
+    "repository": "mingjiconnect-ctrl/owner-equity-research",
+    "tree": "66a3fff1d1c0029477780595a279029aefb444bb"
+  },
+  "public_destination": {
+    "repository": "mingjiconnect-ctrl/owner-equity-research-public",
+    "repository_id": 1312436919
+  },
+  "schema_version": "1.0.0",
+  "source_snapshot_file_digest_sha256": "e4fcc2ba01582c47ef61f0fdef08dc08ee439e30d4de1700b6637d6cd8553168"
+}

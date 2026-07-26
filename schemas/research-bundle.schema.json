@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/research-bundle.schema.json",
+  "title": "ResearchBundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "bundle_id",
+    "issuer_id",
+    "data_cutoff_date",
+    "bundle_policy_id",
+    "bundle_policy_version",
+    "status",
+    "module_references",
+    "source_document_ids",
+    "fiscal_period_ids",
+    "segment_definition_ids",
+    "source_graph_sha256",
+    "dependency_closure_sha256",
+    "component_lock_sha256",
+    "bundle_fingerprint",
+    "run_id",
+    "missing_evidence"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "bundle_id": {"type": "string", "minLength": 1},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "data_cutoff_date": {"type": "string", "format": "date"},
+    "bundle_policy_id": {"const": "research-bundle"},
+    "bundle_policy_version": {"const": "1.0.0"},
+    "status": {"enum": ["complete", "partial", "blocked"]},
+    "module_references": {
+      "type": "array",
+      "minItems": 7,
+      "items": {"$ref": "#/$defs/moduleReference"}
+    },
+    "source_document_ids": {"$ref": "#/$defs/idSet"},
+    "fiscal_period_ids": {"$ref": "#/$defs/idSet"},
+    "segment_definition_ids": {"$ref": "#/$defs/idSet"},
+    "source_graph_sha256": {"$ref": "#/$defs/sha256"},
+    "dependency_closure_sha256": {"$ref": "#/$defs/sha256"},
+    "component_lock_sha256": {"$ref": "#/$defs/sha256"},
+    "bundle_fingerprint": {"$ref": "#/$defs/sha256"},
+    "run_id": {"type": "string", "minLength": 1},
+    "missing_evidence": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "complete"}}},
+      "then": {"properties": {"missing_evidence": {"maxItems": 0}}}
+    },
+    {
+      "if": {"properties": {"status": {"const": "blocked"}}},
+      "then": {"properties": {"missing_evidence": {"minItems": 1}}}
+    }
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "idSet": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "period": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {
+        "start": {"type": "string", "format": "date"},
+        "end": {"type": "string", "format": "date"}
+      }
+    },
+    "scopeReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope_id",
+        "scope_type",
+        "segment_definition_ids",
+        "business_unit",
+        "product_service",
+        "geography",
+        "customer_group",
+        "channel"
+      ],
+      "properties": {
+        "scope_id": {"type": "string", "minLength": 1},
+        "scope_type": {"enum": ["issuer_wide", "segment_specific", "product_market", "unresolved"]},
+        "segment_definition_ids": {"$ref": "#/$defs/idSet"},
+        "business_unit": {"type": ["string", "null"]},
+        "product_service": {"type": ["string", "null"]},
+        "geography": {"type": ["string", "null"]},
+        "customer_group": {"type": ["string", "null"]},
+        "channel": {"type": ["string", "null"]}
+      }
+    },
+    "freshnessAssessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "event_watermark_date", "qualifying_source_document_ids", "missing_evidence"],
+      "properties": {
+        "status": {"enum": ["current", "stale", "blocked"]},
+        "event_watermark_date": {"type": ["string", "null"], "format": "date"},
+        "qualifying_source_document_ids": {"$ref": "#/$defs/idSet"},
+        "missing_evidence": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "blocked"}}},
+          "then": {"properties": {"missing_evidence": {"minItems": 1}}}
+        },
+        {
+          "if": {"properties": {"status": {"enum": ["current", "stale"]}}},
+          "then": {
+            "properties": {
+              "event_watermark_date": {"type": "string", "format": "date"},
+              "qualifying_source_document_ids": {"minItems": 1}
+            }
+          }
+        }
+      ]
+    },
+    "moduleReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "module_type",
+        "object_ids",
+        "module_status",
+        "as_of_date",
+        "period",
+        "scope",
+        "freshness",
+        "artifact_sha256",
+        "missing_evidence"
+      ],
+      "properties": {
+        "module_type": {
+          "enum": [
+            "quarterly_update",
+            "segment_snapshot",
+            "footnote_review",
+            "accounting_quality_review",
+            "management_review",
+            "business_quality_review",
+            "capital_allocation_review"
+          ]
+        },
+        "object_ids": {"$ref": "#/$defs/idSet"},
+        "module_status": {"enum": ["complete", "partial", "blocked"]},
+        "as_of_date": {"type": "string", "format": "date"},
+        "period": {"$ref": "#/$defs/period"},
+        "scope": {"$ref": "#/$defs/scopeReference"},
+        "freshness": {"$ref": "#/$defs/freshnessAssessment"},
+        "artifact_sha256": {"$ref": "#/$defs/sha256"},
+        "missing_evidence": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"module_status": {"const": "blocked"}}},
+          "then": {"properties": {"missing_evidence": {"minItems": 1}}}
+        },
+        {
+          "if": {"properties": {"module_status": {"enum": ["complete", "partial"]}}},
+          "then": {"properties": {"object_ids": {"minItems": 1}}}
+        }
+      ]
+    }
+  }
+}

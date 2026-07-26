@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/management-commitment.schema.json",
+  "title": "ManagementCommitment",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "commitment_id", "issuer_id", "statement_id", "commitment_type",
+    "commitment_strength", "metric_concept", "baseline_bindings", "target_bindings",
+    "scope", "measurement_basis", "comparison_direction", "start_date", "due_date",
+    "evaluation_policy_id", "evaluation_policy_version", "condition_claim_ids",
+    "definition_reconciliation_calculation_ids", "status", "withdrawal_statement_id",
+    "superseded_by_commitment_id", "missing_evidence"
+  ],
+  "properties": {
+    "schema_version": {"const": "2.0.0"},
+    "commitment_id": {"type": "string", "minLength": 1},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "statement_id": {"type": "string", "minLength": 1},
+    "commitment_type": {"enum": ["guidance", "strategic_goal", "operating_target", "cost_target", "product_geography_expansion", "acquisition_synergy", "capital_allocation_policy", "kpi_definition"]},
+    "commitment_strength": {"enum": ["committed", "targeted", "conditional"]},
+    "metric_concept": {"type": "string", "minLength": 1},
+    "baseline_bindings": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/baseline_binding"}},
+    "target_bindings": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/target_binding"}},
+    "scope": {"$ref": "#/$defs/scope"},
+    "measurement_basis": {"$ref": "#/$defs/measurement_basis"},
+    "comparison_direction": {"enum": ["higher_is_better", "lower_is_better", "exact", "not_applicable"]},
+    "start_date": {"type": "string", "format": "date"},
+    "due_date": {"type": "string", "format": "date"},
+    "evaluation_policy_id": {"enum": ["numeric_minimum", "numeric_maximum", "numeric_range", "numeric_point", "growth_minimum", "growth_range", "cumulative_minimum", "milestone_by_date", "maintain_or_improve", "policy_compliance"]},
+    "evaluation_policy_version": {"const": "1.0.0"},
+    "condition_claim_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "definition_reconciliation_calculation_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "status": {"enum": ["open", "withdrawn", "superseded", "blocked"]},
+    "withdrawal_statement_id": {"type": ["string", "null"], "minLength": 1},
+    "superseded_by_commitment_id": {"type": ["string", "null"], "minLength": 1},
+    "missing_evidence": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  },
+  "allOf": [
+    {"if": {"properties": {"evaluation_policy_id": {"const": "maintain_or_improve"}}}, "then": {"properties": {"target_bindings": {"maxItems": 0}}}, "else": {"properties": {"target_bindings": {"minItems": 1}}}},
+    {"if": {"properties": {"commitment_strength": {"const": "conditional"}}}, "then": {"properties": {"condition_claim_ids": {"minItems": 1}}}},
+    {"if": {"properties": {"status": {"const": "superseded"}}}, "then": {"properties": {"superseded_by_commitment_id": {"type": "string"}}}},
+    {"if": {"properties": {"status": {"const": "withdrawn"}}}, "then": {"properties": {"withdrawal_statement_id": {"type": "string"}}}},
+    {"if": {"properties": {"status": {"const": "blocked"}}}, "then": {"properties": {"missing_evidence": {"minItems": 1}}}}
+  ],
+  "$defs": {
+    "baseline_binding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["component_id", "fact_id"],
+      "properties": {"component_id": {"type": "string", "minLength": 1}, "fact_id": {"type": "string", "minLength": 1}}
+    },
+    "target_binding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["component_id", "role", "fact_id"],
+      "properties": {
+        "component_id": {"type": "string", "minLength": 1},
+        "role": {"enum": ["point", "lower_bound", "upper_bound", "milestone"]},
+        "fact_id": {"type": "string", "minLength": 1}
+      }
+    },
+    "scope": {
+      "type": "object", "additionalProperties": false,
+      "required": ["scope_type", "scope_id", "scope_label"],
+      "properties": {
+        "scope_type": {"enum": ["issuer", "segment", "product", "geography", "customer_cohort", "other"]},
+        "scope_id": {"type": "string", "minLength": 1},
+        "scope_label": {"type": "string", "minLength": 1}
+      }
+    },
+    "measurement_basis": {
+      "type": "object", "additionalProperties": false,
+      "required": ["accounting_basis", "currency_basis", "growth_basis", "aggregation_basis"],
+      "properties": {
+        "accounting_basis": {"enum": ["gaap", "non_gaap", "operational", "not_applicable"]},
+        "currency_basis": {"enum": ["reported", "constant_currency", "not_applicable"]},
+        "growth_basis": {"enum": ["reported", "organic", "inorganic", "not_applicable"]},
+        "aggregation_basis": {"enum": ["period", "point_in_time", "cumulative", "average"]}
+      }
+    }
+  }
+}

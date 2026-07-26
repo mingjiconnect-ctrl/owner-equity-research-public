@@ -1,0 +1,6 @@
+interface:
+  display_name: "Owner Equity Research"
+  short_description: "Build evidence and management review ledgers"
+  default_prompt: "Use $owner-equity-research to build governed SEC evidence and a deterministic Statement-to-Commitment-to-Outcome-to-Review ledger."
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Owner Research Audit"
+  short_description: "Audit evidence and integration contracts"
+  default_prompt: "Use $owner-research-audit to audit the accepted Phase 1-5E-1 foundation through the active Phase 5E-2B.1-2A boundary: deterministic ResearchBundle and FactLedger replay, accounting reconciliation, accounting-quality adjustments, deterministic MethodViews, the nine-role equity bridge, separate successor readiness, price-blind freeze, governed market authority, rc.2 current-share evidence, cross-source canonical-event grouping, exactly-once integration contracts, stage-aware acceptance governance, component locks, and forbidden outputs. Remain read-only and classify every finding P0-P3."
+policy:
+  allow_implicit_invocation: false

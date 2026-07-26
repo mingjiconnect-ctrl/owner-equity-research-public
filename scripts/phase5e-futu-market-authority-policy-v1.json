@@ -1,0 +1,164 @@
+{
+  "account_boundary": {
+    "credentials_allowed_locations": [
+      "isolated_vm_tmpfs"
+    ],
+    "credentials_forbidden_locations": [
+      "environment_variables",
+      "command_arguments",
+      "git",
+      "logs",
+      "receipts",
+      "audit_artifacts"
+    ],
+    "existing_trading_account_allowed": true,
+    "holdings_or_account_data_access_allowed": false,
+    "login_state_attestation": "every_run",
+    "remediation_if_trade_login_cannot_remain_false": "dedicated_quote_only_futu_id",
+    "required_runtime_login_state": {
+      "qotLogined": true,
+      "trdLogined": false
+    },
+    "runtime_login_mismatch_action": "blocked"
+  },
+  "fallback_policy": "blocked_no_scraping_free_api_or_manual_price",
+  "feasibility_gate": {
+    "all_required": [
+      "account_agreement_permits_internal_valuation_use",
+      "data_rights_permit_private_encrypted_cas_retention_and_independent_audit_replay",
+      "raw_protobuf_s2c_bytes_are_stably_capturable",
+      "qot_login_true_while_trade_login_false_is_enforceable"
+    ],
+    "artifact_location": "repository_external_private_worm_cas",
+    "failure_action": "blocked_no_fallback",
+    "repository_mutation_allowed": false
+  },
+  "invalidation": {
+    "in_place_repair_allowed": false,
+    "new_evidence_open_root_required_for": [
+      "public_schema_change",
+      "component_lock_change",
+      "provider_authority_change",
+      "parser_change",
+      "price_blind_input_change"
+    ],
+    "old_artifacts_invalidated": [
+      "handoff",
+      "snapshot",
+      "valuation_request",
+      "valuation_result",
+      "archive"
+    ]
+  },
+  "numeric_transport": {
+    "authoritative_encoding": "ieee754_binary64_wire_bits",
+    "implicit_rounding_allowed": false,
+    "supplier_native_decimal_claim_allowed": false,
+    "tolerance_comparison_allowed": false
+  },
+  "policy_id": "phase5e-futu-market-authority",
+  "policy_version": "1.0.0",
+  "price_authority": {
+    "adjustment": "AuType.NONE",
+    "extended_time": false,
+    "forbidden_fields": [
+      "last_price",
+      "prev_close"
+    ],
+    "forbidden_price_modes": [
+      "snapshot",
+      "qfq",
+      "hfq",
+      "intraday",
+      "after_hours",
+      "overnight",
+      "automatic_fallback"
+    ],
+    "kline_type": "KLType.K_DAY",
+    "price_basis": "vendor_unadjusted_regular_session_daily_close",
+    "request_api": "RequestHistoryKL",
+    "request_date_rule": "start_equals_end_equals_expected_completed_trading_date",
+    "required_fields": [
+      "DATE_TIME",
+      "CLOSE",
+      "VOLUME"
+    ],
+    "response_rules": {
+      "date_must_equal_expected_trading_date": true,
+      "exact_row_count": 1,
+      "finite_positive_close_required": true,
+      "positive_volume_required": true
+    },
+    "security_identity_source": "price_blind_formal_evidence_only",
+    "session": "Session.RTH",
+    "source_authority_kind": "governed_broker_vendor",
+    "ticker_namespace_inference_allowed": false
+  },
+  "production_scope": {
+    "allowed_components": [
+      "OpenD",
+      "required_proto",
+      "repository_owned_read_only_adapter"
+    ],
+    "current_common_shares_from_futu_allowed": false,
+    "futu_skills_allowed": false,
+    "live_onboarding_phase": "Phase 5E-2F",
+    "live_provider_component_lock_format": "1.4.0",
+    "phase5_public_schema_count": 43,
+    "phase5_vendor_financial_news_or_signals_allowed": false,
+    "provider_neutral_through": "Phase 5E-2E",
+    "public_futu_or_vendor_contract_allowed": false,
+    "sec_ir_regulatory_authority_replaced": false,
+    "trading_or_account_protocols_allowed": false
+  },
+  "raw_evidence": {
+    "private_encrypted_cas_required": true,
+    "public_artifact_payload_allowed": false,
+    "replay_right_required": true,
+    "retention_right_required": true
+  },
+  "runtime_boundary": {
+    "allowed_facade_protocols": [
+      "connect",
+      "heartbeat",
+      "global_state",
+      "RequestHistoryKL"
+    ],
+    "generic_raw_send_allowed": false,
+    "host_opend_port_mapping_allowed": false,
+    "quote_only_stdin_stdout_facade_required": true,
+    "rootless_linux_vm_required": true,
+    "trade_and_account_protocols_rejected_before_opend": true
+  },
+  "runtime_entitlement": {
+    "acceptance_predicates": {
+      "api_quote_permission": "granted",
+      "delay_class": "known_and_equals_authority",
+      "promotion_status": "known_and_equals_authority",
+      "protocol_version": "equals_component_lock",
+      "quota_remaining": "greater_than_zero"
+    },
+    "failure_action": "blocked",
+    "required_every_run": [
+      "api_quote_permission",
+      "delay_class",
+      "quota_remaining",
+      "protocol_version",
+      "promotion_status"
+    ]
+  },
+  "schema_version": "1.0.0",
+  "supersedes_scope": "market_source_and_provider_sections_of_docs/phase5-completion-overlay-v2.md",
+  "supply_chain": {
+    "required_records": [
+      "official_distribution_source",
+      "version",
+      "sha256",
+      "publisher_signature_or_documented_absence",
+      "sbom",
+      "license"
+    ],
+    "research_plugin_inclusion_allowed": false,
+    "research_wheel_inclusion_allowed": false
+  }
+}

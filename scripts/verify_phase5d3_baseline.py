@@ -1,0 +1,47 @@
+#!/usr/bin/env python3
+"""Verify the canonical Phase 5D-3 McKinsey input compiler baseline."""
+
+from __future__ import annotations
+
+import hashlib
+import subprocess
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+PHASE5D3_CLOSEOUT_MERGE = "0eea5f1107ec8e3dc9a211febf1fa52f4c99911f"
+FROZEN_FILES = (
+    "src/owner_research/valuation_mckinsey_inputs.py",
+    "tests/test_phase5d3_mckinsey_inputs.py",
+    "scripts/verify_phase5d3_mckinsey_inputs.py",
+)
+
+
+def _git(*args: str) -> bytes:
+    return subprocess.check_output(["git", "-C", str(ROOT), *args])
+
+
+def main() -> int:
+    ancestry = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(ROOT),
+            "merge-base",
+            "--is-ancestor",
+            PHASE5D3_CLOSEOUT_MERGE,
+            "HEAD",
+        ]
+    )
+    if ancestry.returncode:
+        raise SystemExit("HEAD is not descended from the accepted Phase 5D-3 closeout")
+    for relative in FROZEN_FILES:
+        expected = _git("show", f"{PHASE5D3_CLOSEOUT_MERGE}:{relative}")
+        current = (ROOT / relative).read_bytes()
+        if hashlib.sha256(current).digest() != hashlib.sha256(expected).digest():
+            raise SystemExit(f"Canonical Phase 5D-3 file changed: {relative}")
+    print("Canonical Phase 5D-3 McKinsey input compiler baseline is unchanged")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

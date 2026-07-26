@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/fact.schema.json",
+  "title": "Fact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "fact_id", "issuer_id", "concept", "value_type", "value", "unit", "currency", "period", "source_document_id", "source_locator", "derivation", "parent_fact_ids", "confidence"],
+  "properties": {
+    "schema_version": {"const": "2.0.0"},
+    "fact_id": {"type": "string", "minLength": 1},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "concept": {"type": "string", "minLength": 1},
+    "value_type": {"enum": ["number", "text", "boolean", "null"]},
+    "value": {"type": ["number", "string", "boolean", "null"]},
+    "unit": {"type": ["string", "null"], "minLength": 1},
+    "currency": {"type": ["string", "null"], "pattern": "^[A-Z]{3}$"},
+    "period": {"$ref": "#/$defs/period"},
+    "source_document_id": {"type": "string", "minLength": 1},
+    "source_locator": {"type": "string", "minLength": 1},
+    "derivation": {"type": ["string", "null"]},
+    "parent_fact_ids": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "confidence": {"enum": ["high", "medium", "low"]}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"value_type": {"const": "number"}}, "required": ["value_type"]},
+      "then": {
+        "required": ["unit", "currency", "period"],
+        "properties": {
+          "value": {"type": "number"},
+          "unit": {
+            "enum": [
+              "currency_units", "currency_thousands", "currency_millions", "currency_billions", "currency_per_share",
+              "count", "units", "customers", "users", "subscribers", "members", "stores",
+              "locations", "employees", "shares", "ratio", "percent", "percentage_points",
+              "basis_points", "days", "hours", "minutes", "transactions", "orders",
+              "shipments", "incidents", "nps_points"
+            ]
+          }
+        }
+      }
+    },
+    {"if": {"properties": {"value_type": {"const": "text"}}}, "then": {"properties": {"value": {"type": "string"}}}},
+    {"if": {"properties": {"value_type": {"const": "boolean"}}}, "then": {"properties": {"value": {"type": "boolean"}}}},
+    {"if": {"properties": {"value_type": {"const": "null"}}}, "then": {"properties": {"value": {"type": "null"}}}},
+    {
+      "if": {
+        "properties": {
+          "value_type": {"const": "number"},
+          "unit": {"enum": ["currency_units", "currency_thousands", "currency_millions", "currency_billions", "currency_per_share"]}
+        },
+        "required": ["value_type", "unit"]
+      },
+      "then": {"properties": {"currency": {"type": "string", "pattern": "^[A-Z]{3}$"}}},
+      "else": {
+        "if": {"properties": {"value_type": {"const": "number"}}, "required": ["value_type"]},
+        "then": {"properties": {"currency": {"type": "null"}}}
+      }
+    }
+  ],
+  "$defs": {
+    "period": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {
+        "start": {"type": ["string", "null"], "format": "date"},
+        "end": {"type": ["string", "null"], "format": "date"}
+      }
+    }
+  }
+}

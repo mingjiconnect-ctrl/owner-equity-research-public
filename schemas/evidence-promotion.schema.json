@@ -1,0 +1,17 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema", "$id":"https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/evidence-promotion.schema.json",
+  "title":"EvidencePromotion", "type":"object", "additionalProperties":false,
+  "required":["schema_version","promotion_id","issuer_id","candidate_id","candidate_fingerprint","decision","output_fact_id","output_claim_id","approval_kind","policy_id","policy_version","checks","reviewed_at","reviewer_id","rationale","issues"],
+  "properties":{
+    "schema_version":{"const":"1.0.0"},"promotion_id":{"type":"string","minLength":1},"issuer_id":{"type":"string","minLength":1},"candidate_id":{"type":"string","minLength":1},"candidate_fingerprint":{"$ref":"#/$defs/sha"},
+    "decision":{"enum":["auto_fact","human_confirmed_fact","human_confirmed_claim","blocked","rejected"]},"output_fact_id":{"type":["string","null"],"minLength":1},"output_claim_id":{"type":["string","null"],"minLength":1},
+    "approval_kind":{"enum":["deterministic_program","human"]},"policy_id":{"const":"owner-research-evidence-promotion"},"policy_version":{"type":"string","minLength":1},
+    "checks":{"type":"object","additionalProperties":false,"required":["primary_regulatory","locator_resolved","hash_resolved","value_resolved","unit_resolved","currency_resolved","period_resolved","duplicates_resolved","reconciliation_resolved"],"properties":{"primary_regulatory":{"type":"boolean"},"locator_resolved":{"type":"boolean"},"hash_resolved":{"type":"boolean"},"value_resolved":{"type":"boolean"},"unit_resolved":{"type":"boolean"},"currency_resolved":{"type":"boolean"},"period_resolved":{"type":"boolean"},"duplicates_resolved":{"type":"boolean"},"reconciliation_resolved":{"type":"boolean"}}},
+    "reviewed_at":{"type":"string","format":"date-time"},"reviewer_id":{"type":["string","null"],"minLength":1},"rationale":{"type":"string","minLength":1},"issues":{"type":"array","uniqueItems":true,"items":{"type":"string","minLength":1}}
+  },
+  "allOf":[
+    {"if":{"properties":{"decision":{"enum":["auto_fact","human_confirmed_fact"]}}},"then":{"properties":{"output_fact_id":{"type":"string"},"output_claim_id":{"type":"null"}}}},
+    {"if":{"properties":{"decision":{"const":"human_confirmed_claim"}}},"then":{"properties":{"output_fact_id":{"type":"null"},"output_claim_id":{"type":"string"}}}},
+    {"if":{"properties":{"decision":{"enum":["blocked","rejected"]}}},"then":{"properties":{"output_fact_id":{"type":"null"},"output_claim_id":{"type":"null"}}}}
+  ], "$defs":{"sha":{"type":"string","pattern":"^[a-f0-9]{64}$"}}
+}

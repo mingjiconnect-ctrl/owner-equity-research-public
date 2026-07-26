@@ -1,0 +1,6 @@
+interface:
+  display_name: "Owner Research Publish"
+  short_description: "Publish verified owner research explicitly"
+  default_prompt: "Use $owner-research-publish to check whether a verified package is publishable."
+policy:
+  allow_implicit_invocation: false

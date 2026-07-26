@@ -1,0 +1,86 @@
+{
+  "blocked_items": [
+    "10-K:missing_mandatory_topic:related_parties",
+    "10-K:missing_mandatory_topic:supplier_finance",
+    "10-K:missing_mandatory_topic:vie",
+    "10-Q:missing_mandatory_topic:related_parties",
+    "10-Q:missing_mandatory_topic:supplier_finance"
+  ],
+  "cik": "1018724",
+  "contains_claims": false,
+  "contains_facts": false,
+  "contains_raw_filing_content": false,
+  "contains_report": false,
+  "contains_scores": false,
+  "contains_valuation": false,
+  "data_cutoff_date": "2026-07-11",
+  "filings": [
+    {
+      "accession": "0001018724-26-000004",
+      "blocked_items": [
+        "missing_mandatory_topic:related_parties",
+        "missing_mandatory_topic:supplier_finance",
+        "missing_mandatory_topic:vie"
+      ],
+      "filing_date": "2026-02-06",
+      "footnote_coverage": [
+        "acquisitions_divestitures",
+        "commitments_guarantees_off_balance_sheet",
+        "contingencies_litigation",
+        "debt_liquidity_covenants",
+        "fair_value_derivatives_hedging",
+        "goodwill_intangibles_impairment",
+        "income_taxes",
+        "leases",
+        "pensions_postretirement",
+        "restructuring_exit",
+        "revenue_contract_balances",
+        "sbc"
+      ],
+      "form": "10-K",
+      "ixbrl_candidate_count": 1598,
+      "normalized_sha256": "da0a4f7ca67006bc0ab656cbe74c756c65c402f1bb07c6e04e1cfa8859c2f419",
+      "note_heading_count": 10,
+      "parser_version": "0.3.0-alpha.1",
+      "raw_sha256": "beb1bfc28558135e76882db0cf36ba72a1ab44e2144fe37534f4da1e120ddb57",
+      "report_period": "2025-12-31"
+    },
+    {
+      "accession": "0001018724-26-000014",
+      "blocked_items": [
+        "missing_mandatory_topic:related_parties",
+        "missing_mandatory_topic:supplier_finance"
+      ],
+      "filing_date": "2026-04-30",
+      "footnote_coverage": [
+        "acquisitions_divestitures",
+        "commitments_guarantees_off_balance_sheet",
+        "contingencies_litigation",
+        "debt_liquidity_covenants",
+        "fair_value_derivatives_hedging",
+        "goodwill_intangibles_impairment",
+        "income_taxes",
+        "leases",
+        "pensions_postretirement",
+        "restructuring_exit",
+        "revenue_contract_balances",
+        "sbc",
+        "vie"
+      ],
+      "form": "10-Q",
+      "ixbrl_candidate_count": 987,
+      "normalized_sha256": "62e3d5709187fca949db2ea77e903fb8d40c21a816cc0a3864490de006925f0d",
+      "note_heading_count": 9,
+      "parser_version": "0.3.0-alpha.1",
+      "raw_sha256": "bfc025c92bd7ed07daac4210020764854242103002ac7bb59ccb28bf058f04e3",
+      "report_period": "2026-03-31"
+    }
+  ],
+  "issuer_id": "issuer:amazon",
+  "manifest_version": "1.0.0",
+  "network_is_explicit": true,
+  "parser_version": "0.3.0-alpha.1",
+  "retrieved_at": "2026-07-11T11:10:57Z",
+  "shadow_type": "sec_filing_accounting_quality",
+  "validation_status": "partial"
+}

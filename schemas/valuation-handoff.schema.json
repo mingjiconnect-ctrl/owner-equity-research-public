@@ -1,0 +1,243 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/valuation-handoff.schema.json",
+  "title": "ValuationHandoff",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "handoff_id",
+    "handoff_policy_id",
+    "handoff_policy_version",
+    "handoff_run_id",
+    "handoff_version",
+    "transitioned_at",
+    "issuer_id",
+    "data_cutoff_date",
+    "state",
+    "predecessor_handoff_id",
+    "supersedes_handoff_id",
+    "research_bundle_id",
+    "research_bundle_fingerprint",
+    "research_bundle_dependency_sha256",
+    "research_run_manifest_id",
+    "supplemental_reference_closure_sha256",
+    "mapping_policy_id",
+    "mapping_policy_version",
+    "assumption_slot_policy_id",
+    "assumption_slot_policy_version",
+    "assumption_slot_policy_sha256",
+    "assumption_evidence_policy_id",
+    "assumption_evidence_policy_version",
+    "assumption_evidence_policy_sha256",
+    "price_blind_freeze_policy_id",
+    "price_blind_freeze_policy_version",
+    "price_blind_freeze_policy_sha256",
+    "component_lock_sha256",
+    "kernel_identity",
+    "assumption_candidate_ids",
+    "assumption_review_decision_ids",
+    "price_blind_input_fingerprint",
+    "protected_mckinsey_sha256",
+    "protected_penman_assumptions_sha256",
+    "market_reference_snapshot_id",
+    "valuation_request_sha256",
+    "valuation_result_sha256",
+    "quarantined_market_reference_snapshot_ids",
+    "missing_evidence"
+  ],
+  "properties": {
+    "schema_version": {"const": "2.0.0"},
+    "handoff_id": {"type": "string", "minLength": 1},
+    "handoff_policy_id": {"const": "valuation-handoff"},
+    "handoff_policy_version": {"const": "2.0.0"},
+    "handoff_run_id": {"type": "string", "minLength": 1},
+    "handoff_version": {"type": "integer", "minimum": 1},
+    "transitioned_at": {"type": "string", "format": "date-time"},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "data_cutoff_date": {"type": "string", "format": "date"},
+    "state": {
+      "enum": [
+        "evidence_open",
+        "price_blind_candidates_reviewed",
+        "price_blind_input_frozen",
+        "market_reference_allowed",
+        "request_compiled",
+        "kernel_result_frozen"
+      ]
+    },
+    "predecessor_handoff_id": {"type": ["string", "null"], "minLength": 1},
+    "supersedes_handoff_id": {"type": ["string", "null"], "minLength": 1},
+    "research_bundle_id": {"type": "string", "minLength": 1},
+    "research_bundle_fingerprint": {"$ref": "#/$defs/sha256"},
+    "research_bundle_dependency_sha256": {"$ref": "#/$defs/sha256"},
+    "research_run_manifest_id": {"type": "string", "minLength": 1},
+    "supplemental_reference_closure_sha256": {"$ref": "#/$defs/sha256"},
+    "mapping_policy_id": {"type": "string", "minLength": 1},
+    "mapping_policy_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "assumption_slot_policy_id": {"const": "assumption-slot"},
+    "assumption_slot_policy_version": {"const": "1.0.0"},
+    "assumption_slot_policy_sha256": {"$ref": "#/$defs/sha256"},
+    "assumption_evidence_policy_id": {"const": "assumption-evidence"},
+    "assumption_evidence_policy_version": {"const": "1.0.0"},
+    "assumption_evidence_policy_sha256": {"$ref": "#/$defs/sha256"},
+    "price_blind_freeze_policy_id": {"const": "price-blind-freeze"},
+    "price_blind_freeze_policy_version": {"const": "1.0.0"},
+    "price_blind_freeze_policy_sha256": {"$ref": "#/$defs/sha256"},
+    "component_lock_sha256": {"$ref": "#/$defs/sha256"},
+    "kernel_identity": {"$ref": "#/$defs/kernelIdentity"},
+    "assumption_candidate_ids": {"$ref": "#/$defs/idSet"},
+    "assumption_review_decision_ids": {"$ref": "#/$defs/idSet"},
+    "price_blind_input_fingerprint": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]},
+    "protected_mckinsey_sha256": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]},
+    "protected_penman_assumptions_sha256": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]},
+    "market_reference_snapshot_id": {"type": ["string", "null"], "minLength": 1},
+    "valuation_request_sha256": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]},
+    "valuation_result_sha256": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]},
+    "quarantined_market_reference_snapshot_ids": {"$ref": "#/$defs/idSet"},
+    "missing_evidence": {"$ref": "#/$defs/stringSet"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"state": {"const": "evidence_open"}}},
+      "then": {
+        "properties": {
+          "handoff_version": {"const": 1},
+          "predecessor_handoff_id": {"type": "null"},
+          "assumption_candidate_ids": {"maxItems": 0},
+          "assumption_review_decision_ids": {"maxItems": 0},
+          "price_blind_input_fingerprint": {"type": "null"},
+          "protected_mckinsey_sha256": {"type": "null"},
+          "protected_penman_assumptions_sha256": {"type": "null"},
+          "market_reference_snapshot_id": {"type": "null"},
+          "valuation_request_sha256": {"type": "null"},
+          "valuation_result_sha256": {"type": "null"}
+        }
+      },
+      "else": {
+        "properties": {
+          "handoff_version": {"minimum": 2},
+          "predecessor_handoff_id": {"type": "string", "minLength": 1},
+          "supersedes_handoff_id": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"state": {"const": "price_blind_candidates_reviewed"}}},
+      "then": {
+        "properties": {
+          "assumption_candidate_ids": {"minItems": 1},
+          "assumption_review_decision_ids": {"minItems": 1},
+          "price_blind_input_fingerprint": {"type": "null"},
+          "protected_mckinsey_sha256": {"type": "null"},
+          "protected_penman_assumptions_sha256": {"type": "null"},
+          "market_reference_snapshot_id": {"type": "null"},
+          "valuation_request_sha256": {"type": "null"},
+          "valuation_result_sha256": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "enum": [
+              "price_blind_input_frozen",
+              "market_reference_allowed",
+              "request_compiled",
+              "kernel_result_frozen"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "assumption_candidate_ids": {"minItems": 1},
+          "assumption_review_decision_ids": {"minItems": 1},
+          "price_blind_input_fingerprint": {"$ref": "#/$defs/sha256"},
+          "protected_mckinsey_sha256": {"$ref": "#/$defs/sha256"},
+          "protected_penman_assumptions_sha256": {"$ref": "#/$defs/sha256"},
+          "missing_evidence": {"maxItems": 0}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"state": {"enum": ["price_blind_input_frozen", "market_reference_allowed"]}}},
+      "then": {
+        "properties": {
+          "market_reference_snapshot_id": {"type": "null"},
+          "valuation_request_sha256": {"type": "null"},
+          "valuation_result_sha256": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"state": {"const": "request_compiled"}}},
+      "then": {
+        "properties": {
+          "market_reference_snapshot_id": {"type": "string", "minLength": 1},
+          "valuation_request_sha256": {"$ref": "#/$defs/sha256"},
+          "valuation_result_sha256": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"state": {"const": "kernel_result_frozen"}}},
+      "then": {
+        "properties": {
+          "market_reference_snapshot_id": {"type": "string", "minLength": 1},
+          "valuation_request_sha256": {"$ref": "#/$defs/sha256"},
+          "valuation_result_sha256": {"$ref": "#/$defs/sha256"}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "idSet": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "stringSet": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "kernelIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "tag", "commit", "plugin_version", "public_schema_sha256"],
+      "properties": {
+        "repository": {"const": "mingjiconnect-ctrl/owner-valuation-kernel"},
+        "tag": {"const": "v2.0.0-rc.1"},
+        "commit": {"const": "a7dd1528c34f09702686b32ffbb8a397439665f0"},
+        "plugin_version": {"const": "2.0.0-rc.1"},
+        "public_schema_sha256": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "schemas/assumption-ledger.schema.json",
+            "schemas/fact-ledger.schema.json",
+            "schemas/sec-company-profile.schema.json",
+            "schemas/sec-company-review.schema.json",
+            "schemas/sec-evidence-pack.schema.json",
+            "schemas/sec-scenario-policy.schema.json",
+            "schemas/valuation-request.schema.json",
+            "schemas/valuation-result.schema.json"
+          ],
+          "properties": {
+            "schemas/assumption-ledger.schema.json": {"$ref": "#/$defs/sha256"},
+            "schemas/fact-ledger.schema.json": {"$ref": "#/$defs/sha256"},
+            "schemas/sec-company-profile.schema.json": {"$ref": "#/$defs/sha256"},
+            "schemas/sec-company-review.schema.json": {"$ref": "#/$defs/sha256"},
+            "schemas/sec-evidence-pack.schema.json": {"$ref": "#/$defs/sha256"},
+            "schemas/sec-scenario-policy.schema.json": {"$ref": "#/$defs/sha256"},
+            "schemas/valuation-request.schema.json": {"$ref": "#/$defs/sha256"},
+            "schemas/valuation-result.schema.json": {"$ref": "#/$defs/sha256"}
+          }
+        }
+      }
+    }
+  }
+}

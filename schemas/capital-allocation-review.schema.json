@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/capital-allocation-review.schema.json",
+  "title": "CapitalAllocationReview",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "review_id", "issuer_id", "review_policy_id", "review_policy_version", "review_period", "as_of_date", "status", "source_coverage", "event_type_coverage", "event_ids", "outcome_ids", "coverage", "claim_bindings", "calculation_result_ids", "missing_evidence"],
+  "properties": {
+    "schema_version": {"const": "3.0.0"},
+    "review_id": {"type": "string", "minLength": 1},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "review_policy_id": {"const": "capital-allocation-review"},
+    "review_policy_version": {"const": "2.0.0"},
+    "review_period": {"type": "object", "additionalProperties": false, "required": ["start", "end"], "properties": {"start": {"type": "string", "format": "date"}, "end": {"type": "string", "format": "date"}}},
+    "as_of_date": {"type": "string", "format": "date"},
+    "status": {"enum": ["complete", "partial", "blocked"]},
+    "source_coverage": {"type": "array", "minItems": 8, "maxItems": 8, "items": {"$ref": "#/$defs/source_coverage"}},
+    "event_type_coverage": {"type": "array", "minItems": 13, "maxItems": 13, "items": {"$ref": "#/$defs/event_coverage"}},
+    "event_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "outcome_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "coverage": {"$ref": "#/$defs/counts"},
+    "claim_bindings": {"type": "array", "items": {"$ref": "capital-allocation-outcome.schema.json#/$defs/claim_binding"}},
+    "calculation_result_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "missing_evidence": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  },
+  "allOf": [
+    {"if": {"properties": {"status": {"const": "complete"}}}, "then": {"properties": {"missing_evidence": {"maxItems": 0}}}},
+    {"if": {"properties": {"status": {"const": "blocked"}}}, "then": {"properties": {"missing_evidence": {"minItems": 1}}}}
+  ],
+  "$defs": {
+    "source_coverage": {
+      "type": "object", "additionalProperties": false,
+      "required": ["source_family", "status", "source_document_ids", "search_receipt_ids", "claim_binding_ids", "missing_evidence"],
+      "properties": {
+        "source_family": {"enum": ["10-K", "10-Q", "8-K", "DEF14A", "registration_or_prospectus", "tender_or_merger_material", "credit_or_indentures", "official_ir"]},
+        "status": {"enum": ["reviewed_present", "searched_not_found", "not_applicable", "blocked"]},
+        "source_document_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "search_receipt_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "claim_binding_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "missing_evidence": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "event_coverage": {
+      "type": "object", "additionalProperties": false,
+      "required": ["event_type", "status", "event_ids", "source_document_ids", "search_receipt_ids", "claim_binding_ids", "missing_evidence"],
+      "properties": {
+        "event_type": {"type": "string", "minLength": 1},
+        "status": {"enum": ["reviewed", "not_found", "not_applicable", "blocked"]},
+        "event_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "source_document_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "search_receipt_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "claim_binding_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "missing_evidence": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "counts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["logical_event_count", "event_version_count", "outcome_count", "not_due_count", "observed_count", "partial_count", "unverifiable_count", "blocked_count", "cancelled_count", "superseded_count", "reviewed_type_count", "not_found_type_count", "not_applicable_type_count", "blocked_type_count", "reviewed_present_source_count", "searched_not_found_source_count", "not_applicable_source_count", "blocked_source_count"],
+      "properties": {
+        "logical_event_count": {"type": "integer", "minimum": 0}, "event_version_count": {"type": "integer", "minimum": 0}, "outcome_count": {"type": "integer", "minimum": 0}, "not_due_count": {"type": "integer", "minimum": 0}, "observed_count": {"type": "integer", "minimum": 0}, "partial_count": {"type": "integer", "minimum": 0}, "unverifiable_count": {"type": "integer", "minimum": 0}, "blocked_count": {"type": "integer", "minimum": 0}, "cancelled_count": {"type": "integer", "minimum": 0}, "superseded_count": {"type": "integer", "minimum": 0}, "reviewed_type_count": {"type": "integer", "minimum": 0}, "not_found_type_count": {"type": "integer", "minimum": 0}, "not_applicable_type_count": {"type": "integer", "minimum": 0}, "blocked_type_count": {"type": "integer", "minimum": 0}, "reviewed_present_source_count": {"type": "integer", "minimum": 0}, "searched_not_found_source_count": {"type": "integer", "minimum": 0}, "not_applicable_source_count": {"type": "integer", "minimum": 0}, "blocked_source_count": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

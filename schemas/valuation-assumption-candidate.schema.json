@@ -1,0 +1,208 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/valuation-assumption-candidate.schema.json",
+  "title": "ValuationAssumptionCandidate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "candidate_id",
+    "issuer_id",
+    "data_cutoff_date",
+    "candidate_policy_id",
+    "candidate_policy_version",
+    "research_bundle_id",
+    "research_bundle_fingerprint",
+    "research_bundle_dependency_sha256",
+    "supplemental_reference_closure_sha256",
+    "assumption_slot_id",
+    "method_scope",
+    "kernel_concept",
+    "value",
+    "unit",
+    "currency",
+    "horizon",
+    "scenario",
+    "rationale",
+    "evidence_bindings",
+    "generation_method",
+    "evidence_graph_sha256",
+    "validation_status",
+    "validation_issues"
+  ],
+  "properties": {
+    "schema_version": {"const": "2.0.0"},
+    "candidate_id": {"type": "string", "minLength": 1},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "data_cutoff_date": {"type": "string", "format": "date"},
+    "candidate_policy_id": {"const": "valuation-assumption-candidate"},
+    "candidate_policy_version": {"const": "2.0.0"},
+    "research_bundle_id": {"type": "string", "minLength": 1},
+    "research_bundle_fingerprint": {"$ref": "#/$defs/sha256"},
+    "research_bundle_dependency_sha256": {"$ref": "#/$defs/sha256"},
+    "supplemental_reference_closure_sha256": {"$ref": "#/$defs/sha256"},
+    "assumption_slot_id": {
+      "type": "string",
+      "pattern": "^(mckinsey\\.(black_swan|bear|base|bull)\\.(forecast\\.[0-9]{4}\\.(revenue|nopat|ending_invested_capital)|wacc|terminal_(growth|ronic|margin|roic)|steady_state_tolerance)|penman\\.(forecast\\.[0-9]{4}\\.(sales|operating_income_after_tax|ending_noa)|primary_hurdle|hurdle_grid\\.[0-9]{2}|growth_grid\\.[0-9]{2}|long_run_growth|challenge\\.[0-9]{4}\\.(sales|ending_noa)))$"
+    },
+    "method_scope": {"enum": ["mckinsey", "penman"]},
+    "kernel_concept": {
+      "enum": [
+        "revenue",
+        "nopat",
+        "ending_invested_capital",
+        "wacc",
+        "terminal_growth",
+        "terminal_ronic",
+        "terminal_margin",
+        "terminal_roic",
+        "steady_state_tolerance",
+        "sales",
+        "operating_income_after_tax",
+        "ending_noa",
+        "hurdle_rate",
+        "growth_rate"
+      ]
+    },
+    "value": {"type": "number"},
+    "unit": {"type": "string", "minLength": 1},
+    "currency": {"type": ["string", "null"], "pattern": "^[A-Z]{3}$"},
+    "horizon": {"$ref": "#/$defs/horizon"},
+    "scenario": {
+      "oneOf": [
+        {"enum": ["black_swan", "bear", "base", "bull"]},
+        {"type": "null"}
+      ]
+    },
+    "rationale": {"type": "string", "minLength": 1},
+    "evidence_bindings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/evidenceBinding"}
+    },
+    "generation_method": {"enum": ["deterministic", "human", "llm"]},
+    "evidence_graph_sha256": {"$ref": "#/$defs/sha256"},
+    "validation_status": {"enum": ["eligible", "blocked"]},
+    "validation_issues": {"$ref": "#/$defs/stringSet"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"method_scope": {"const": "mckinsey"}}},
+      "then": {
+        "properties": {
+          "assumption_slot_id": {"pattern": "^mckinsey\\."},
+          "kernel_concept": {
+            "enum": [
+              "revenue",
+              "nopat",
+              "ending_invested_capital",
+              "wacc",
+              "terminal_growth",
+              "terminal_ronic",
+              "terminal_margin",
+              "terminal_roic",
+              "steady_state_tolerance"
+            ]
+          },
+          "scenario": {"enum": ["black_swan", "bear", "base", "bull"]}
+        }
+      },
+      "else": {
+        "properties": {
+          "assumption_slot_id": {"pattern": "^penman\\."},
+          "kernel_concept": {
+            "enum": [
+              "sales",
+              "operating_income_after_tax",
+              "ending_noa",
+              "hurdle_rate",
+              "growth_rate"
+            ]
+          },
+          "scenario": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"validation_status": {"const": "blocked"}}},
+      "then": {"properties": {"validation_issues": {"minItems": 1}}},
+      "else": {"properties": {"validation_issues": {"maxItems": 0}}}
+    }
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "stringSet": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "horizon": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "start_date", "end_date"],
+      "properties": {
+        "kind": {"enum": ["point_in_time", "period", "terminal"]},
+        "start_date": {"type": ["string", "null"], "format": "date"},
+        "end_date": {"type": "string", "format": "date"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"kind": {"const": "period"}}},
+          "then": {"properties": {"start_date": {"type": "string", "format": "date"}}},
+          "else": {"properties": {"start_date": {"type": "null"}}}
+        }
+      ]
+    },
+    "evidenceBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "binding_id",
+        "role",
+        "slot_evidence_role",
+        "evidence_domain",
+        "contract_type",
+        "object_id"
+      ],
+      "properties": {
+        "binding_id": {"type": "string", "minLength": 1},
+        "role": {"enum": ["support", "counterevidence", "rationale", "falsification", "limitation"]},
+        "slot_evidence_role": {
+          "enum": [
+            "mapped_historical_fact",
+            "reviewed_management_guidance",
+            "reviewed_business_quality",
+            "reviewed_accounting_quality",
+            "reviewed_capital_allocation",
+            "macro_risk_free",
+            "macro_inflation",
+            "macro_long_run_growth",
+            "equity_risk_premium",
+            "industry_beta",
+            "debt_cost",
+            "capital_structure",
+            "tax_rate",
+            "owner_hurdle_policy",
+            "opportunity_cost",
+            "counterevidence",
+            "falsification",
+            "limitation"
+          ]
+        },
+        "evidence_domain": {"enum": ["research_bundle", "supplemental_price_blind"]},
+        "contract_type": {
+          "enum": [
+            "Fact",
+            "CalculationResult",
+            "Claim",
+            "AccountingQualityReview",
+            "ManagementReview",
+            "BusinessQualityReview",
+            "CapitalAllocationReview"
+          ]
+        },
+        "object_id": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

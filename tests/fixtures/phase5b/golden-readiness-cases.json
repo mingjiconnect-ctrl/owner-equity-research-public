@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0.0",
+  "cases": [
+    {"case_id": "standard-nonfinancial", "mode": "public", "sic": 7372, "omit": [], "company_type": "nonfinancial_operating_company", "specialist_route": "none", "mckinsey": "ready", "penman": "ready"},
+    {"case_id": "method-asymmetric", "mode": "public", "sic": 7372, "omit": ["diluted_shares"], "company_type": "nonfinancial_operating_company", "specialist_route": "none", "mckinsey": "partial", "penman": "ready"},
+    {"case_id": "bank", "mode": "public", "sic": 6021, "omit": [], "company_type": "bank", "specialist_route": "financial_institution", "mckinsey": "specialist_required", "penman": "specialist_required"},
+    {"case_id": "insurer", "mode": "public", "sic": 6331, "omit": [], "company_type": "insurer", "specialist_route": "financial_institution", "mckinsey": "specialist_required", "penman": "specialist_required"},
+    {"case_id": "multiple-material-segments", "mode": "multi_segment", "sic": 7372, "omit": [], "company_type": "conglomerate", "specialist_route": "sum_of_parts", "mckinsey": "specialist_required", "penman": "specialist_required"},
+    {"case_id": "asset-based", "mode": "specialist_claim", "statement": "Phase 5 routing classification: asset-based company.", "sic": 7372, "omit": [], "company_type": "asset_based", "specialist_route": "nav_or_asset", "mckinsey": "specialist_required", "penman": "specialist_required"},
+    {"case_id": "distressed", "mode": "specialist_claim", "statement": "Phase 5 routing classification: distressed company.", "sic": 7372, "omit": [], "company_type": "distressed", "specialist_route": "distress_or_apv", "mckinsey": "specialist_required", "penman": "specialist_required"},
+    {"case_id": "insufficient-classification-evidence", "mode": "public", "sic": null, "omit": [], "company_type": "unresolved", "specialist_route": "unresolved", "mckinsey": "blocked", "penman": "blocked"}
+  ]
+}

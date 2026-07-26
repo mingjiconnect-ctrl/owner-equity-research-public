@@ -1,0 +1,89 @@
+{
+  "schema_version": "1.0.0",
+  "cases": [
+    {
+      "case_id": "pricing-volume-collapse",
+      "evidence": ["price_increase", "unit_volume_decline"],
+      "forbidden_inference": "brand_pricing_power_supported",
+      "required_state": "contested",
+      "expected_error_pattern": "unresolved counterevidence"
+    },
+    {
+      "case_id": "subsidized-user-growth",
+      "evidence": ["active_user_growth", "subsidy_per_user_growth"],
+      "forbidden_inference": "network_effect_supported",
+      "required_state": "contested",
+      "expected_error_pattern": "unresolved counterevidence"
+    },
+    {
+      "case_id": "sticky-claim-worsening-churn",
+      "evidence": ["management_stickiness_statement", "customer_churn_deterioration"],
+      "forbidden_inference": "switching_cost_supported",
+      "required_state": "contested",
+      "expected_error_pattern": "unresolved counterevidence"
+    },
+    {
+      "case_id": "revenue-up-unit-cost-worse",
+      "evidence": ["revenue_growth", "unit_cost_deterioration"],
+      "forbidden_inference": "scale_cost_advantage_supported",
+      "required_state": "contested",
+      "expected_error_pattern": "unresolved counterevidence"
+    },
+    {
+      "case_id": "kpi-definition-change",
+      "evidence": ["predecessor_kpi_definition", "redefined_kpi_definition"],
+      "forbidden_inference": "direct_cross_definition_comparison",
+      "required_state": "blocked_without_deterministic_bridge",
+      "expected_error_pattern": "crosses a KPI definition change"
+    },
+    {
+      "case_id": "unexpired-commitment",
+      "evidence": ["commitment_due_date", "assessment_date_before_due_date"],
+      "forbidden_inference": "missed",
+      "required_state": "pending",
+      "expected_error_pattern": "unexpired"
+    },
+    {
+      "case_id": "buyback-offset-by-sbc",
+      "evidence": ["buyback_execution", "sbc", "equity_issuance", "net_share_change"],
+      "forbidden_inference": "buyback_effective_from_gross_spend",
+      "required_state": "partial_or_observed_with_all_roles",
+      "expected_error_pattern": "net shares"
+    },
+    {
+      "case_id": "debt-buyback-eps",
+      "evidence": ["debt_funded_buyback", "eps_accretion"],
+      "forbidden_inference": "capital_allocation_effective_from_eps_only",
+      "required_state": "partial",
+      "expected_error_pattern": "EPS accretion alone"
+    },
+    {
+      "case_id": "acquisition-revenue-organic",
+      "evidence": ["acquisition_close", "acquired_revenue"],
+      "forbidden_inference": "organic_growth",
+      "required_state": "inorganic_or_mixed",
+      "expected_error_pattern": "cannot be classified as organic"
+    },
+    {
+      "case_id": "synergy-then-impairment",
+      "evidence": ["synergy_commitment", "subsequent_impairment"],
+      "forbidden_inference": "acquisition_effective_without_impairment_review",
+      "required_state": "partial_or_observed_with_both_roles",
+      "expected_error_pattern": "impairment or synergy"
+    },
+    {
+      "case_id": "duplicate-capital-event",
+      "evidence": ["same_transaction_in_8k", "same_transaction_in_10q"],
+      "forbidden_inference": "two_events",
+      "required_state": "one_event_multiple_sources",
+      "expected_error_pattern": "duplicate CapitalAllocationEvent"
+    },
+    {
+      "case_id": "missing-outcome-evidence",
+      "evidence": ["commitment_or_event", "outcome_evidence_missing"],
+      "forbidden_inference": "negative_conclusion",
+      "required_state": "unverifiable_or_blocked",
+      "expected_error_pattern": "requires result evidence"
+    }
+  ]
+}

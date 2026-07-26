@@ -1,0 +1,93 @@
+{
+  "blocked_items": [
+    "multi_year_quantitative_target_not_disclosed",
+    "official_q2_2026_result_not_disclosed_at_cutoff"
+  ],
+  "cik": "1018724",
+  "contains_claims": false,
+  "contains_facts": false,
+  "contains_raw_source_content": false,
+  "contains_recommendation": false,
+  "contains_report": false,
+  "contains_scores": false,
+  "contains_target_price": false,
+  "contains_valuation": false,
+  "coverage": {
+    "blocked_count": 0,
+    "confirmed_count": 1,
+    "due_count": 1,
+    "evaluated_due_count": 1,
+    "met_count": 0,
+    "missed_count": 0,
+    "not_due_count": 0,
+    "open_count": 1,
+    "partially_met_count": 0,
+    "pending_count": 0,
+    "statement_count": 1,
+    "superseded_count": 0,
+    "unverifiable_count": 1,
+    "withdrawn_count": 0
+  },
+  "data_cutoff_date": "2026-07-11",
+  "issuer_id": "issuer:amazon",
+  "manifest_version": "1.0.0",
+  "network_is_explicit": true,
+  "object_ids": {
+    "commitment_ids": [
+      "management-commitment:issuer:amazon:q2-2026-sales-range"
+    ],
+    "outcome_ids": [
+      "management-outcome:issuer:amazon:q2-2026-sales-range:unverifiable"
+    ],
+    "review_id": "management-review:issuer:amazon:2026-07-11",
+    "statement_ids": [
+      "management-statement:issuer:amazon:q2-2026-sales-range"
+    ]
+  },
+  "review_status": "partial",
+  "run_manifest": {
+    "anti_anchoring": {
+      "conclusion_frozen_at": null,
+      "current_conclusion_sha256": null,
+      "prior_materials_accessed": [],
+      "state": "pre_conclusion"
+    },
+    "completed_at": "2026-07-12T03:56:33Z",
+    "component_lock_sha256": "0e4b21615b21a6f08decf09301eb0c9efbc11ee7085286e3a3932203421aec46",
+    "component_versions": {
+      "owner-equity-research": "0.4.0-dev.6"
+    },
+    "data_cutoff_date": "2026-07-11",
+    "input_document_hashes": {
+      "doc:issuer:amazon:q1-2026-results": "3414fee0f706d629325f479dcb48577828ce78b65ec44c1c534ebadf26d14c94"
+    },
+    "issuer_id": "issuer:amazon",
+    "missing_evidence": [
+      "multi_year_quantitative_target_not_disclosed",
+      "official_q2_2026_result_not_disclosed_at_cutoff"
+    ],
+    "output_artifact_hashes": {
+      "management-shadow-summary": "3030ed5701fdcd2af27555c9de2b6e9c7e13f9efe871183ad7088425f3254cb1"
+    },
+    "run_id": "management-shadow:issuer:amazon:2026-07-11",
+    "schema_version": "1.0.0",
+    "started_at": "2026-07-12T03:56:32Z"
+  },
+  "sec_accessions": [
+    "0001018724-26-000004",
+    "0001018724-26-000014"
+  ],
+  "shadow_type": "phase4b_management_ledger",
+  "sources": [
+    {
+      "anchor_sha256": "fe113ce08d112ded55cabe72cd503b97e48499e3144b134ed10fa2495e63f4de",
+      "anchor_verified": true,
+      "document_id": "doc:issuer:amazon:q1-2026-results",
+      "evidence_sha256": "3414fee0f706d629325f479dcb48577828ce78b65ec44c1c534ebadf26d14c94",
+      "hash_scope": "normalized_official_excerpt",
+      "published_date": "2026-04-29",
+      "retrieval_mode": "verified_official_web_snapshot",
+      "source_url": "https://ir.aboutamazon.com/news-release/news-release-details/2026/Amazon-com-Announces-First-Quarter-Results/"
+    }
+  ]
+}

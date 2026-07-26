@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/context-observation.schema.json",
+  "title": "ContextObservation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "observation_id", "target_issuer_id", "subject", "as_of_date", "scope", "observation_type", "statement", "value_type", "value", "unit", "currency", "period", "source_document_id", "source_locator", "extraction_method", "verification_status", "reviewer_id", "reviewed_at", "confidence", "limitations"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "observation_id": {"type": "string", "minLength": 1},
+    "target_issuer_id": {"type": "string", "minLength": 1},
+    "subject": {"$ref": "#/$defs/subject"},
+    "as_of_date": {"type": "string", "format": "date"},
+    "scope": {"$ref": "#/$defs/scope"},
+    "observation_type": {"enum": ["product_market", "competitor_behavior", "customer_behavior", "supplier_behavior", "substitute_behavior", "entry_condition", "market_structure", "regulation", "technology", "price_volume_cost", "capital_intensity", "other"]},
+    "statement": {"type": "string", "minLength": 1},
+    "value_type": {"enum": ["number", "string", "boolean", "none"]},
+    "value": {"type": ["number", "string", "boolean", "null"]},
+    "unit": {"type": ["string", "null"]},
+    "currency": {"type": ["string", "null"], "pattern": "^[A-Z]{3}$"},
+    "period": {"$ref": "#/$defs/period"},
+    "source_document_id": {"type": "string", "minLength": 1},
+    "source_locator": {"type": "string", "minLength": 1},
+    "extraction_method": {"enum": ["deterministic", "manual", "language_model"]},
+    "verification_status": {"enum": ["pending", "human_confirmed", "blocked", "rejected"]},
+    "reviewer_id": {"type": ["string", "null"], "minLength": 1},
+    "reviewed_at": {"type": ["string", "null"], "format": "date-time"},
+    "confidence": {"enum": ["high", "medium", "low"]},
+    "limitations": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  },
+  "allOf": [
+    {"if": {"properties": {"verification_status": {"const": "human_confirmed"}}}, "then": {"properties": {"reviewer_id": {"type": "string"}, "reviewed_at": {"type": "string", "format": "date-time"}}}},
+    {"if": {"properties": {"extraction_method": {"const": "language_model"}}}, "then": {"properties": {"verification_status": {"enum": ["pending", "blocked", "rejected"]}}}},
+    {"if": {"properties": {"verification_status": {"enum": ["pending", "blocked"]}}}, "then": {"properties": {"limitations": {"minItems": 1}}}},
+    {"if": {"properties": {"value_type": {"const": "none"}}}, "then": {"properties": {"value": {"type": "null"}, "unit": {"type": "null"}, "currency": {"type": "null"}}}},
+    {"if": {"properties": {"value_type": {"enum": ["string", "boolean"]}}}, "then": {"properties": {"unit": {"type": "null"}, "currency": {"type": "null"}}}}
+  ],
+  "$defs": {
+    "subject": {"type": "object", "additionalProperties": false, "required": ["entity_id", "entity_name", "role"], "properties": {"entity_id": {"type": "string", "minLength": 1}, "entity_name": {"type": "string", "minLength": 1}, "role": {"enum": ["target_issuer", "competitor", "customer", "supplier", "regulator", "industry", "substitute", "entrant", "technology"]}}},
+    "scope": {"type": "object", "additionalProperties": false, "required": ["scope_type", "segment_definition_ids", "business_unit", "product_service", "geography", "customer_group", "channel"], "properties": {"scope_type": {"enum": ["issuer_wide", "segment_specific", "product_market"]}, "segment_definition_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}, "business_unit": {"type": ["string", "null"], "minLength": 1}, "product_service": {"type": ["string", "null"], "minLength": 1}, "geography": {"type": ["string", "null"], "minLength": 1}, "customer_group": {"type": ["string", "null"], "minLength": 1}, "channel": {"type": ["string", "null"], "minLength": 1}}},
+    "period": {"type": "object", "additionalProperties": false, "required": ["start", "end"], "properties": {"start": {"type": ["string", "null"], "format": "date"}, "end": {"type": ["string", "null"], "format": "date"}}}
+  }
+}

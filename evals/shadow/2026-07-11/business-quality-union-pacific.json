@@ -1,0 +1,110 @@
+{
+  "blocked_items": [
+    "entrant_economics_and_capacity_context_not_promoted",
+    "comparable_process_and_capital_intensity_diagnostics_not_available",
+    "reviewed_mechanism_claims_not_available"
+  ],
+  "cik": "0000100885",
+  "contains_claims": false,
+  "contains_facts": false,
+  "contains_market_price": false,
+  "contains_pdf": false,
+  "contains_publisher": false,
+  "contains_raw_source_content": false,
+  "contains_recommendation": false,
+  "contains_report": false,
+  "contains_scores": false,
+  "contains_target_price": false,
+  "contains_valuation": false,
+  "data_cutoff_date": "2026-07-11",
+  "formal_object_ids": {
+    "business_model_snapshot_ids": [],
+    "business_quality_review_ids": [],
+    "competitive_context_snapshot_ids": [],
+    "hypothesis_ids": []
+  },
+  "issuer_id": "issuer:union-pacific",
+  "manifest_version": "1.0.0",
+  "mechanism_topics": [
+    "efficient_scale",
+    "regulatory_license",
+    "process_execution",
+    "capital_intensity"
+  ],
+  "network_access_performed": false,
+  "network_is_explicit": true,
+  "official_filings": [
+    {
+      "accession": "0000100885-26-000037",
+      "filing_date": "2026-02-06",
+      "form": "10-K",
+      "hash_scope": "official_metadata_tuple",
+      "index_url": "https://www.sec.gov/Archives/edgar/data/100885/000010088526000037/0000100885-26-000037-index.htm",
+      "primary_document": "unp-20251231.htm",
+      "report_period": "2025-12-31",
+      "source_identifier": "sec:0000100885-26-000037",
+      "source_metadata_sha256": "a5e41b23626285fd5ba3f892e1abba58bbe6320cf7808e262e3b1afd4298b86b",
+      "verification_mode": "official_sec_web_index"
+    },
+    {
+      "accession": "0000100885-26-000155",
+      "filing_date": "2026-04-23",
+      "form": "10-Q",
+      "hash_scope": "official_metadata_tuple",
+      "index_url": "https://www.sec.gov/Archives/edgar/data/100885/000010088526000155/0000100885-26-000155-index.htm",
+      "primary_document": "unp-20260331.htm",
+      "report_period": "2026-03-31",
+      "source_identifier": "sec:0000100885-26-000155",
+      "source_metadata_sha256": "f7177100fe3deeda4b4c6dd567775677224401f45089cfad30b87d0fc4e2b1ff",
+      "verification_mode": "official_sec_web_index"
+    }
+  ],
+  "review_status": "blocked",
+  "run_manifest": {
+    "anti_anchoring": {
+      "conclusion_frozen_at": null,
+      "current_conclusion_sha256": null,
+      "prior_materials_accessed": [],
+      "state": "pre_conclusion"
+    },
+    "completed_at": "2026-07-12T00:00:00Z",
+    "component_lock_sha256": "e640e0c99d68faac9695068f1151994ec8113f02fbabc6ea41e0f63d098e0fdd",
+    "component_versions": {
+      "owner-equity-research": "0.4.0-dev.12"
+    },
+    "data_cutoff_date": "2026-07-11",
+    "input_document_hashes": {
+      "sec:0000100885-26-000037": "a5e41b23626285fd5ba3f892e1abba58bbe6320cf7808e262e3b1afd4298b86b",
+      "sec:0000100885-26-000155": "f7177100fe3deeda4b4c6dd567775677224401f45089cfad30b87d0fc4e2b1ff"
+    },
+    "issuer_id": "issuer:union-pacific",
+    "missing_evidence": [
+      "entrant_economics_and_capacity_context_not_promoted",
+      "comparable_process_and_capital_intensity_diagnostics_not_available",
+      "reviewed_mechanism_claims_not_available"
+    ],
+    "output_artifact_hashes": {
+      "business-quality-shadow-summary": "338cf40e4824ffc4c8503d84306f1b635a0a0b31888d4ca92688ad123d4b36f3"
+    },
+    "run_id": "business-quality-shadow:issuer:union-pacific:2026-07-11",
+    "schema_version": "1.0.0",
+    "started_at": "2026-07-12T00:00:00Z"
+  },
+  "scope_expectations": {
+    "issuer_wide_generalization_allowed": true,
+    "material_scope_labels": [
+      "Union Pacific Railroad"
+    ],
+    "scope_mode": "issuer_wide"
+  },
+  "shadow_type": "phase4c_business_quality",
+  "source_verification_mode": "official_sec_web_index",
+  "status_counts": {
+    "blocked_hypothesis_count": 0,
+    "contested_hypothesis_count": 0,
+    "falsified_hypothesis_count": 0,
+    "proposed_hypothesis_count": 0,
+    "supported_hypothesis_count": 0,
+    "unresolved_mechanism_topic_count": 4
+  }
+}

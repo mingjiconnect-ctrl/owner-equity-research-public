@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/capital-allocation-outcome.schema.json", "title": "CapitalAllocationOutcome", "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "outcome_id", "issuer_id", "outcome_policy_id", "outcome_policy_version", "event_id", "predecessor_outcome_id", "assessed_at", "observation_period", "status", "result_bindings", "result_role_coverage", "claim_bindings", "missing_evidence"],
+  "properties": {
+    "schema_version": {"const": "2.0.0"}, "outcome_id": {"type": "string", "minLength": 1}, "issuer_id": {"type": "string", "minLength": 1}, "outcome_policy_id": {"type": "string", "minLength": 1}, "outcome_policy_version": {"const": "1.0.0"}, "event_id": {"type": "string", "minLength": 1}, "predecessor_outcome_id": {"type": ["string", "null"], "minLength": 1}, "assessed_at": {"type": "string", "format": "date"},
+    "observation_period": {"type": "object", "additionalProperties": false, "required": ["start", "end"], "properties": {"start": {"type": "string", "format": "date"}, "end": {"type": "string", "format": "date"}}},
+    "status": {"enum": ["not_due", "observed", "partial", "unverifiable", "blocked", "cancelled", "superseded"]},
+    "result_bindings": {"type": "array", "items": {"$ref": "#/$defs/result_binding"}}, "result_role_coverage": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/role_coverage"}}, "claim_bindings": {"type": "array", "items": {"$ref": "#/$defs/claim_binding"}}, "missing_evidence": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  },
+  "allOf": [
+    {"if": {"properties": {"status": {"enum": ["observed", "partial"]}}}, "then": {"properties": {"claim_bindings": {"minItems": 1}}}},
+    {"if": {"properties": {"status": {"enum": ["partial", "unverifiable", "blocked"]}}}, "then": {"properties": {"missing_evidence": {"minItems": 1}}}}
+  ],
+  "$defs": {
+    "result_binding": {"type": "object", "additionalProperties": false, "required": ["binding_id", "role_id", "fact_id", "calculation_result_id"], "properties": {"binding_id": {"type": "string", "minLength": 1}, "role_id": {"type": "string", "minLength": 1}, "fact_id": {"type": ["string", "null"], "minLength": 1}, "calculation_result_id": {"type": ["string", "null"], "minLength": 1}}, "oneOf": [{"properties": {"fact_id": {"type": "string"}, "calculation_result_id": {"type": "null"}}}, {"properties": {"fact_id": {"type": "null"}, "calculation_result_id": {"type": "string"}}}]},
+    "role_coverage": {"type": "object", "additionalProperties": false, "required": ["role_id", "status", "binding_ids", "claim_binding_ids", "missing_evidence"], "properties": {"role_id": {"type": "string", "minLength": 1}, "status": {"enum": ["observed", "none_recognized_after_review", "not_disclosed", "not_due", "not_applicable", "blocked"]}, "binding_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}, "claim_binding_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}, "missing_evidence": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}},
+    "claim_binding": {"type": "object", "additionalProperties": false, "required": ["binding_id", "claim_id", "review_decision_id", "role_id"], "properties": {"binding_id": {"type": "string", "minLength": 1}, "claim_id": {"type": "string", "minLength": 1}, "review_decision_id": {"type": "string", "minLength": 1}, "role_id": {"type": "string", "minLength": 1}}}
+  }
+}

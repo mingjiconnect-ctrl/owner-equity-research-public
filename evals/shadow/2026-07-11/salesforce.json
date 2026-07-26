@@ -1,0 +1,90 @@
+{
+  "blocked_items": [
+    "10-K:missing_mandatory_topic:related_parties",
+    "10-K:missing_mandatory_topic:supplier_finance",
+    "10-K:note_heading_discovery_unresolved",
+    "10-Q:missing_mandatory_topic:related_parties",
+    "10-Q:missing_mandatory_topic:supplier_finance",
+    "10-Q:missing_mandatory_topic:vie",
+    "10-Q:note_heading_discovery_unresolved"
+  ],
+  "cik": "1108524",
+  "contains_claims": false,
+  "contains_facts": false,
+  "contains_raw_filing_content": false,
+  "contains_report": false,
+  "contains_scores": false,
+  "contains_valuation": false,
+  "data_cutoff_date": "2026-07-11",
+  "filings": [
+    {
+      "accession": "0001108524-26-000060",
+      "blocked_items": [
+        "missing_mandatory_topic:related_parties",
+        "missing_mandatory_topic:supplier_finance",
+        "note_heading_discovery_unresolved"
+      ],
+      "filing_date": "2026-03-02",
+      "footnote_coverage": [
+        "acquisitions_divestitures",
+        "commitments_guarantees_off_balance_sheet",
+        "contingencies_litigation",
+        "debt_liquidity_covenants",
+        "fair_value_derivatives_hedging",
+        "goodwill_intangibles_impairment",
+        "income_taxes",
+        "leases",
+        "pensions_postretirement",
+        "restructuring_exit",
+        "revenue_contract_balances",
+        "sbc",
+        "vie"
+      ],
+      "form": "10-K",
+      "ixbrl_candidate_count": 1555,
+      "normalized_sha256": "5f7dcbde3905b0e2d9b5dc1f38bc0e5197e5bfb6f64255bd85e602a6551995b3",
+      "note_heading_count": 0,
+      "parser_version": "0.3.0-alpha.1",
+      "raw_sha256": "d606b8cc64176cbfa8c75355a9c935ec83f6b8374a87f94f3747941633fa8d25",
+      "report_period": "2026-01-31"
+    },
+    {
+      "accession": "0001108524-26-000127",
+      "blocked_items": [
+        "missing_mandatory_topic:related_parties",
+        "missing_mandatory_topic:supplier_finance",
+        "missing_mandatory_topic:vie",
+        "note_heading_discovery_unresolved"
+      ],
+      "filing_date": "2026-05-28",
+      "footnote_coverage": [
+        "acquisitions_divestitures",
+        "commitments_guarantees_off_balance_sheet",
+        "contingencies_litigation",
+        "debt_liquidity_covenants",
+        "fair_value_derivatives_hedging",
+        "goodwill_intangibles_impairment",
+        "income_taxes",
+        "leases",
+        "pensions_postretirement",
+        "restructuring_exit",
+        "revenue_contract_balances",
+        "sbc"
+      ],
+      "form": "10-Q",
+      "ixbrl_candidate_count": 917,
+      "normalized_sha256": "4e2f569cc8c7c2de4df906c188770b63e7e0f3b440101025a08bcb601f3df8e6",
+      "note_heading_count": 0,
+      "parser_version": "0.3.0-alpha.1",
+      "raw_sha256": "b9a2f92b194cfdced066819daf5d7ae24541ea39ef72b0305ce8d3c68ace9817",
+      "report_period": "2026-04-30"
+    }
+  ],
+  "issuer_id": "issuer:salesforce",
+  "manifest_version": "1.0.0",
+  "network_is_explicit": true,
+  "parser_version": "0.3.0-alpha.1",
+  "retrieved_at": "2026-07-11T11:11:44Z",
+  "shadow_type": "sec_filing_accounting_quality",
+  "validation_status": "partial"
+}

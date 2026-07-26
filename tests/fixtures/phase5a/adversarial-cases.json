@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0.0",
+  "cases": [
+    "research_assumption_shortcut",
+    "management_guidance_base_shortcut",
+    "moat_terminal_ronic_shortcut",
+    "llm_final_reviewer",
+    "stale_candidate_decision",
+    "duplicate_kernel_assumption_id",
+    "mckinsey_market_lineage",
+    "market_before_price_blind_freeze",
+    "market_before_authorization",
+    "manual_market_equity_value",
+    "market_equity_round_trip_failure",
+    "split_basis_mismatch",
+    "market_source_in_research_bundle",
+    "market_lineage_in_protected_inputs",
+    "floating_kernel_identity",
+    "kernel_schema_hash_drift",
+    "forged_handoff_lifecycle",
+    "artifact_hash_in_wrong_state",
+    "protected_mckinsey_hash_drift",
+    "protected_penman_hash_drift",
+    "handoff_score_dependency",
+    "handoff_report_dependency",
+    "handoff_copies_valuation_result",
+    "unknown_schema_field",
+    "unstable_fingerprint",
+    "phase5a_production_surface"
+  ]
+}

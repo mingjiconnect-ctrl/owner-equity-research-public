@@ -1,0 +1,301 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/market-reference-snapshot.schema.json",
+  "title": "MarketReferenceSnapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "snapshot_id",
+    "issuer_id",
+    "data_cutoff_date",
+    "status",
+    "market_policy_id",
+    "market_policy_version",
+    "authorization_handoff_id",
+    "authorization_handoff_fingerprint",
+    "component_lock_sha256",
+    "market_access_result_fingerprint",
+    "market_quote_request",
+    "governed_market_quote_receipt",
+    "authority_lineage",
+    "security",
+    "trading_date",
+    "quote_timestamp",
+    "quote_retrieved_at",
+    "quote_price_decimal",
+    "quote_unit",
+    "quote_currency",
+    "evidence_mode",
+    "usage_scope",
+    "raw_evidence",
+    "quote_source_document_id",
+    "quote_source_locator",
+    "quote_fact_id",
+    "share_basis",
+    "market_equity",
+    "price_blind_input_fingerprint",
+    "protected_mckinsey_sha256",
+    "protected_penman_assumptions_sha256",
+    "future_kernel_request_v2",
+    "market_evidence_closure_sha256",
+    "snapshot_fingerprint"
+  ],
+  "properties": {
+    "schema_version": {"const": "3.0.0"},
+    "snapshot_id": {"type": "string", "minLength": 1},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "data_cutoff_date": {"type": "string", "format": "date"},
+    "status": {"const": "validated"},
+    "market_policy_id": {"const": "market-reference"},
+    "market_policy_version": {"const": "3.0.0"},
+    "authorization_handoff_id": {"type": "string", "minLength": 1},
+    "authorization_handoff_fingerprint": {"$ref": "#/$defs/sha256"},
+    "component_lock_sha256": {"$ref": "#/$defs/sha256"},
+    "market_access_result_fingerprint": {"$ref": "#/$defs/sha256"},
+    "market_quote_request": {"$ref": "#/$defs/requestReference"},
+    "governed_market_quote_receipt": {"$ref": "#/$defs/receiptReference"},
+    "authority_lineage": {"$ref": "#/$defs/authorityLineage"},
+    "security": {"$ref": "#/$defs/security"},
+    "trading_date": {"type": "string", "format": "date"},
+    "quote_timestamp": {"type": "string", "format": "date-time"},
+    "quote_retrieved_at": {"type": "string", "format": "date-time"},
+    "quote_price_decimal": {"$ref": "#/$defs/positiveDecimal"},
+    "quote_unit": {"const": "currency_per_share"},
+    "quote_currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+    "evidence_mode": {"enum": ["recorded_fixture", "loopback_fixture", "live_official"]},
+    "usage_scope": {"enum": ["test_only", "valuation_eligible"]},
+    "raw_evidence": {"$ref": "#/$defs/rawEvidence"},
+    "quote_source_document_id": {"type": "string", "minLength": 1},
+    "quote_source_locator": {"type": "string", "minLength": 1},
+    "quote_fact_id": {"type": "string", "minLength": 1},
+    "share_basis": {"$ref": "#/$defs/shareBasis"},
+    "market_equity": {"$ref": "#/$defs/marketEquity"},
+    "price_blind_input_fingerprint": {"$ref": "#/$defs/sha256"},
+    "protected_mckinsey_sha256": {"$ref": "#/$defs/sha256"},
+    "protected_penman_assumptions_sha256": {"$ref": "#/$defs/sha256"},
+    "future_kernel_request_v2": {"$ref": "#/$defs/futureKernelRequestV2"},
+    "market_evidence_closure_sha256": {"$ref": "#/$defs/sha256"},
+    "snapshot_fingerprint": {"$ref": "#/$defs/sha256"}
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "evidence_mode": {"enum": ["recorded_fixture", "loopback_fixture"]}
+        },
+        "required": ["evidence_mode"]
+      },
+      "then": {"properties": {"usage_scope": {"const": "test_only"}}},
+      "else": {"properties": {"usage_scope": {"const": "valuation_eligible"}}}
+    }
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "positiveDecimal": {
+      "type": "string",
+      "pattern": "^(?:[1-9][0-9]*(?:\\.[0-9]+)?|0\\.[0-9]*[1-9][0-9]*)$"
+    },
+    "requestReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["request_id", "request_fingerprint"],
+      "properties": {
+        "request_id": {"type": "string", "minLength": 1},
+        "request_fingerprint": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "receiptReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["receipt_id", "receipt_fingerprint"],
+      "properties": {
+        "receipt_id": {"type": "string", "minLength": 1},
+        "receipt_fingerprint": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "authorityLineage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authority_sha256",
+        "provider_registry_sha256",
+        "provider_registration_sha256",
+        "adapter_sha256",
+        "parser_sha256",
+        "calendar_registry_sha256",
+        "calendar_dataset_sha256",
+        "calendar_selection_fingerprint"
+      ],
+      "properties": {
+        "authority_sha256": {"$ref": "#/$defs/sha256"},
+        "provider_registry_sha256": {"$ref": "#/$defs/sha256"},
+        "provider_registration_sha256": {"$ref": "#/$defs/sha256"},
+        "adapter_sha256": {"$ref": "#/$defs/sha256"},
+        "parser_sha256": {"$ref": "#/$defs/sha256"},
+        "calendar_registry_sha256": {"$ref": "#/$defs/sha256"},
+        "calendar_dataset_sha256": {"$ref": "#/$defs/sha256"},
+        "calendar_selection_fingerprint": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "security_id",
+        "ticker",
+        "mic",
+        "share_class",
+        "security_compilation_fingerprint",
+        "security_evidence_closure_sha256"
+      ],
+      "properties": {
+        "security_id": {"type": "string", "minLength": 1},
+        "ticker": {"type": "string", "minLength": 1},
+        "mic": {"enum": ["XNYS", "XNAS"]},
+        "share_class": {"const": "common"},
+        "security_compilation_fingerprint": {"$ref": "#/$defs/sha256"},
+        "security_evidence_closure_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "rawEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "store_kind",
+        "locator",
+        "content_type",
+        "raw_response_sha256",
+        "parser_replay_fingerprint"
+      ],
+      "properties": {
+        "store_kind": {"enum": ["repository_fixture", "content_addressed_store"]},
+        "locator": {"type": "string", "minLength": 1},
+        "content_type": {"type": "string", "minLength": 1},
+        "raw_response_sha256": {"$ref": "#/$defs/sha256"},
+        "parser_replay_fingerprint": {"$ref": "#/$defs/sha256"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"store_kind": {"const": "repository_fixture"}}},
+          "then": {
+            "properties": {
+              "locator": {
+                "allOf": [
+                  {"pattern": "^repo://tests/fixtures/[^?#\\s]+$"},
+                  {"not": {"pattern": "(?:^|/)\\.\\.(?:/|$)"}},
+                  {"not": {"pattern": "@"}}
+                ]
+              }
+            }
+          },
+          "else": {"properties": {"locator": {"pattern": "^cas://sha256/[a-f0-9]{64}$"}}}
+        }
+      ]
+    },
+    "typedEvidenceBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract_type", "object_id", "fingerprint"],
+      "properties": {
+        "contract_type": {"enum": ["SourceDocument", "Fact", "Claim"]},
+        "object_id": {"type": "string", "minLength": 1},
+        "fingerprint": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "claimControlCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "current_share_numeric_root_fact_ids",
+        "included_claim_root_fact_ids",
+        "excluded_claim_root_fact_ids",
+        "blocked_claim_root_fact_ids",
+        "overlap_fact_ids",
+        "check_fingerprint"
+      ],
+      "properties": {
+        "status": {"const": "passed"},
+        "current_share_numeric_root_fact_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "included_claim_root_fact_ids": {"type": "array", "maxItems": 0},
+        "excluded_claim_root_fact_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "blocked_claim_root_fact_ids": {"type": "array", "maxItems": 0},
+        "overlap_fact_ids": {"type": "array", "maxItems": 0},
+        "check_fingerprint": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "shareBasis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decision_id",
+        "decision_fingerprint",
+        "basis_kind",
+        "evidence_kind",
+        "as_of_date",
+        "quote_date",
+        "shares_outstanding_fact_id",
+        "current_common_shares_outstanding_decimal",
+        "share_unit",
+        "split_factor_decimal",
+        "corporate_action_evidence_bindings",
+        "claim_control_check"
+      ],
+      "properties": {
+        "decision_id": {"type": "string", "minLength": 1},
+        "decision_fingerprint": {"$ref": "#/$defs/sha256"},
+        "basis_kind": {"const": "current_common_shares_outstanding"},
+        "evidence_kind": {
+          "enum": ["direct_point_in_time", "issued_less_treasury", "completed_event_rollforward"]
+        },
+        "as_of_date": {"type": "string", "format": "date"},
+        "quote_date": {"type": "string", "format": "date"},
+        "shares_outstanding_fact_id": {"type": "string", "minLength": 1},
+        "current_common_shares_outstanding_decimal": {"$ref": "#/$defs/positiveDecimal"},
+        "share_unit": {"const": "shares"},
+        "split_factor_decimal": {"const": "1"},
+        "corporate_action_evidence_bindings": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/typedEvidenceBinding"}
+        },
+        "claim_control_check": {"$ref": "#/$defs/claimControlCheck"}
+      }
+    },
+    "futureKernelRequestV2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["share_denominator_fact_id", "share_denominator_kind", "share_denominator_evidence_kind", "mapping_fingerprint"],
+      "properties": {
+        "share_denominator_fact_id": {"type": "string", "minLength": 1},
+        "share_denominator_kind": {"const": "current_common_shares_outstanding"},
+        "share_denominator_evidence_kind": {
+          "enum": ["direct_point_in_time", "issued_less_treasury", "completed_event_rollforward"]
+        },
+        "mapping_fingerprint": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "marketEquity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["calculation_id", "value_decimal", "unit", "currency"],
+      "properties": {
+        "calculation_id": {"type": "string", "minLength": 1},
+        "value_decimal": {"$ref": "#/$defs/positiveDecimal"},
+        "unit": {"const": "currency_units"},
+        "currency": {"type": "string", "pattern": "^[A-Z]{3}$"}
+      }
+    }
+  }
+}

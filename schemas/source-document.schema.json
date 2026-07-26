@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/source-document.schema.json",
+  "title": "SourceDocument",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "document_id", "issuer_id", "document_type", "period", "published_date", "retrieved_at", "source_url", "authority_level", "content_sha256"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "document_id": {"type": "string", "minLength": 1},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "document_type": {"type": "string", "minLength": 1},
+    "period": {"$ref": "#/$defs/period"},
+    "published_date": {"type": "string", "format": "date"},
+    "retrieved_at": {"type": "string", "format": "date-time"},
+    "source_url": {"type": "string", "format": "uri", "pattern": "^https://"},
+    "authority_level": {"enum": ["primary_regulatory", "company_primary", "audited_secondary", "secondary", "market_reference"]},
+    "content_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "period": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {
+        "start": {"type": ["string", "null"], "format": "date"},
+        "end": {"type": ["string", "null"], "format": "date"}
+      }
+    }
+  }
+}

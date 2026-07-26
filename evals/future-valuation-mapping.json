@@ -1,0 +1,35 @@
+{
+  "eval_id": "future-phase5-numeric-fact-boundary",
+  "mapping_status": "IMPLEMENTED_PHASE_5B",
+  "source_schema": "fact.schema.json",
+  "target_repository": "mingjiconnect-ctrl/owner-valuation-kernel",
+  "target_commit": "a7dd1528c34f09702686b32ffbb8a397439665f0",
+  "target_schema": "fact-ledger.schema.json",
+  "eligible_fact": {
+    "fact_id": "fact:fixture:revenue:2025",
+    "concept": "revenue",
+    "value_type": "number",
+    "value": 100.0,
+    "unit": "currency_millions",
+    "currency": "USD",
+    "period": {"start": "2025-01-01", "end": "2025-12-31"},
+    "source_document_id": "doc:fixture:2025-10k",
+    "source_locator": "p. 1",
+    "confidence": "high"
+  },
+  "target_required_field_policy": {
+    "fact_id": "source.fact_id",
+    "concept": "source.concept",
+    "value": "source.value when value_type is number",
+    "unit": "source.unit",
+    "category": "PHASE5_EXPLICIT_CLASSIFICATION_REQUIRED",
+    "source_id": "PHASE5_SOURCE_LEDGER_ADAPTER_REQUIRED",
+    "source_location": "source.source_locator",
+    "as_of_date": "PHASE5_PERIOD_TO_AS_OF_DATE_POLICY_REQUIRED",
+    "confidence": "source.confidence",
+    "raw": "PHASE5_RAW_DERIVED_POLICY_REQUIRED",
+    "parent_fact_ids": "source.parent_fact_ids after eligibility filtering",
+    "derivation": "source.derivation",
+    "equity_bridge_role": "PHASE5_EXPLICIT_CLASSIFICATION_REQUIRED"
+  }
+}

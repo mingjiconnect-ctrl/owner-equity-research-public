@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/management-review.schema.json",
+  "title": "ManagementReview",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "review_id", "issuer_id", "review_period", "as_of_date", "status", "statement_ids", "commitment_ids", "outcome_ids", "coverage", "claim_ids", "calculation_result_ids", "missing_evidence"],
+  "properties": {
+    "schema_version": {"const": "2.0.0"},
+    "review_id": {"type": "string", "minLength": 1},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "review_period": {"type": "object", "additionalProperties": false, "required": ["start", "end"], "properties": {"start": {"type": "string", "format": "date"}, "end": {"type": "string", "format": "date"}}},
+    "as_of_date": {"type": "string", "format": "date"},
+    "status": {"enum": ["complete", "partial", "blocked"]},
+    "statement_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "commitment_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "outcome_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "coverage": {
+      "type": "object", "additionalProperties": false,
+      "required": ["statement_count", "confirmed_count", "open_count", "not_due_count", "due_count", "evaluated_due_count", "pending_count", "met_count", "partially_met_count", "missed_count", "unverifiable_count", "blocked_count", "withdrawn_count", "superseded_count"],
+      "properties": {
+        "statement_count": {"type": "integer", "minimum": 0},
+        "confirmed_count": {"type": "integer", "minimum": 0},
+        "open_count": {"type": "integer", "minimum": 0},
+        "not_due_count": {"type": "integer", "minimum": 0},
+        "due_count": {"type": "integer", "minimum": 0},
+        "evaluated_due_count": {"type": "integer", "minimum": 0},
+        "pending_count": {"type": "integer", "minimum": 0},
+        "met_count": {"type": "integer", "minimum": 0},
+        "partially_met_count": {"type": "integer", "minimum": 0},
+        "missed_count": {"type": "integer", "minimum": 0},
+        "unverifiable_count": {"type": "integer", "minimum": 0},
+        "blocked_count": {"type": "integer", "minimum": 0},
+        "withdrawn_count": {"type": "integer", "minimum": 0},
+        "superseded_count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "claim_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "calculation_result_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "missing_evidence": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  },
+  "allOf": [
+    {"if": {"properties": {"status": {"enum": ["complete", "partial"]}}}, "then": {"properties": {"claim_ids": {"minItems": 1}}}},
+    {"if": {"properties": {"status": {"const": "complete"}}}, "then": {"properties": {"claim_ids": {"minItems": 1}, "missing_evidence": {"maxItems": 0}}}},
+    {"if": {"properties": {"status": {"const": "blocked"}}}, "then": {"properties": {"missing_evidence": {"minItems": 1}}}}
+  ]
+}

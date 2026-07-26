@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.0.0",
+  "contract": "MarketReferenceSnapshot",
+  "from_version": "2.0.0",
+  "to_version": "3.0.0",
+  "migration_strategy": "preproduction_hard_break",
+  "automatic_migration": false,
+  "dual_write": false,
+  "legacy_runtime_accepted": false,
+  "legacy_fixture_disposition": "negative_test_only",
+  "economic_semantics_before": "point_in_time_fully_diluted_common",
+  "economic_semantics_after": "current_common_shares_outstanding",
+  "public_schema_count_before": 43,
+  "public_schema_count_after": 43,
+  "changed_public_schemas": [
+    "schemas/market-reference-snapshot.schema.json"
+  ],
+  "authorized_successor_after_governance_closeout": "Phase 5E-2B governed quote-date current common shares compilation"
+}

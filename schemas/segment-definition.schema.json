@@ -1,0 +1,7 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema", "$id":"https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/segment-definition.schema.json",
+  "title":"SegmentDefinition","type":"object","additionalProperties":false,
+  "required":["schema_version","segment_id","issuer_id","disclosed_name","normalized_name","segment_type","effective_period","source_document_ids","predecessor_segment_ids","mapping_status","mapping_claim_id"],
+  "properties":{"schema_version":{"const":"1.0.0"},"segment_id":{"type":"string","minLength":1},"issuer_id":{"type":"string","minLength":1},"disclosed_name":{"type":"string","minLength":1},"normalized_name":{"type":"string","minLength":1},"segment_type":{"enum":["reportable","corporate","elimination","geographic","customer_concentration"]},"effective_period":{"$ref":"#/$defs/period"},"source_document_ids":{"type":"array","minItems":1,"uniqueItems":true,"items":{"type":"string","minLength":1}},"predecessor_segment_ids":{"type":"array","uniqueItems":true,"items":{"type":"string","minLength":1}},"mapping_status":{"enum":["exact","partial","not_comparable"]},"mapping_claim_id":{"type":["string","null"],"minLength":1}},
+  "$defs":{"period":{"type":"object","additionalProperties":false,"required":["start","end"],"properties":{"start":{"type":"string","format":"date"},"end":{"type":"string","format":"date"}}}}
+}

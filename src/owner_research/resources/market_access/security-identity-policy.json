@@ -1,0 +1,13 @@
+{
+  "policy_id": "market-security-identity-evidence",
+  "policy_version": "1.0.0",
+  "required_fact_roles": ["ticker", "mic", "share_class"],
+  "required_claim_role": "support",
+  "required_scope_type": "issuer_wide",
+  "required_authority_levels": ["primary_regulatory", "company_primary"],
+  "supported_mics": {"XNAS": "USD", "XNYS": "USD"},
+  "supported_structure": "single_primary_common",
+  "human_review_required": true,
+  "counterevidence_search_required": true,
+  "falsification_condition_required": true
+}

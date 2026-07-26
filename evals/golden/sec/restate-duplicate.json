@@ -1,0 +1,7 @@
+{
+  "candidates": [
+    {"candidate_id":"candidate:original","accession":"0001018724-26-000001","value":1000,"unit":"USDm","period":{"start":"2025-01-01","end":"2025-12-31"}},
+    {"candidate_id":"candidate:amended","accession":"0001018724-26-000002","value":980,"unit":"USDm","period":{"start":"2025-01-01","end":"2025-12-31"}}
+  ],
+  "expected_status":"blocked_until_restatement_resolved"
+}

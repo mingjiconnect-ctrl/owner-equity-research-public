@@ -1,0 +1,109 @@
+{
+  "blocked_items": [
+    "retention_kpi_definition_and_population_not_fully_comparable",
+    "independent_switching_cost_counterevidence_not_promoted",
+    "reviewed_mechanism_claims_not_available"
+  ],
+  "cik": "0001108524",
+  "contains_claims": false,
+  "contains_facts": false,
+  "contains_market_price": false,
+  "contains_pdf": false,
+  "contains_publisher": false,
+  "contains_raw_source_content": false,
+  "contains_recommendation": false,
+  "contains_report": false,
+  "contains_scores": false,
+  "contains_target_price": false,
+  "contains_valuation": false,
+  "data_cutoff_date": "2026-07-11",
+  "formal_object_ids": {
+    "business_model_snapshot_ids": [],
+    "business_quality_review_ids": [],
+    "competitive_context_snapshot_ids": [],
+    "hypothesis_ids": []
+  },
+  "issuer_id": "issuer:salesforce",
+  "manifest_version": "1.0.0",
+  "mechanism_topics": [
+    "switching_cost",
+    "retention",
+    "remaining_performance_obligation"
+  ],
+  "network_access_performed": false,
+  "network_is_explicit": true,
+  "official_filings": [
+    {
+      "accession": "0001108524-26-000060",
+      "filing_date": "2026-03-02",
+      "form": "10-K",
+      "hash_scope": "official_metadata_tuple",
+      "index_url": "https://www.sec.gov/Archives/edgar/data/1108524/000110852426000060/0001108524-26-000060-index.htm",
+      "primary_document": "crm-20260131.htm",
+      "report_period": "2026-01-31",
+      "source_identifier": "sec:0001108524-26-000060",
+      "source_metadata_sha256": "d374778f988008ae6205911eb09723b8320e362bad1b732d763b69ae758f8f9d",
+      "verification_mode": "official_sec_web_index"
+    },
+    {
+      "accession": "0001108524-26-000127",
+      "filing_date": "2026-05-28",
+      "form": "10-Q",
+      "hash_scope": "official_metadata_tuple",
+      "index_url": "https://www.sec.gov/Archives/edgar/data/1108524/000110852426000127/0001108524-26-000127-index.htm",
+      "primary_document": "crm-20260430.htm",
+      "report_period": "2026-04-30",
+      "source_identifier": "sec:0001108524-26-000127",
+      "source_metadata_sha256": "e6589ed2ab7521a2945bff1e5a963962251a0fbac9a6ae210a8ebf53bfe505bc",
+      "verification_mode": "official_sec_web_index"
+    }
+  ],
+  "review_status": "blocked",
+  "run_manifest": {
+    "anti_anchoring": {
+      "conclusion_frozen_at": null,
+      "current_conclusion_sha256": null,
+      "prior_materials_accessed": [],
+      "state": "pre_conclusion"
+    },
+    "completed_at": "2026-07-12T00:00:00Z",
+    "component_lock_sha256": "e640e0c99d68faac9695068f1151994ec8113f02fbabc6ea41e0f63d098e0fdd",
+    "component_versions": {
+      "owner-equity-research": "0.4.0-dev.12"
+    },
+    "data_cutoff_date": "2026-07-11",
+    "input_document_hashes": {
+      "sec:0001108524-26-000060": "d374778f988008ae6205911eb09723b8320e362bad1b732d763b69ae758f8f9d",
+      "sec:0001108524-26-000127": "e6589ed2ab7521a2945bff1e5a963962251a0fbac9a6ae210a8ebf53bfe505bc"
+    },
+    "issuer_id": "issuer:salesforce",
+    "missing_evidence": [
+      "retention_kpi_definition_and_population_not_fully_comparable",
+      "independent_switching_cost_counterevidence_not_promoted",
+      "reviewed_mechanism_claims_not_available"
+    ],
+    "output_artifact_hashes": {
+      "business-quality-shadow-summary": "3867cde8691e6c3b490c15484eba3990f291e4532950f8fd0dfc9aedf8e220dc"
+    },
+    "run_id": "business-quality-shadow:issuer:salesforce:2026-07-11",
+    "schema_version": "1.0.0",
+    "started_at": "2026-07-12T00:00:00Z"
+  },
+  "scope_expectations": {
+    "issuer_wide_generalization_allowed": true,
+    "material_scope_labels": [
+      "Salesforce"
+    ],
+    "scope_mode": "issuer_wide"
+  },
+  "shadow_type": "phase4c_business_quality",
+  "source_verification_mode": "official_sec_web_index",
+  "status_counts": {
+    "blocked_hypothesis_count": 0,
+    "contested_hypothesis_count": 0,
+    "falsified_hypothesis_count": 0,
+    "proposed_hypothesis_count": 0,
+    "supported_hypothesis_count": 0,
+    "unresolved_mechanism_topic_count": 3
+  }
+}

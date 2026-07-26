@@ -1,0 +1,308 @@
+{
+  "schema_version": "1.0.0",
+  "matrix_id": "phase5-research-to-pinned-kernel",
+  "research_baseline": {
+    "repository": "mingjiconnect-ctrl/owner-equity-research",
+    "tag": "v0.4.0-alpha.1",
+    "commit": "30d6e77780175deeffc5c211749bcb0169aa1dde"
+  },
+  "kernel_baseline": {
+    "repository": "mingjiconnect-ctrl/owner-valuation-kernel",
+    "tag": "v2.0.0-rc.1",
+    "commit": "a7dd1528c34f09702686b32ffbb8a397439665f0",
+    "public_schema_count": 8
+  },
+  "architectural_invariants": [
+    "ResearchBundle remains price-blind and is never mutated by Phase 5.",
+    "Compilation requires the strictly reloaded Bundle and RunManifest plus the matching complete ContractGraph.",
+    "The price-blind artifact is not a valuation-request because the pinned Penman request requires market_equity_value_fact_id.",
+    "All valuation mathematics is executed only by the pinned owner-valuation-kernel.",
+    "McKinsey and Penman readiness and outputs remain separate and are never averaged.",
+    "The first Phase 5 release blocks model facts whose currency differs from the kernel reporting currency."
+  ],
+  "strategies": [
+    {
+      "strategy_id": "assumption-map",
+      "owner_phase": "5D",
+      "disposition": "human_review_required",
+      "rule": "Only a confirmed ValuationAssumptionCandidate and matching human ReviewDecision compile to a controlled kernel assumption; Research Assumption never maps directly."
+    },
+    {
+      "strategy_id": "accounting-controls",
+      "owner_phase": "5C",
+      "disposition": "deterministic_mapping",
+      "rule": "Compile aligned balance-sheet and clean-surplus fact references plus evidence-backed accounting-quality issues; missing disclosure cannot become zero."
+    },
+    {
+      "strategy_id": "equity-bridge",
+      "owner_phase": "5C",
+      "disposition": "reviewed_mapping",
+      "rule": "Compile all nine kernel bridge roles as modeled, explicitly_absent, not_applicable, or unresolved with official Fact evidence and double-count protection."
+    },
+    {
+      "strategy_id": "fact-map",
+      "owner_phase": "5B",
+      "disposition": "registered_mapping",
+      "rule": "Map only cutoff-safe numeric high/medium-confidence same-issuer Facts or eligible assumption-free CalculationResults through exact concept, unit, period, category, lineage, and bridge-role registries."
+    },
+    {
+      "strategy_id": "kernel-output-preservation",
+      "owner_phase": "5E",
+      "disposition": "kernel_generated_only",
+      "rule": "The pinned kernel alone generates every required result field; Phase 5 validates schema and fingerprints and archives the canonical payload without recalculation or rewriting."
+    },
+    {
+      "strategy_id": "ledger-envelope",
+      "owner_phase": "5B",
+      "disposition": "deterministic_mapping",
+      "rule": "Bind issuer, cutoff valuation date, one reporting currency, registered sources, and mapped Facts; reject foreign-currency model inputs under kernel rc.1."
+    },
+    {
+      "strategy_id": "mckinsey-assumptions",
+      "owner_phase": "5D",
+      "disposition": "human_review_required",
+      "rule": "Compile exactly black_swan, bear, base, and bull on one explicit timeline, including revenue, NOPAT, invested capital, WACC, terminal growth, terminal margin, ROIC, RONIC, and tolerance."
+    },
+    {
+      "strategy_id": "method-views",
+      "owner_phase": "5C",
+      "disposition": "deterministic_mapping",
+      "rule": "Compile only evidence-backed derived adjustment amounts, allowed targets, distinct roots, explicit groups, and separate McKinsey/Penman views with no market lineage."
+    },
+    {
+      "strategy_id": "penman-request-assembly",
+      "owner_phase": "5E",
+      "disposition": "two_stage_assembly",
+      "rule": "Freeze all nonmarket Penman assumptions in 5D, then add only the governed market-equity Fact reference in 5E before complete request validation."
+    },
+    {
+      "strategy_id": "readiness-routing",
+      "owner_phase": "5B",
+      "disposition": "reviewed_mapping",
+      "rule": "Derive company classification and six routing assessments from real eligible Facts, with independent McKinsey/Penman readiness and no fabricated numeric flags."
+    },
+    {
+      "strategy_id": "request-assembly",
+      "owner_phase": "5E",
+      "disposition": "deterministic_compilation",
+      "rule": "Assemble the first complete valuation request only after protected price-blind hashes and MarketReferenceSnapshot validate against the pinned component lock."
+    },
+    {
+      "strategy_id": "source-map",
+      "owner_phase": "5B",
+      "disposition": "registered_mapping",
+      "rule": "Map only primary_regulatory and company_primary documents; derive source identity metadata from a controlled registry, preserve exact Fact locator, and bind research content hash in the handoff and document locator."
+    }
+  ],
+  "interface_mappings": [
+    {
+      "mapping_id": "bundle-and-graph-entry",
+      "source": "ResearchBundle 1.0.0 + bound RunManifest + complete ContractGraph",
+      "target": "Phase 5 compiler input",
+      "owner_phase": "5B",
+      "strategy_id": "ledger-envelope",
+      "rule": "Reload the canonical pair, replay Bundle hashes against the full graph, and reject ID-only compilation or graph mismatch.",
+      "failure_ids": ["P5-F001", "P5-F002"]
+    },
+    {
+      "mapping_id": "source-document-to-source-ref",
+      "source": "SourceDocument(document_id, document_type, published_date, retrieved_at, source_url, authority_level, content_sha256)",
+      "target": "FactLedger.sources[]",
+      "owner_phase": "5B",
+      "strategy_id": "source-map",
+      "rule": "source_id is document_id; URL is preserved; title, publisher, primary, and document-level locator are registry-derived; content hash remains in handoff lineage and locator.",
+      "failure_ids": ["P5-F003", "P5-F004"]
+    },
+    {
+      "mapping_id": "research-fact-to-raw-kernel-fact",
+      "source": "Fact 2.0.0 with value_type=number",
+      "target": "FactLedger.facts[] raw=true",
+      "owner_phase": "5B",
+      "strategy_id": "fact-map",
+      "rule": "Require exact concept registration, high/medium confidence, official mapped source, complete stock/flow date rule, same reporting currency, and deterministic unit scaling.",
+      "failure_ids": ["P5-F005", "P5-F006", "P5-F007", "P5-F008", "P5-F009"]
+    },
+    {
+      "mapping_id": "calculation-to-derived-kernel-fact",
+      "source": "CalculationResult with numeric output",
+      "target": "FactLedger.facts[] raw=false",
+      "owner_phase": "5B",
+      "strategy_id": "fact-map",
+      "rule": "Require registered deterministic calculator, zero input Assumptions, mapped parent Facts, replayed code/input/output hashes, explicit derivation, and compatible unit/period/scope.",
+      "failure_ids": ["P5-F010", "P5-F011"]
+    },
+    {
+      "mapping_id": "nonfact-domain-isolation",
+      "source": "Claim, Review, Hypothesis, ManagementStatement, ContextObservation",
+      "target": "FactLedger",
+      "owner_phase": "5B",
+      "strategy_id": "fact-map",
+      "rule": "No direct mapping is allowed; these objects may support reviewed policy decisions but cannot become numeric Facts.",
+      "failure_ids": ["P5-F012"]
+    },
+    {
+      "mapping_id": "company-and-routing",
+      "source": "eligible Facts plus reviewed company/accounting evidence",
+      "target": "valuation-request.company and routing_assessments",
+      "owner_phase": "5B",
+      "strategy_id": "readiness-routing",
+      "rule": "Compile exact company type and six evidence-backed assessments; Bundle complete never implies valuation ready.",
+      "failure_ids": ["P5-F013", "P5-F014"]
+    },
+    {
+      "mapping_id": "balance-sheet-control",
+      "source": "aligned assets, liabilities, and common-equity Facts",
+      "target": "valuation-request.accounting_checks.balance_sheet",
+      "owner_phase": "5C",
+      "strategy_id": "accounting-controls",
+      "rule": "All three are independent point-in-time Facts on one date and must reconcile in the kernel.",
+      "failure_ids": ["P5-F015"]
+    },
+    {
+      "mapping_id": "clean-surplus-control",
+      "source": "beginning equity, comprehensive income, net distributions, ending equity",
+      "target": "valuation-request.accounting_checks.clean_surplus",
+      "owner_phase": "5C",
+      "strategy_id": "accounting-controls",
+      "rule": "Stock and flow periods must align and reconcile; no plug Fact may be fabricated.",
+      "failure_ids": ["P5-F016"]
+    },
+    {
+      "mapping_id": "method-adjustment-views",
+      "source": "official Facts, eligible derived adjustment Facts, and reviewed accounting policy",
+      "target": "valuation-request.method_views",
+      "owner_phase": "5C",
+      "strategy_id": "method-views",
+      "rule": "Use separate McKinsey/Penman arrays, registered categories, unique root groups, allowed target Facts, and no market-price lineage.",
+      "failure_ids": ["P5-F017", "P5-F018"]
+    },
+    {
+      "mapping_id": "equity-bridge-review",
+      "source": "eligible Facts and official-source coverage",
+      "target": "valuation-request.mckinsey.equity_bridge",
+      "owner_phase": "5C",
+      "strategy_id": "equity-bridge",
+      "rule": "Cover exactly all nine roles and reviewed diluted shares; unknown disclosure remains unresolved and option claims cannot duplicate diluted-share effects.",
+      "failure_ids": ["P5-F019", "P5-F020", "P5-F021"]
+    },
+    {
+      "mapping_id": "valuation-assumption-approval",
+      "source": "ValuationAssumptionCandidate + matching confirmed human ReviewDecision",
+      "target": "AssumptionLedger.assumptions[]",
+      "owner_phase": "5D",
+      "strategy_id": "assumption-map",
+      "rule": "Require controlled concept, method scope, unit, horizon, scenario, rationale, source Fact lineage, candidate fingerprint, and evidence-graph hash.",
+      "failure_ids": ["P5-F022", "P5-F023", "P5-F024"]
+    },
+    {
+      "mapping_id": "mckinsey-price-blind-scenarios",
+      "source": "approved assumptions",
+      "target": "valuation-request.mckinsey excluding no fields",
+      "owner_phase": "5D",
+      "strategy_id": "mckinsey-assumptions",
+      "rule": "Freeze exactly four scenarios and all referenced nonmarket inputs before market access; record protected_mckinsey_sha256.",
+      "failure_ids": ["P5-F025", "P5-F026"]
+    },
+    {
+      "mapping_id": "penman-price-blind-assumptions",
+      "source": "approved assumptions",
+      "target": "Penman forecast, hurdle, growth, and challenge-path inputs",
+      "owner_phase": "5D",
+      "strategy_id": "assumption-map",
+      "rule": "Freeze every nonmarket Penman assumption entry before quote access and record protected_penman_assumptions_sha256.",
+      "failure_ids": ["P5-F027"]
+    },
+    {
+      "mapping_id": "price-blind-internal-artifact",
+      "source": "nonmarket ledger, assumption entries, routing, accounting, method views, McKinsey and nonmarket Penman inputs",
+      "target": "price-blind-input.json",
+      "owner_phase": "5D",
+      "strategy_id": "request-assembly",
+      "rule": "Write a closed canonical internal artifact that is explicitly invalid as a complete kernel request because market_equity_value_fact_id is not yet available.",
+      "failure_ids": ["P5-F028", "P5-F029"]
+    },
+    {
+      "mapping_id": "market-reference-to-market-equity",
+      "source": "MarketReferenceSnapshot plus reviewed diluted-share Fact",
+      "target": "market-price Fact and derived market_equity_value Fact",
+      "owner_phase": "5E",
+      "strategy_id": "penman-request-assembly",
+      "rule": "Use the cutoff date or the preceding valid trading instant, record split state and provenance, and derive rather than hand-enter market equity value.",
+      "failure_ids": ["P5-F030", "P5-F031", "P5-F032"]
+    },
+    {
+      "mapping_id": "final-request-compilation",
+      "source": "frozen price-blind input plus governed market reference",
+      "target": "valuation-request.json",
+      "owner_phase": "5E",
+      "strategy_id": "request-assembly",
+      "rule": "Append market Facts, update only the FactLedger-dependent assumption binding, prove assumption-entry and protected-hash equality, then validate the complete pinned schema.",
+      "failure_ids": ["P5-F033", "P5-F034", "P5-F035"]
+    },
+    {
+      "mapping_id": "kernel-result-archive",
+      "source": "pinned kernel run_dual_panel output",
+      "target": "valuation-result.json and ValuationHandoff hashes",
+      "owner_phase": "5E",
+      "strategy_id": "kernel-output-preservation",
+      "rule": "Validate schema and kernel fingerprints, preserve canonical payload unchanged, and reject component or schema drift.",
+      "failure_ids": ["P5-F036", "P5-F037"]
+    }
+  ],
+  "kernel_required_coverage": [
+    {"schema": "assumption-ledger.schema.json", "object_pointer": "/", "required_fields": ["schema_version", "fact_ledger_fingerprint", "assumptions"], "strategy_id": "assumption-map"},
+    {"schema": "assumption-ledger.schema.json", "object_pointer": "/properties/assumptions/items", "required_fields": ["assumption_id", "value", "unit", "concept", "scope", "rationale", "source_fact_ids", "scenario"], "strategy_id": "assumption-map"},
+    {"schema": "fact-ledger.schema.json", "object_pointer": "/", "required_fields": ["schema_version", "entity_id", "valuation_date", "reporting_currency", "sources", "facts"], "strategy_id": "ledger-envelope"},
+    {"schema": "fact-ledger.schema.json", "object_pointer": "/properties/facts/items", "required_fields": ["fact_id", "concept", "value", "unit", "category", "source_id", "source_location", "as_of_date", "confidence", "raw", "parent_fact_ids", "derivation", "equity_bridge_role"], "strategy_id": "fact-map"},
+    {"schema": "fact-ledger.schema.json", "object_pointer": "/properties/sources/items", "required_fields": ["source_id", "title", "publisher", "published_date", "retrieved_at", "locator", "primary"], "strategy_id": "source-map"},
+    {"schema": "fact-ledger.schema.json", "object_pointer": "/properties/sources/items/anyOf/0", "required_fields": ["url"], "strategy_id": "source-map"},
+    {"schema": "fact-ledger.schema.json", "object_pointer": "/properties/sources/items/anyOf/1", "required_fields": ["local_path"], "strategy_id": "source-map"},
+    {"schema": "valuation-request.schema.json", "object_pointer": "/", "required_fields": ["schema_version", "model_unit", "share_unit", "fact_ledger", "assumption_ledger", "company", "routing_assessments", "accounting_checks", "method_views"], "strategy_id": "request-assembly"},
+    {"schema": "valuation-request.schema.json", "object_pointer": "/$defs/accountingChecks", "required_fields": ["balance_sheet", "clean_surplus", "quality_issues"], "strategy_id": "accounting-controls"},
+    {"schema": "valuation-request.schema.json", "object_pointer": "/$defs/accountingChecks/properties/balance_sheet", "required_fields": ["assets_fact_id", "liabilities_fact_id", "equity_fact_id"], "strategy_id": "accounting-controls"},
+    {"schema": "valuation-request.schema.json", "object_pointer": "/$defs/accountingChecks/properties/clean_surplus", "required_fields": ["beginning_equity_fact_id", "comprehensive_income_fact_id", "net_distributions_fact_id", "ending_equity_fact_id"], "strategy_id": "accounting-controls"},
+    {"schema": "valuation-request.schema.json", "object_pointer": "/$defs/accountingChecks/properties/quality_issues/items", "required_fields": ["issue_id", "category", "material", "resolved", "rationale", "evidence_fact_ids"], "strategy_id": "accounting-controls"},
+    {"schema": "valuation-request.schema.json", "object_pointer": "/$defs/adjustment", "required_fields": ["adjustment_id", "adjustment_group_id", "category", "target_fact_id", "amount_fact_id", "rationale"], "strategy_id": "method-views"},
+    {"schema": "valuation-request.schema.json", "object_pointer": "/$defs/assessment", "required_fields": ["value", "rationale", "source_fact_ids"], "strategy_id": "readiness-routing"},
+    {"schema": "valuation-request.schema.json", "object_pointer": "/$defs/bridgeItem", "required_fields": ["item_id", "fact_id"], "strategy_id": "equity-bridge"},
+    {"schema": "valuation-request.schema.json", "object_pointer": "/$defs/bridgeRoleAssertion", "required_fields": ["role", "status", "fact_id", "rationale", "source_fact_ids"], "strategy_id": "equity-bridge"},
+    {"schema": "valuation-request.schema.json", "object_pointer": "/$defs/challengeRow", "required_fields": ["period_end", "sales_assumption_id", "ending_noa_assumption_id"], "strategy_id": "penman-request-assembly"},
+    {"schema": "valuation-request.schema.json", "object_pointer": "/$defs/company", "required_fields": ["name", "type", "classification_rationale", "source_fact_ids"], "strategy_id": "readiness-routing"},
+    {"schema": "valuation-request.schema.json", "object_pointer": "/$defs/mckinsey", "required_fields": ["base_invested_capital_fact_id", "scenarios", "equity_bridge"], "strategy_id": "mckinsey-assumptions"},
+    {"schema": "valuation-request.schema.json", "object_pointer": "/$defs/mckinsey/properties/equity_bridge", "required_fields": ["diluted_shares_fact_id", "items", "role_assertions"], "strategy_id": "equity-bridge"},
+    {"schema": "valuation-request.schema.json", "object_pointer": "/$defs/mckinseyForecast", "required_fields": ["period_end", "revenue_assumption_id", "nopat_assumption_id", "ending_invested_capital_assumption_id"], "strategy_id": "mckinsey-assumptions"},
+    {"schema": "valuation-request.schema.json", "object_pointer": "/$defs/methodViews", "required_fields": ["mckinsey_adjustments", "penman_adjustments"], "strategy_id": "method-views"},
+    {"schema": "valuation-request.schema.json", "object_pointer": "/$defs/penman", "required_fields": ["current_noa_fact_id", "market_equity_value_fact_id", "net_financial_obligations_fact_id", "primary_hurdle_assumption_id", "growth_rate_assumption_ids", "long_run_growth_assumption_id", "forecast", "market_challenge_path", "include_cap_diagnostic"], "strategy_id": "penman-request-assembly"},
+    {"schema": "valuation-request.schema.json", "object_pointer": "/$defs/penmanForecast", "required_fields": ["period_end", "sales_assumption_id", "operating_income_assumption_id", "ending_noa_assumption_id"], "strategy_id": "penman-request-assembly"},
+    {"schema": "valuation-request.schema.json", "object_pointer": "/$defs/routingAssessments", "required_fields": ["required_data_complete", "stable_capital_structure", "operating_financing_separable", "credible_noa", "credible_near_term_earnings", "equity_bridge_complete"], "strategy_id": "readiness-routing"},
+    {"schema": "valuation-request.schema.json", "object_pointer": "/$defs/scenario", "required_fields": ["name", "wacc_assumption_id", "terminal_growth_assumption_id", "terminal_ronic_assumption_id", "forecast", "steady_state"], "strategy_id": "mckinsey-assumptions"},
+    {"schema": "valuation-request.schema.json", "object_pointer": "/$defs/steadyState", "required_fields": ["terminal_nopat_margin_assumption_id", "terminal_roic_assumption_id", "tolerance_assumption_id"], "strategy_id": "mckinsey-assumptions"},
+    {"schema": "valuation-result.schema.json", "object_pointer": "/", "required_fields": ["schema_version", "company", "fact_ledger_fingerprint", "assumption_ledger_fingerprint", "model_input_fingerprint", "accounting_validation", "equity_bridge_validation", "routing", "panels", "decision_protocol"], "strategy_id": "kernel-output-preservation"},
+    {"schema": "valuation-result.schema.json", "object_pointer": "/$defs/accountingAnchor", "required_fields": ["noa", "residual_operating_incomes", "hurdle_rate", "operating_anchor", "net_financial_obligations", "equity_anchor", "method_label"], "strategy_id": "kernel-output-preservation"},
+    {"schema": "valuation-result.schema.json", "object_pointer": "/$defs/accountingValidation", "required_fields": ["balance_sheet_status", "clean_surplus_status", "quality_gate", "method_label"], "strategy_id": "kernel-output-preservation"},
+    {"schema": "valuation-result.schema.json", "object_pointer": "/$defs/accountingValidation/properties/quality_gate", "required_fields": ["status", "unresolved_material_issues"], "strategy_id": "kernel-output-preservation"},
+    {"schema": "valuation-result.schema.json", "object_pointer": "/$defs/capDiagnostic", "required_fields": ["market_equity_value", "implied_competitive_advantage_years", "reconstructed_market_equity_value", "round_trip_error", "method_label"], "strategy_id": "kernel-output-preservation"},
+    {"schema": "valuation-result.schema.json", "object_pointer": "/$defs/driverRow", "required_fields": ["period_end", "drivers", "limitation"], "strategy_id": "kernel-output-preservation"},
+    {"schema": "valuation-result.schema.json", "object_pointer": "/$defs/driverTree", "required_fields": ["profit_margin", "asset_turnover", "rnoa", "residual_operating_income", "method_label"], "strategy_id": "kernel-output-preservation"},
+    {"schema": "valuation-result.schema.json", "object_pointer": "/$defs/economicProfit", "required_fields": ["explicit_economic_profits", "explicit_present_value", "economic_profit_next", "continuing_value_capital_in_place", "continuing_value_new_investment", "continuing_value_at_horizon", "continuing_value_identity_at_horizon", "continuing_present_value", "initial_invested_capital", "operating_value", "method_label"], "strategy_id": "kernel-output-preservation"},
+    {"schema": "valuation-result.schema.json", "object_pointer": "/$defs/enterpriseDcf", "required_fields": ["explicit_free_cash_flows", "explicit_present_value", "terminal_nopat_next", "terminal_reinvestment_rate", "terminal_reinvestment", "terminal_free_cash_flow", "terminal_value_at_horizon", "terminal_present_value", "operating_value", "terminal_value_share", "method_label"], "strategy_id": "kernel-output-preservation"},
+    {"schema": "valuation-result.schema.json", "object_pointer": "/$defs/equityBridge", "required_fields": ["operating_value", "nonoperating_assets", "nonequity_claims", "equity_value", "diluted_shares", "value_per_share", "method_label"], "strategy_id": "kernel-output-preservation"},
+    {"schema": "valuation-result.schema.json", "object_pointer": "/$defs/equityBridgeValidation", "required_fields": ["status", "modeled_roles", "included_but_unresolved_roles", "explicitly_absent_roles", "not_applicable_roles", "unresolved_roles", "method_label"], "strategy_id": "kernel-output-preservation"},
+    {"schema": "valuation-result.schema.json", "object_pointer": "/$defs/fadePathPoint", "required_fields": ["year_index", "growth_rate", "residual_operating_income"], "strategy_id": "kernel-output-preservation"},
+    {"schema": "valuation-result.schema.json", "object_pointer": "/$defs/growthReturnPoint", "required_fields": ["growth_rate", "expected_return", "method_label"], "strategy_id": "kernel-output-preservation"},
+    {"schema": "valuation-result.schema.json", "object_pointer": "/$defs/hurdleComparison", "required_fields": ["hurdle_rate", "equity_anchor", "speculative_value", "speculative_share_of_price", "implied_growth", "method_label"], "strategy_id": "kernel-output-preservation"},
+    {"schema": "valuation-result.schema.json", "object_pointer": "/$defs/inputRefs", "required_fields": ["fact_ids", "assumption_ids", "method_adjustment_ids"], "strategy_id": "kernel-output-preservation"},
+    {"schema": "valuation-result.schema.json", "object_pointer": "/$defs/marketChallengeRow", "required_fields": ["period_end", "reoi_growth", "required_reoi", "required_operating_income_after_tax", "ending_noa", "drivers", "limitation", "method_label"], "strategy_id": "kernel-output-preservation"},
+    {"schema": "valuation-result.schema.json", "object_pointer": "/$defs/mckinseyPanel", "required_fields": ["method_label", "scenarios", "scenario_value_per_share_range"], "strategy_id": "kernel-output-preservation"},
+    {"schema": "valuation-result.schema.json", "object_pointer": "/$defs/mckinseyPanel/properties/scenario_value_per_share_range", "required_fields": ["low", "high"], "strategy_id": "kernel-output-preservation"},
+    {"schema": "valuation-result.schema.json", "object_pointer": "/$defs/penmanPanel", "required_fields": ["method_label", "input_refs", "accounting_anchor", "speculative_value", "speculative_share_of_market_price", "reverse_price", "reverse_price_limitation", "reverse_fade", "reverse_fade_limitation", "hurdle_comparisons", "growth_return_profile", "growth_return_profile_limitation", "predictive_driver_path", "market_implied_driver_path", "market_implied_driver_path_limitation", "cap_diagnostic", "cap_diagnostic_limitation"], "strategy_id": "kernel-output-preservation"},
+    {"schema": "valuation-result.schema.json", "object_pointer": "/$defs/reverseFade", "required_fields": ["market_equity_value", "long_run_growth", "last_observed_growth", "implied_fade_weight", "reconstructed_market_equity_value", "round_trip_error", "path", "method_label"], "strategy_id": "kernel-output-preservation"},
+    {"schema": "valuation-result.schema.json", "object_pointer": "/$defs/reversePrice", "required_fields": ["market_equity_value", "market_operating_value", "implied_growth", "reconstructed_market_equity_value", "round_trip_error", "method_label"], "strategy_id": "kernel-output-preservation"},
+    {"schema": "valuation-result.schema.json", "object_pointer": "/$defs/routing", "required_fields": ["status", "supported_methods", "blocked_methods", "required_extension", "reasons"], "strategy_id": "kernel-output-preservation"},
+    {"schema": "valuation-result.schema.json", "object_pointer": "/$defs/scenarioResult", "required_fields": ["name", "scenario_label", "input_refs", "derived_terminal_nopat_next", "steady_state_evidence", "enterprise_dcf", "economic_profit", "dcf_ep_reconciliation_difference", "equity_bridge"], "strategy_id": "kernel-output-preservation"},
+    {"schema": "valuation-result.schema.json", "object_pointer": "/$defs/steadyStateEvidence", "required_fields": ["last_revenue_growth", "terminal_revenue_growth", "last_nopat_growth", "terminal_nopat_growth", "last_nopat_margin", "terminal_nopat_margin", "last_roic", "terminal_roic", "last_incremental_roic", "terminal_ronic", "last_reinvestment_rate", "terminal_reinvestment_rate", "tolerance"], "strategy_id": "kernel-output-preservation"},
+    {"schema": "valuation-result.schema.json", "object_pointer": "/allOf/0/then/properties/panels", "required_fields": ["mckinsey", "penman"], "strategy_id": "kernel-output-preservation"},
+    {"schema": "valuation-result.schema.json", "object_pointer": "/properties/company", "required_fields": ["name", "type"], "strategy_id": "kernel-output-preservation"},
+    {"schema": "valuation-result.schema.json", "object_pointer": "/properties/decision_protocol", "required_fields": ["keep_panels_separate", "book_core_and_project_extensions_are_labeled", "owner_judgment_required", "method_label"], "strategy_id": "kernel-output-preservation"}
+  ]
+}

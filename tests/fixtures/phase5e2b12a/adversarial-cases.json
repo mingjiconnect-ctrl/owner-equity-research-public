@@ -1,0 +1,230 @@
+{
+  "cases": [
+    {
+      "boundary": "official_occurrence_collision_domain",
+      "case_id": "official-occurrence-split-across-legal-groups",
+      "case_kind": "mutation",
+      "expected": "blocked",
+      "mutation": "same_official_occurrence_two_legal_event_keys",
+      "test_nodeid": "tests/test_phase5e2b12a_integration_contracts.py::test_validation_boundary_rejects_one_official_occurrence_split_across_groups"
+    },
+    {
+      "boundary": "bundle_grouping_replay",
+      "case_id": "bundle-rejects-split-official-occurrence",
+      "case_kind": "mutation",
+      "expected": "blocked",
+      "mutation": "replace_grouping_with_split_official_occurrence",
+      "test_nodeid": "tests/test_phase5e2b12a_integration_contracts.py::test_bundle_constructor_wires_official_occurrence_collision_validation"
+    },
+    {
+      "boundary": "generated_fact_id_reservation",
+      "case_id": "reserved-canonical-id-existing-fact",
+      "case_kind": "mutation",
+      "expected": "blocked",
+      "mutation": "occupy_reserved_canonical_id_with_graph_fact",
+      "test_nodeid": "tests/test_phase5e2b12a_integration_contracts.py::test_reserved_generated_fact_ids_reject_any_existing_graph_fact[canonical]"
+    },
+    {
+      "boundary": "generated_fact_id_reservation",
+      "case_id": "reserved-output-id-existing-fact",
+      "case_kind": "mutation",
+      "expected": "blocked",
+      "mutation": "occupy_reserved_output_id_with_graph_fact",
+      "test_nodeid": "tests/test_phase5e2b12a_integration_contracts.py::test_reserved_generated_fact_ids_reject_any_existing_graph_fact[output]"
+    },
+    {
+      "boundary": "generated_fact_id_reservation",
+      "case_id": "reserved-canonical-id-cross-domain",
+      "case_kind": "mutation",
+      "expected": "blocked",
+      "mutation": "occupy_reserved_canonical_id_with_claim",
+      "test_nodeid": "tests/test_phase5e2b12a_integration_contracts.py::test_reserved_generated_fact_ids_reject_cross_domain_occupants[canonical]"
+    },
+    {
+      "boundary": "generated_fact_id_reservation",
+      "case_id": "reserved-output-id-cross-domain",
+      "case_kind": "mutation",
+      "expected": "blocked",
+      "mutation": "occupy_reserved_output_id_with_claim",
+      "test_nodeid": "tests/test_phase5e2b12a_integration_contracts.py::test_reserved_generated_fact_ids_reject_cross_domain_occupants[output]"
+    },
+    {
+      "boundary": "canonical_fact_materialization",
+      "case_id": "reserved-canonical-id-exact-reuse-only",
+      "case_kind": "golden_and_mutation",
+      "expected": "exact_reuse_accepted_conflict_blocked",
+      "mutation": "reuse_exact_then_change_bytes",
+      "test_nodeid": "tests/test_phase5e2b12a_integration_contracts.py::test_reserved_canonical_fact_id_accepts_only_exact_deterministic_materialization"
+    },
+    {
+      "boundary": "bundle_generated_id_binding",
+      "case_id": "caller-rewrites-generated-reservations",
+      "case_kind": "mutation",
+      "expected": "blocked",
+      "mutation": "replace_reserved_output_id_and_canonical_binding",
+      "test_nodeid": "tests/test_phase5e2b12a_integration_contracts.py::test_bundle_rejects_caller_rewrite_of_generated_fact_reservations"
+    },
+    {
+      "boundary": "exactly_once_numeric_consumption",
+      "case_id": "two-corroborating-members-consumed-once",
+      "case_kind": "golden",
+      "expected": "accepted_95000000",
+      "mutation": "none",
+      "test_nodeid": "tests/test_phase5e2b12a_integration_contracts.py::test_corroborating_sources_are_all_parents_but_consumed_once"
+    },
+    {
+      "boundary": "corroborating_evidence_metamorphism",
+      "case_id": "one-vs-two-corroborating-members",
+      "case_kind": "metamorphic",
+      "expected": "same_value_different_closure",
+      "mutation": "add_corroborating_member",
+      "test_nodeid": "tests/test_phase5e2b12a_integration_contracts.py::test_one_and_two_corroborating_sources_preserve_value_but_change_closure"
+    },
+    {
+      "boundary": "typed_member_byte_binding",
+      "case_id": "member-fact-bytes-forged",
+      "case_kind": "mutation",
+      "expected": "blocked",
+      "mutation": "change_embedded_fact_value",
+      "test_nodeid": "tests/test_phase5e2b12a_integration_contracts.py::test_member_binding_rejects_a_forged_typed_fact"
+    },
+    {
+      "boundary": "bundle_dependency_closure",
+      "case_id": "bundle-dangling-member-fact",
+      "case_kind": "mutation",
+      "expected": "blocked",
+      "mutation": "remove_member_fact_from_graph",
+      "test_nodeid": "tests/test_phase5e2b12a_integration_contracts.py::test_bundle_closure_replays_the_complete_contract_graph"
+    },
+    {
+      "boundary": "grouping_authority",
+      "case_id": "grouping-magnitude-or-future-date-self-attested",
+      "case_kind": "mutation_set",
+      "expected": "blocked",
+      "mutation": "rewrite_magnitude_or_use_future_execution",
+      "test_nodeid": "tests/test_phase5e2b12a_integration_contracts.py::test_grouping_magnitude_or_future_date_cannot_be_self_attested"
+    },
+    {
+      "boundary": "coverage_search_and_zero_evidence",
+      "case_id": "coverage-receipt-or-zero-evidence-forged",
+      "case_kind": "mutation_set",
+      "expected": "blocked",
+      "mutation": "remove_source_family_receipts_or_make_zero_nonzero",
+      "test_nodeid": "tests/test_phase5e2b12a_integration_contracts.py::test_coverage_requires_all_eight_receipts_and_governed_zero_facts"
+    },
+    {
+      "boundary": "issuer_cik_authority",
+      "case_id": "receipt-and-bundle-cik-forgery",
+      "case_kind": "mutation_set",
+      "expected": "blocked",
+      "mutation": "synchronize_forged_receipt_cik_or_bundle_cik",
+      "test_nodeid": "tests/test_phase5e2b12a_integration_contracts.py::test_coverage_cik_is_bound_to_receipts_and_bundle_filing_authority"
+    },
+    {
+      "boundary": "rollforward_arithmetic",
+      "case_id": "wrong-output-with-rehashed-closure",
+      "case_kind": "mutation",
+      "expected": "blocked",
+      "mutation": "replace_output_95000000_with_85000000",
+      "test_nodeid": "tests/test_phase5e2b12a_integration_contracts.py::test_wrong_output_arithmetic_is_rejected_even_when_all_hashes_are_recomputed"
+    },
+    {
+      "boundary": "sequential_claim_transition",
+      "case_id": "sequential-option-chain-and-branch-guard",
+      "case_kind": "golden_and_mutation",
+      "expected": "chain_accepted_branch_blocked",
+      "mutation": "second_transition_branches_from_initial_root",
+      "test_nodeid": "tests/test_phase5e2b12a_integration_contracts.py::test_sequential_claim_transitions_chain_through_prior_remaining_fact"
+    },
+    {
+      "boundary": "named_human_and_stock_period",
+      "case_id": "blank-reviewer-or-inverted-stock-period",
+      "case_kind": "mutation_set",
+      "expected": "blocked",
+      "mutation": "blank_human_suffix_or_non_null_future_stock_start",
+      "test_nodeid": "tests/test_phase5e2b12a_integration_contracts.py::test_transition_rejects_blank_named_human_and_inverted_stock_period"
+    },
+    {
+      "boundary": "phase5c_authority_replay",
+      "case_id": "caller-rewrites-phase5c-authority",
+      "case_kind": "mutation",
+      "expected": "blocked",
+      "mutation": "rewrite_reviewed_root_authority",
+      "test_nodeid": "tests/test_phase5e2b12a_integration_contracts.py::test_phase5c_dilution_authority_cannot_be_caller_rewritten"
+    },
+    {
+      "boundary": "primary_source_selection",
+      "case_id": "primary-source-input-order-reversal",
+      "case_kind": "metamorphic",
+      "expected": "same_materialization",
+      "mutation": "reverse_all_corroborating_member_inputs",
+      "test_nodeid": "tests/test_phase5e2b12a_integration_contracts.py::test_primary_source_selection_is_order_independent"
+    },
+    {
+      "boundary": "all_governed_collection_ordering",
+      "case_id": "multi-item-collection-permutations",
+      "case_kind": "metamorphic",
+      "expected": "byte_identical",
+      "mutation": "reverse_members_receipts_entries_bindings_and_closure_objects",
+      "test_nodeid": "tests/test_phase5e2b12a_integration_contracts.py::test_all_governed_multi_item_collections_are_order_independent"
+    },
+    {
+      "boundary": "recursive_fact_parent_edges",
+      "case_id": "extra-recursive-parent-edge",
+      "case_kind": "mutation",
+      "expected": "blocked",
+      "mutation": "inject_unregistered_parent_edge",
+      "test_nodeid": "tests/test_phase5e2b12a_integration_contracts.py::test_recursive_fact_parent_edges_are_the_exact_deterministic_lineage"
+    },
+    {
+      "boundary": "zero_event_rollforward",
+      "case_id": "fully-closed-zero-event-rollforward",
+      "case_kind": "golden",
+      "expected": "accepted_opening_equals_output",
+      "mutation": "none",
+      "test_nodeid": "tests/test_phase5e2b12a_integration_contracts.py::test_complete_zero_event_rollforward_is_a_governed_deterministic_golden"
+    },
+    {
+      "boundary": "cross_directory_replay",
+      "case_id": "root-parent-tmp-spaces-and-symlink-replay",
+      "case_kind": "metamorphic",
+      "expected": "same_closure_fingerprint",
+      "mutation": "change_working_directory_and_symlink_path",
+      "test_nodeid": "tests/test_phase5e2b12a_integration_contracts.py::test_contract_replay_is_identical_across_root_parent_tmp_spaces_and_symlink"
+    },
+    {
+      "boundary": "exact_type_module_trust_root",
+      "case_id": "extra-import-function-class-method-or-body",
+      "case_kind": "mutation_set",
+      "expected": "ast_hash_drift",
+      "mutation": "mutate_import_surface_class_surface_or_function_body",
+      "test_nodeid": "tests/test_phase5e2b12a_integration_contracts.py::test_exact_type_module_ast_and_raw_bytes_reject_surface_and_body_mutations"
+    },
+    {
+      "boundary": "closed_policy_json",
+      "case_id": "duplicate-numeric-or-nonfinite-policy-json",
+      "case_kind": "mutation_set",
+      "expected": "blocked",
+      "mutation": "duplicate_key_or_numeric_or_nonfinite_value",
+      "test_nodeid": "tests/test_phase5e2b12a_integration_contracts.py::test_policy_loader_rejects_duplicate_unknown_numeric_and_nonfinite_json"
+    },
+    {
+      "boundary": "specialist_claim_authority",
+      "case_id": "convertible-forced-through-option-authority",
+      "case_kind": "mutation",
+      "expected": "specialist_required",
+      "mutation": "bind_convertible_to_generic_option_root",
+      "test_nodeid": "tests/test_phase5e2b12a_integration_contracts.py::test_convertible_and_warrant_transitions_require_specialist_authority[convertible_shares_converted_completed]"
+    },
+    {
+      "boundary": "specialist_claim_authority",
+      "case_id": "warrant-forced-through-option-authority",
+      "case_kind": "mutation",
+      "expected": "specialist_required",
+      "mutation": "bind_warrant_to_generic_option_root",
+      "test_nodeid": "tests/test_phase5e2b12a_integration_contracts.py::test_convertible_and_warrant_transitions_require_specialist_authority[warrant_shares_exercised_completed]"
+    }
+  ],
+  "phase": "Phase 5E-2B.1-2A",
+  "schema_version": "2.0.0"
+}

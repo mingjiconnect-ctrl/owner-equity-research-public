@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/quarterly-update.schema.json",
+  "title": "QuarterlyUpdate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "update_id", "issuer_id", "as_of_date", "current_period_id", "comparison_period_id", "status", "comparability", "fact_ids", "calculation_result_ids", "reconciliation_ids", "what_changed_claim_ids", "why_it_changed_claim_ids", "temporary_or_structural_claim_ids", "guidance_change_claim_ids", "long_term_thesis_impact_claim_ids", "impact_on_valuation_assumptions_claim_ids", "valuation_assumption_review_required", "confidence", "missing_evidence", "red_flags"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "update_id": {"type": "string", "minLength": 1},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "as_of_date": {"type": "string", "format": "date"},
+    "current_period_id": {"type": "string", "minLength": 1},
+    "comparison_period_id": {"type": "string", "minLength": 1},
+    "status": {"enum": ["complete", "partial", "blocked"]},
+    "comparability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "reasons"],
+      "properties": {
+        "status": {"enum": ["comparable", "partially_comparable", "not_comparable", "unknown"]},
+        "reasons": {"type": "array", "uniqueItems": true, "items": {"enum": ["53_week_difference", "fiscal_calendar_change", "restatement", "material_acquisition", "missing_acquisition_bridge", "missing_material_acquisition_evidence", "missing_acquisition_bridge_evidence", "missing_fx_evidence", "missing_one_time_tax_evidence", "fx", "one_time_tax", "other"]}}
+      }
+    },
+    "fact_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "calculation_result_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "reconciliation_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "what_changed_claim_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "why_it_changed_claim_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "temporary_or_structural_claim_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "guidance_change_claim_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "long_term_thesis_impact_claim_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "impact_on_valuation_assumptions_claim_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "valuation_assumption_review_required": {"type": "boolean"},
+    "confidence": {"enum": ["high", "medium", "low"]},
+    "missing_evidence": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "red_flags": {"type": "array", "items": {"type": "string", "minLength": 1}}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "blocked"}}},
+      "then": {"properties": {"missing_evidence": {"minItems": 1}}}
+    },
+    {
+      "if": {"properties": {"status": {"const": "partial"}}},
+      "then": {"properties": {"missing_evidence": {"minItems": 1}}}
+    },
+    {
+      "if": {"properties": {"status": {"const": "complete"}}},
+      "then": {"properties": {"missing_evidence": {"maxItems": 0}, "calculation_result_ids": {"minItems": 1}, "why_it_changed_claim_ids": {"minItems": 1}, "temporary_or_structural_claim_ids": {"minItems": 1}, "guidance_change_claim_ids": {"minItems": 1}, "long_term_thesis_impact_claim_ids": {"minItems": 1}}}
+    },
+    {
+      "if": {"properties": {"comparability": {"properties": {"status": {"enum": ["not_comparable", "unknown"]}}}}},
+      "then": {"properties": {"status": {"const": "blocked"}, "comparability": {"properties": {"reasons": {"minItems": 1}}}}}
+    },
+    {
+      "if": {"properties": {"comparability": {"properties": {"status": {"const": "partially_comparable"}}}}},
+      "then": {"properties": {"comparability": {"properties": {"reasons": {"minItems": 1}}}}}
+    },
+    {
+      "if": {"properties": {"comparability": {"properties": {"status": {"const": "comparable"}}}}},
+      "then": {"properties": {"comparability": {"properties": {"reasons": {"maxItems": 0}}}}}
+    },
+    {
+      "if": {"properties": {"valuation_assumption_review_required": {"const": true}}},
+      "then": {"properties": {"impact_on_valuation_assumptions_claim_ids": {"minItems": 1}}},
+      "else": {"properties": {"impact_on_valuation_assumptions_claim_ids": {"maxItems": 0}}}
+    }
+  ]
+}

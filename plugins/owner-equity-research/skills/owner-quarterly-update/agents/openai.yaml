@@ -1,0 +1,6 @@
+interface:
+  display_name: "Owner Quarterly Update"
+  short_description: "Build deterministic quarterly research updates"
+  default_prompt: "Use $owner-quarterly-update to build a source-backed quarterly vertical slice."
+policy:
+  allow_implicit_invocation: false

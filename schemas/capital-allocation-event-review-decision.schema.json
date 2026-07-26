@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/capital-allocation-event-review-decision.schema.json",
+  "title": "CapitalAllocationEventReviewDecision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "decision_id", "issuer_id", "candidate_id", "candidate_fingerprint", "decision", "output_event_id", "output_economic_event_key", "supersedes_decision_ids", "reviewer_id", "reviewed_at", "rationale", "issues"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "decision_id": {"type": "string", "minLength": 1},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "candidate_id": {"type": "string", "minLength": 1},
+    "candidate_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "decision": {"enum": ["confirmed", "blocked", "rejected"]},
+    "output_event_id": {"type": ["string", "null"], "minLength": 1},
+    "output_economic_event_key": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+    "supersedes_decision_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "reviewer_id": {"type": "string", "minLength": 1},
+    "reviewed_at": {"type": "string", "format": "date-time"},
+    "rationale": {"type": "string", "minLength": 1},
+    "issues": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  },
+  "allOf": [
+    {"if": {"properties": {"decision": {"const": "confirmed"}}}, "then": {"properties": {"output_event_id": {"type": "string", "minLength": 1}, "output_economic_event_key": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}}},
+    {"if": {"properties": {"decision": {"enum": ["blocked", "rejected"]}}}, "then": {"properties": {"output_event_id": {"type": "null"}, "output_economic_event_key": {"type": "null"}, "issues": {"minItems": 1}}}}
+  ]
+}

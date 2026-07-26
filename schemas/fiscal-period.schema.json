@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/fiscal-period.schema.json",
+  "title": "FiscalPeriod",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "period_id", "issuer_id", "fiscal_year", "fiscal_quarter", "calendar_type", "quarter_start", "quarter_end", "cumulative_start", "cumulative_end", "ttm_start", "weeks", "comparative_period_id", "restatement_version", "status", "source_document_ids"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "period_id": {"type": "string", "minLength": 1},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "fiscal_year": {"type": "integer", "minimum": 1900, "maximum": 2200},
+    "fiscal_quarter": {"type": "integer", "minimum": 1, "maximum": 4},
+    "calendar_type": {"enum": ["calendar", "non_calendar", "52_53_week"]},
+    "quarter_start": {"type": "string", "format": "date"},
+    "quarter_end": {"type": "string", "format": "date"},
+    "cumulative_start": {"type": "string", "format": "date"},
+    "cumulative_end": {"type": "string", "format": "date"},
+    "ttm_start": {"type": "string", "format": "date"},
+    "weeks": {"type": "integer", "minimum": 12, "maximum": 14},
+    "comparative_period_id": {"type": ["string", "null"], "minLength": 1},
+    "restatement_version": {"type": "integer", "minimum": 0},
+    "status": {"enum": ["reported", "restated", "derived"]},
+    "source_document_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  }
+}

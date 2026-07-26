@@ -1,0 +1,13 @@
+{
+  "calendar_id": "calendar:XNYS:1.0.0",
+  "exchange": "XNYS",
+  "sessions": [
+    {
+      "trading_date": "2026-06-30",
+      "opened_at": "2026-06-30T13:30:00+00:00",
+      "closed_at": "2026-06-30T20:00:00+00:00",
+      "session_kind": "regular",
+      "session_status": "completed"
+    }
+  ]
+}

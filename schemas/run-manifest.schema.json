@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/run-manifest.schema.json",
+  "title": "RunManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "run_id", "issuer_id", "data_cutoff_date", "started_at", "completed_at", "component_lock_sha256", "component_versions", "input_document_hashes", "output_artifact_hashes", "missing_evidence", "anti_anchoring"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "run_id": {"type": "string", "minLength": 1},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "data_cutoff_date": {"type": "string", "format": "date"},
+    "started_at": {"type": "string", "format": "date-time"},
+    "completed_at": {"type": ["string", "null"], "format": "date-time"},
+    "component_lock_sha256": {"$ref": "#/$defs/sha256"},
+    "component_versions": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "string", "minLength": 1}},
+    "input_document_hashes": {"type": "object", "additionalProperties": {"$ref": "#/$defs/sha256"}},
+    "output_artifact_hashes": {"type": "object", "additionalProperties": {"$ref": "#/$defs/sha256"}},
+    "missing_evidence": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "anti_anchoring": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "conclusion_frozen_at", "current_conclusion_sha256", "prior_materials_accessed"],
+      "properties": {
+        "state": {"enum": ["pre_conclusion", "conclusion_frozen", "comparison"]},
+        "conclusion_frozen_at": {"type": ["string", "null"], "format": "date-time"},
+        "current_conclusion_sha256": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]},
+        "prior_materials_accessed": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"state": {"const": "pre_conclusion"}}},
+          "then": {
+            "properties": {
+              "conclusion_frozen_at": {"type": "null"},
+              "current_conclusion_sha256": {"type": "null"},
+              "prior_materials_accessed": {"maxItems": 0}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"state": {"enum": ["conclusion_frozen", "comparison"]}}},
+          "then": {
+            "properties": {
+              "conclusion_frozen_at": {"type": "string", "format": "date-time"},
+              "current_conclusion_sha256": {"$ref": "#/$defs/sha256"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"state": {"const": "conclusion_frozen"}}},
+          "then": {"properties": {"prior_materials_accessed": {"maxItems": 0}}}
+        }
+      ]
+    }
+  },
+  "$defs": {"sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}
+}

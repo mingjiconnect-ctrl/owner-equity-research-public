@@ -1,0 +1,364 @@
+{
+  "acceptance_branch": "feature/phase5e2b12b-acceptance-closeout",
+  "acceptance_diff": {
+    "docs/phase-status.json": "M",
+    "docs/phase5e2b12b-acceptance-closeout.json": "A"
+  },
+  "audit": {
+    "artifact_name_prefix": "phase5e-audit-",
+    "profile": "phase5e2b12b",
+    "tool": "owner-research-phase5e-readonly",
+    "version": "2.3.2.3.4",
+    "workflow_name": "phase5e2b12a-base-owned-acceptance-gate",
+    "workflow_path": ".github/workflows/phase5e2b12a-acceptance-gate.yml"
+  },
+  "controller_app_id_variable": "PHASE5E_CONTROLLER_APP_ID",
+  "expected_added_test_nodeids": [
+    "tests/test_phase5e2b12b_canonical_event_consumption.py::test_canonical_event_two_sources_is_consumed_once",
+    "tests/test_phase5e2b12b_canonical_event_consumption.py::test_canonical_event_three_sources_is_consumed_once",
+    "tests/test_phase5e2b12b_canonical_event_consumption.py::test_canonical_event_magnitude_conflict_blocks",
+    "tests/test_phase5e2b12b_canonical_event_consumption.py::test_canonical_event_date_conflict_blocks",
+    "tests/test_phase5e2b12b_canonical_event_consumption.py::test_distinct_legal_event_ids_are_consumed_independently",
+    "tests/test_phase5e2b12b_canonical_event_consumption.py::test_missing_legal_identity_blocks",
+    "tests/test_phase5e2b12b_canonical_event_consumption.py::test_same_day_same_amount_without_distinct_legal_ids_blocks",
+    "tests/test_phase5e2b12b_canonical_event_consumption.py::test_option_event_is_consumed_once_per_canonical_group",
+    "tests/test_phase5e2b12b_canonical_event_consumption.py::test_event_input_order_is_irrelevant",
+    "tests/test_phase5e2b12b_canonical_event_consumption.py::test_corroborating_source_changes_closure_not_share_value",
+    "tests/test_phase5e2b12b_canonical_event_consumption.py::test_cumulative_event_fact_cannot_be_consumed_as_an_increment",
+    "tests/test_phase5e2b12b_canonical_event_consumption.py::test_canonical_event_fact_preserves_all_member_lineage"
+  ],
+  "github_actions_app_id": 15368,
+  "implementation_branch": "feature/phase5e2b12b-canonical-rollforward",
+  "implementation_diff": {
+    "docs/phase-status.json": "M",
+    "src/owner_research/valuation_current_share_compiler.py": "M",
+    "tests/test_phase5e2b12b_canonical_event_consumption.py": "A"
+  },
+  "phase": "Phase 5E-2B.1-2B",
+  "required_branch_protection_checks": [
+    "phase5e/actions-status-token-revoked",
+    "phase5e/controller-readonly-audit",
+    "phase5e/controller-structure",
+    "verify (3.11)",
+    "verify (3.12)",
+    "verify (3.13)"
+  ],
+  "schema_version": "4.0.0",
+  "states": {
+    "s0": {
+      "markers": {
+        "phase5e2b12a_closeout": false,
+        "phase5e2b12b_closeout": false,
+        "phase5e2b12b_test": false
+      },
+      "status_patch": {
+        "authorized_next": [
+          "Phase 5E-2B.1-2A acceptance closeout"
+        ],
+        "current_phase": "Phase 5E-2B.1",
+        "prohibited": [
+          "Phase 5E-2B.1-2B",
+          "Phase 5E-2B.1-2C",
+          "Phase 5E-2B.1-3",
+          "Phase 5E-2C",
+          "Phase 5E-2D",
+          "Phase 5E-2E",
+          "Phase 5E-2F",
+          "Phase 5E-3",
+          "Phase 5E-4",
+          "Phase 5E-5",
+          "Phase 5E-6",
+          "Phase 5F",
+          "Phase 6",
+          "Phase 7",
+          "Phase 8",
+          "Phase 9"
+        ],
+        "release_tag": null,
+        "status": "implementation_complete_pending_acceptance"
+      }
+    },
+    "s1": {
+      "markers": {
+        "phase5e2b12a_closeout": true,
+        "phase5e2b12b_closeout": false,
+        "phase5e2b12b_test": false
+      },
+      "status_patch": {
+        "authorized_next": [
+          "Phase 5E-2B.1-2B canonical-event roll-forward implementation"
+        ],
+        "current_phase": "Phase 5E-2B.1-2A",
+        "prohibited": [
+          "Phase 5E-2B.1-2C",
+          "Phase 5E-2B.1-3",
+          "Phase 5E-2C",
+          "Phase 5E-2D",
+          "Phase 5E-2E",
+          "Phase 5E-2F",
+          "Phase 5E-3",
+          "Phase 5E-4",
+          "Phase 5E-5",
+          "Phase 5E-6",
+          "Phase 5F",
+          "Phase 6",
+          "Phase 7",
+          "Phase 8",
+          "Phase 9"
+        ],
+        "release_tag": null,
+        "status": "accepted_closed"
+      }
+    },
+    "s2": {
+      "markers": {
+        "phase5e2b12a_closeout": true,
+        "phase5e2b12b_closeout": false,
+        "phase5e2b12b_test": true
+      },
+      "status_patch": {
+        "authorized_next": [
+          "Phase 5E-2B.1-2B acceptance closeout"
+        ],
+        "current_phase": "Phase 5E-2B.1-2B",
+        "prohibited": [
+          "Phase 5E-2B.1-2C",
+          "Phase 5E-2B.1-3",
+          "Phase 5E-2C",
+          "Phase 5E-2D",
+          "Phase 5E-2E",
+          "Phase 5E-2F",
+          "Phase 5E-3",
+          "Phase 5E-4",
+          "Phase 5E-5",
+          "Phase 5E-6",
+          "Phase 5F",
+          "Phase 6",
+          "Phase 7",
+          "Phase 8",
+          "Phase 9"
+        ],
+        "release_tag": null,
+        "status": "implementation_complete_pending_acceptance"
+      }
+    },
+    "s3": {
+      "markers": {
+        "phase5e2b12a_closeout": true,
+        "phase5e2b12b_closeout": true,
+        "phase5e2b12b_test": true
+      },
+      "status_patch": {
+        "authorized_next": [
+          "Phase 5E-2B.1-2C successor-gate bootstrap"
+        ],
+        "current_phase": "Phase 5E-2B.1-2B",
+        "prohibited": [
+          "Phase 5E-2B.1-2C",
+          "Phase 5E-2B.1-3",
+          "Phase 5E-2C",
+          "Phase 5E-2D",
+          "Phase 5E-2E",
+          "Phase 5E-2F",
+          "Phase 5E-3",
+          "Phase 5E-4",
+          "Phase 5E-5",
+          "Phase 5E-6",
+          "Phase 5F",
+          "Phase 6",
+          "Phase 7",
+          "Phase 8",
+          "Phase 9"
+        ],
+        "release_tag": null,
+        "status": "accepted_closed"
+      }
+    }
+  },
+  "successor_gate_bootstrap": {
+    "acceptance_branch": "feature/phase5e2b12c-gate-acceptance-closeout",
+    "accepted_gate_state": {
+      "authorized_next": [
+        "Phase 5E-2B.1-2C coverage, claim-transition, and recursive-closure implementation"
+      ],
+      "current_phase": "Phase 5E-2B.1-2C-gate",
+      "prohibited": [
+        "Phase 5E-2B.1-3",
+        "Phase 5E-2C",
+        "Phase 5E-2D",
+        "Phase 5E-2E",
+        "Phase 5E-2F",
+        "Phase 5E-3",
+        "Phase 5E-4",
+        "Phase 5E-5",
+        "Phase 5E-6",
+        "Phase 5F",
+        "Phase 6",
+        "Phase 7",
+        "Phase 8",
+        "Phase 9"
+      ],
+      "release_tag": null,
+      "status": "accepted_closed"
+    },
+    "audit_policy": {
+      "audit_version": "2.3.2.3.5",
+      "expected_added_test_nodeids": [
+        "tests/test_phase5e2b12c_coverage_claim_closure.py::test_bundle_closure_rejects_cross_issuer_or_security_evidence",
+        "tests/test_phase5e2b12c_coverage_claim_closure.py::test_bundle_closure_rejects_dangling_or_cyclic_parent_lineage",
+        "tests/test_phase5e2b12c_coverage_claim_closure.py::test_bundle_closure_rejects_future_or_outside_bundle_evidence",
+        "tests/test_phase5e2b12c_coverage_claim_closure.py::test_canonical_group_coverage_consumes_each_occurrence_once",
+        "tests/test_phase5e2b12c_coverage_claim_closure.py::test_claim_transition_is_bound_to_one_canonical_group",
+        "tests/test_phase5e2b12c_coverage_claim_closure.py::test_conflicting_remaining_claim_blocks_entire_lineage",
+        "tests/test_phase5e2b12c_coverage_claim_closure.py::test_cross_directory_replay_is_byte_identical",
+        "tests/test_phase5e2b12c_coverage_claim_closure.py::test_exact_recursive_closure_contains_all_typed_evidence",
+        "tests/test_phase5e2b12c_coverage_claim_closure.py::test_input_order_does_not_change_current_share_result",
+        "tests/test_phase5e2b12c_coverage_claim_closure.py::test_no_event_rollforward_requires_complete_zero_or_na_coverage",
+        "tests/test_phase5e2b12c_coverage_claim_closure.py::test_option_group_triggers_one_reviewed_transition",
+        "tests/test_phase5e2b12c_coverage_claim_closure.py::test_warrant_and_convertible_transitions_route_specialist"
+      ],
+      "mandatory_check_ids": [
+        "audit-controller-integrity",
+        "audited-files-present",
+        "clean-after",
+        "exact-head-no-remote",
+        "fixed-baselines",
+        "full-verification",
+        "independent-market-authority-oracle",
+        "independent-test-manifest-replay",
+        "kernel-exact-head-no-remote",
+        "os-sandbox-boundary",
+        "phase5e-successor-independent-semantic-oracle",
+        "phase5e-successor-repository-wide-changed-path-boundary",
+        "phase5e2b11-frozen-acceptance",
+        "read-only-checkout",
+        "tracked-bytes-immutable"
+      ],
+      "predecessor_nodeid_sha256": "1712ac9325cfbe65a147369193fc7a1241e7f808a8a5c7f5b0f690ea625aadc6",
+      "predecessor_test_count": 1327,
+      "profile_id": "phase5e-2b12c",
+      "protected_oracle_path": "scripts/verify_phase5e2b12c_semantic_oracle.py",
+      "protected_oracle_sha256": "e55690d7905c3b3b407f1fe7955f39e878a3c74e731157c7a4f9155b54281a95"
+    },
+    "bootstrap_branch": "feature/phase5e2b12c-gate-bootstrap",
+    "bundle_directory": "governance/phase5e-gates/phase5e2b12c",
+    "closeout_path": "docs/phase5e2b12c-gate-acceptance-closeout.json",
+    "forbidden_prefixes": [
+      ".github",
+      "plugins",
+      "schemas",
+      "scripts"
+    ],
+    "frozen_paths": [
+      "component-lock.json",
+      "docs/phase5-completion-overlay-v3.md",
+      "pyproject.toml",
+      "schemas/market-reference-snapshot.schema.json",
+      "scripts/phase5e-futu-market-authority-policy-v1.json",
+      "scripts/verify_phase5e2c0_semantic_oracle.py",
+      "tests/test_phase5e2b12a_acceptance_gate.py",
+      "tests/test_phase5e2b12b_acceptance_gate.py",
+      "tests/test_phase5e_audit.py",
+      "tests/test_phase5e_successor_gate.py"
+    ],
+    "gate_acceptance_diff": {
+      "docs/phase-status.json": "M",
+      "docs/phase5e2b12c-gate-acceptance-closeout.json": "A"
+    },
+    "gate_bootstrap_diff": {
+      "docs/phase-status.json": "M",
+      "governance/phase5e-gates/phase5e2b12c/adversarial-cases.json": "A",
+      "governance/phase5e-gates/phase5e2b12c/bundle.json": "A",
+      "governance/phase5e-gates/phase5e2b12c/semantic-oracle.py.txt": "A"
+    },
+    "gate_id": "phase5e2b12c",
+    "next_gate_authority_sha256": null,
+    "next_owner_phase": "Phase 5E-2C-P",
+    "owner_phase": "Phase 5E-2B.1-2C",
+    "pending_gate_state": {
+      "authorized_next": [
+        "Phase 5E-2B.1-2C successor-gate acceptance closeout"
+      ],
+      "current_phase": "Phase 5E-2B.1-2C-gate",
+      "prohibited": [
+        "Phase 5E-2B.1-2C",
+        "Phase 5E-2B.1-3",
+        "Phase 5E-2C",
+        "Phase 5E-2D",
+        "Phase 5E-2E",
+        "Phase 5E-2F",
+        "Phase 5E-3",
+        "Phase 5E-4",
+        "Phase 5E-5",
+        "Phase 5E-6",
+        "Phase 5F",
+        "Phase 6",
+        "Phase 7",
+        "Phase 8",
+        "Phase 9"
+      ],
+      "release_tag": null,
+      "status": "implementation_complete_pending_acceptance"
+    },
+    "successor_acceptance_branch": "feature/phase5e2b12c-acceptance-closeout",
+    "successor_acceptance_diff": {
+      "docs/phase-status.json": "M",
+      "docs/phase5e2b12c-acceptance-closeout.json": "A"
+    },
+    "successor_accepted_state": {
+      "authorized_next": [
+        "Phase 5E-2B.1-3 total corrective closeout"
+      ],
+      "current_phase": "Phase 5E-2B.1-2C",
+      "prohibited": [
+        "Phase 5E-2C",
+        "Phase 5E-2D",
+        "Phase 5E-2E",
+        "Phase 5E-2F",
+        "Phase 5E-3",
+        "Phase 5E-4",
+        "Phase 5E-5",
+        "Phase 5E-6",
+        "Phase 5F",
+        "Phase 6",
+        "Phase 7",
+        "Phase 8",
+        "Phase 9"
+      ],
+      "release_tag": null,
+      "status": "accepted_closed"
+    },
+    "successor_closeout_path": "docs/phase5e2b12c-acceptance-closeout.json",
+    "successor_implementation_branch": "feature/phase5e2b12c-coverage-closure",
+    "successor_implementation_diff": {
+      "docs/phase-status.json": "M",
+      "src/owner_research/valuation_current_share_compiler.py": "M",
+      "tests/test_phase5e2b12c_coverage_claim_closure.py": "A"
+    },
+    "successor_pending_state": {
+      "authorized_next": [
+        "Phase 5E-2B.1-2C acceptance closeout"
+      ],
+      "current_phase": "Phase 5E-2B.1-2C",
+      "prohibited": [
+        "Phase 5E-2B.1-3",
+        "Phase 5E-2C",
+        "Phase 5E-2D",
+        "Phase 5E-2E",
+        "Phase 5E-2F",
+        "Phase 5E-3",
+        "Phase 5E-4",
+        "Phase 5E-5",
+        "Phase 5E-6",
+        "Phase 5F",
+        "Phase 6",
+        "Phase 7",
+        "Phase 8",
+        "Phase 9"
+      ],
+      "release_tag": null,
+      "status": "implementation_complete_pending_acceptance"
+    }
+  },
+  "successor_production_authorized": false
+}

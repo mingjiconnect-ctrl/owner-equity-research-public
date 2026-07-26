@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/valuation-assumption-review-decision.schema.json",
+  "title": "ValuationAssumptionReviewDecision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "decision_id",
+    "issuer_id",
+    "candidate_id",
+    "candidate_fingerprint",
+    "evidence_graph_sha256",
+    "decision",
+    "reserved_kernel_assumption_id",
+    "supersedes_decision_id",
+    "reviewer_type",
+    "reviewer_id",
+    "reviewed_at",
+    "rationale",
+    "issues"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "decision_id": {"type": "string", "minLength": 1},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "candidate_id": {"type": "string", "minLength": 1},
+    "candidate_fingerprint": {"$ref": "#/$defs/sha256"},
+    "evidence_graph_sha256": {"$ref": "#/$defs/sha256"},
+    "decision": {"enum": ["confirmed", "blocked", "rejected", "superseded"]},
+    "reserved_kernel_assumption_id": {"type": ["string", "null"], "minLength": 1},
+    "supersedes_decision_id": {"type": ["string", "null"], "minLength": 1},
+    "reviewer_type": {"const": "human"},
+    "reviewer_id": {"type": "string", "minLength": 1},
+    "reviewed_at": {"type": "string", "format": "date-time"},
+    "rationale": {"type": "string", "minLength": 1},
+    "issues": {"$ref": "#/$defs/stringSet"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"decision": {"const": "confirmed"}}},
+      "then": {
+        "properties": {
+          "reserved_kernel_assumption_id": {"type": "string", "minLength": 1},
+          "supersedes_decision_id": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"decision": {"enum": ["blocked", "rejected"]}}},
+      "then": {
+        "properties": {
+          "reserved_kernel_assumption_id": {"type": "null"},
+          "supersedes_decision_id": {"type": "null"},
+          "issues": {"minItems": 1}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"decision": {"const": "superseded"}}},
+      "then": {
+        "properties": {
+          "reserved_kernel_assumption_id": {"type": "null"},
+          "supersedes_decision_id": {"type": "string", "minLength": 1},
+          "issues": {"minItems": 1}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "stringSet": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    }
+  }
+}

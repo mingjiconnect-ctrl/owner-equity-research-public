@@ -1,0 +1,115 @@
+{
+  "lock_version": "1.2.0",
+  "generated_date": "2026-07-16",
+  "owner_equity_research": {
+    "plugin_version": "0.5.0-dev.11",
+    "public_schema_sha256": {
+      "schemas/accounting-quality-finding.schema.json": "0ea5d7de6520fcb19dcedddf1d3c0bc14a58faf7239beae3ef431805516dafc5",
+      "schemas/accounting-quality-review.schema.json": "1019218ca7ff086dd5319e4a1b7d18631a2b5725847b14333b02b7f06ea91d46",
+      "schemas/assumption.schema.json": "5ad7741c301b78427cf6f947b1f6d06da7444664bec69d45f7f51e2f0e6114a5",
+      "schemas/analytical-claim-candidate.schema.json": "f3c68b1e9fdfc961fe77ee4101fed8d29d5c29bd84ce90d978b5fd3de2931007",
+      "schemas/analytical-claim-review-decision.schema.json": "3fb400dad78965ded287c3604f0ded1310da26f13b2e2daeb1f387abc891036f",
+      "schemas/business-model-snapshot.schema.json": "2d064a50ce6c34488e9dfaf380e702cec1418421162b6996a002c32d2b21496b",
+      "schemas/business-quality-review.schema.json": "bbd835022baecf085cd7f41768fee29d2062617b9dfa718ed4e22d7471f1b647",
+      "schemas/calculation-result.schema.json": "d80735593b3fe5d6f30b605d4404e39783a2f0b0b78703f6485f1e3b8656e8d1",
+    "schemas/capital-allocation-event-candidate.schema.json": "20ee5c687381ec7eff7c945bf9f6375fd004d6cdd01d25d7dfb2f7b7cca289f9",
+    "schemas/capital-allocation-event-review-decision.schema.json": "d1cd89e90bcf093b7e40978098c6baaa53d4d9162061e4b5b2e086524b7497d7",
+    "schemas/capital-allocation-event.schema.json": "f9fde22258e113f089bc4b28ed00f0b836aad8643682a9baa64e23b7df6bde41",
+    "schemas/capital-allocation-outcome.schema.json": "13085c5f9fd3f325f4e8eab49469dc42825646563e0bb865b648692e49f2303f",
+    "schemas/capital-allocation-review.schema.json": "f085af7cacf60cf673e5dd5b3dd2c322eb6ae052f302e2dfbe7f989ef9e9a9fb",
+      "schemas/claim.schema.json": "33a49f8da194f306b491103caa4ac6016a4864f1324728c6ebe2d8104bc866af",
+      "schemas/competitive-advantage-hypothesis.schema.json": "5f1cad3f50ddb92932ac7ae0b8f1582ccd8c452c9a2c6f733572b2292842f0d6",
+      "schemas/competitive-context-snapshot.schema.json": "9d9a7a84191eda711adac3846a0adcfbf770a480e7e165f3d03ba0eb4b6c4037",
+      "schemas/context-observation.schema.json": "9eb6787f3a82fdff03696b5fb120df1cc3a251ae03d6b717407f813b3ea8f215",
+      "schemas/fact.schema.json": "55f21aa2fbba68340e90d40f32cd641253afdf8d1ab7713e5093c8ba918dbe0e",
+      "schemas/evidence-promotion.schema.json": "e441c89ea3998e54723c3a4b29e7bfb2a7eba177f169a85e88efa67773c1a493",
+      "schemas/extraction-candidate.schema.json": "12d79eeca586ce6ed8726bd9eeac2527746b9f209eccb2f37630d1b1e9058312",
+      "schemas/filing-artifact.schema.json": "0137fac14ead5c0f5aa32749f796fd37efdc167d4ceaade62ac1e5762edeb657",
+      "schemas/fiscal-period.schema.json": "fc4218bfd4fcfe82d37665be21ef00d273fcf8507be8a36ca560f6298400b9a2",
+      "schemas/footnote-review.schema.json": "06c6e3f88ac4bab1b09c22c9ac43b0d9fcdca0b443c7a68fc568f59f7b475e4b",
+      "schemas/management-commitment.schema.json": "65c4e19737cb620e1fd5bc0ac165cc194c5c2f1cbc69a3a572f5265daa7be842",
+      "schemas/management-outcome.schema.json": "032182f0e1e705f59f823a2881088fef34c45d8055a4f640cb0175050b16a40a",
+      "schemas/management-review.schema.json": "4c47309e7d28cd9935a03cff67dc325329e39aa71494bcf3a2c4dbc1cb10c046",
+      "schemas/management-statement.schema.json": "c9dfec9c4caccd2ceacdddea94ddef37feab9f31c90704651776650b15d935fc",
+      "schemas/management-statement-candidate.schema.json": "8c9ecc6a9fdcb75f8b7f4e0d3190edbab5219ccf7a1cb405514d2d06f8b0ab1a",
+      "schemas/management-statement-review-decision.schema.json": "4c2ef112c1e5008c40925e65c90fee2fc30f811b006081c06320b95cbe60ebe4",
+      "schemas/market-reference-snapshot.schema.json": "cdadc1a1f27b52fef933ce46e0ec901e7b95f0cb7bcbc0d2d55860c470a8824e",
+      "schemas/quarterly-reconciliation.schema.json": "554aa0322c5eb83355e31b663d28857ffe68c23dff8816768cc6b1cd35762115",
+      "schemas/quarterly-update.schema.json": "1b916287bdff14b2709d617602532f128de7c4c430caf9b383ce3e493a1062db",
+      "schemas/report-spec.schema.json": "bedbb43b018b2236660e49081690fc3bb2520f0778ea23cb944903508c392bd7",
+      "schemas/research-bundle.schema.json": "ddb7fc642e091541a97c1d4dfb73392e217f71a038b18f2b9551d75a23e947f1",
+      "schemas/run-manifest.schema.json": "923c673e8dd9cc6ea6b196b66f9d7642ea990be5c8b63bec497815c27bb3146a",
+      "schemas/score.schema.json": "23654a3aa4d2b45268dd69622c0d818d782804806f3e7a00e5e3ecc13c0e730e",
+      "schemas/segment-definition.schema.json": "e0100373db0dae03044734e9e3a38fdfd6605eda8aec34693084e558de094b47",
+      "schemas/segment-snapshot.schema.json": "f901eb149fa63cb51088085a43f16dd08e72ad2c401060f1c7f953dc1d77338d",
+      "schemas/source-document.schema.json": "b52ac7e5fc364a1d6c471040fe12b049d9dd7016fe9acf2f68d2db467da032db",
+      "schemas/source-search-receipt.schema.json": "a6dbabf6e6baaa7f9ed78fc241bb485bec80710e9f9598f9124ab0711f5fb50b",
+      "schemas/valuation-assumption-candidate.schema.json": "008dbea14e23c54bfaa9ad33cb136fa36b8ddb8926000a0455aacaa111817447",
+      "schemas/valuation-assumption-review-decision.schema.json": "9f26fba3bf5e130834a9d62c90c9da496b0e7c47d0083e78cd18c73a50ecd93d",
+      "schemas/valuation-handoff.schema.json": "df48090b7a860ae5d8bb883bd216fabfa0d91547678b94cf23d22abd0d02f154"
+    }
+  },
+  "market_access_authority": {
+    "authority_version": "1.0.0",
+    "provider_registry": {
+      "path": "resources/market_access/provider-registry.json",
+      "sha256": "50700dc355a6181176109a4aaba1085a6d260c500e12809313c9cd182967c020"
+    },
+    "calendar_registry": {
+      "path": "resources/market_access/calendar-registry.json",
+      "sha256": "c94b278c6d29d3bd7e8d479b8686fd50a49c37781370ad9467f68aa7b61c397d"
+    },
+    "security_identity_policy": {
+      "path": "resources/market_access/security-identity-policy.json",
+      "sha256": "a16374ee069a72ae444907e8571c5ae84b40edd81c9e8eda87c40894a80d106c"
+    },
+    "secret_policy": {
+      "path": "resources/market_access/secret-policy.json",
+      "sha256": "9d0520af021512fbca359e772b79456ba46fd2a883283b8abc1a42e7017621f4"
+    },
+    "adapter_code": {
+      "path": "valuation_market_adapters.py",
+      "sha256": "c1a0a044ba50b552202c0b014da65b642b47e37cdf378fd8e2d5bd6ad7f6212f"
+    },
+    "parser_code": {
+      "path": "valuation_market_parsers.py",
+      "sha256": "94808e37018cb32997c5d352b1131dad23754eab07f57422b31c3b2761fd290d"
+    }
+  },
+  "valuation_kernel": {
+    "repository": "mingjiconnect-ctrl/owner-valuation-kernel",
+    "tag": "v2.0.0-rc.2",
+    "annotated_tag_object": "4e19ce6a59bc4321ebcd368e807ed764f4e8abde",
+    "commit": "be9b0773d5a78f5f8a33ba982494512668df85fe",
+    "package_version": "2.0.0rc2",
+    "plugin_version": "2.0.0-rc.2",
+    "release_manifest_sha256": "31687e38f24cbefa7c679e50c45191f0c31f55bcec45954ddfc58f67c42afadc",
+    "source_manifest_sha256": "36304f042fc8c3d090fc70477d29a8d0bd616ac68619df813a9f17b8195bf5af",
+    "release_evidence": {
+      "tag_ci_run_id": 29388946546,
+      "preflight_sha256": "1675898c6341fc4f2e1c65a24c881788e9ebdfada4c4f6ce026df10b44677a92",
+      "wheel_sha256": "fb27d01b1ee75fbd542371510150e890516d306218d33f3608f2aa3caa0e55a5",
+      "plugin_tree_sha256": "779da04c1feaa957f3e162c24f7d38f1e55a4110a462563609379acdb96d4de1",
+      "tag_report_sha256": {
+        "3.11": "87a00ce72e9d8a5822469d2d1de7fe78b3bbc6c395da8dbbe2fd15905c62a52c",
+        "3.12": "1d229e47e2ad06f971cfdf29a50367e4a29ff57171d7c18ac4b5ede022e10f7e",
+        "3.13": "bfec6690155a88c5c78641173986ed0cb924c1c917fa178627d826f51064498e"
+      },
+      "actions_artifact_zip_sha256": {
+        "3.11": "7fb8fb50af83b1c8d6eb9c7024affd7717b9c55ea9a1f1a0cdd6ddb7779f9bfe",
+        "3.12": "0d03b6b493d9d3c85af2d2e81b6f39c3baee8d8d0ef27d8ff4afc190a440e986",
+        "3.13": "9be8fe2b4bf74e98c3448bfb1c5d9e2426fd41c627114e22cad1ffcba8cf4bd4"
+      }
+    },
+    "public_schema_sha256": {
+      "schemas/assumption-ledger.schema.json": "2232642332dc6444c784e21746cbd16bf8d4cd74fc483a0a345d95f98fc97a7a",
+      "schemas/fact-ledger.schema.json": "55be5aadad21629db1cdbe7fce386656eb930b52af8644d1314ba7404e384706",
+      "schemas/sec-company-profile.schema.json": "539b76ad7974162ba36b513c029d7d8377d352de4e150425c19c4dea620fbf06",
+      "schemas/sec-company-review.schema.json": "24dfa87fa94c0362569979e454cd1f536eef7c7845473567e4e88df872335205",
+      "schemas/sec-evidence-pack.schema.json": "3cf634214584d54d83b0d397da3139ca30815a44e99e7ecc24c3258b25a7b91a",
+      "schemas/sec-scenario-policy.schema.json": "74c0b0cce146891825fcf4599658f99a20fa66924cf07655895dcece00010065",
+      "schemas/valuation-request.schema.json": "67e991484943897585a79a8a1d3d0d52ebb36ec0ba4245cad9b17972877cca3d",
+      "schemas/valuation-result.schema.json": "bbfed2049ed258b767002b74ff45fb6847eb5723ffd6c1d31c53cf119625a683"
+    }
+  }
+}

@@ -1,0 +1,147 @@
+{
+  "schema_version": "1.0.0",
+  "status": "PROJECT_OPERATIONALIZATION",
+  "extends_frozen_artifact": "docs/phase5-interface-matrix.json",
+  "owner_phase": "5E",
+  "invariants": [
+    "Target-security market access starts only after the exact market_reference_allowed transition.",
+    "The v0.5 alpha path supports one primary common share class, a reporting-currency quote, quote-date current common shares, and split factor one.",
+    "The pinned kernel executes only from a verified wheel in a network-disabled subprocess.",
+    "The frozen Phase 5P interface matrix remains byte-identical to its accepted merge.",
+    "The component lock is the sole authority for Provider, adapter, parser, calendar, and secret policy identity.",
+    "Providers return raw bytes only; only the pinned parser may derive a quote.",
+    "Security identity is derived from reviewed evidence and replayed before every access.",
+    "Snapshot dilution authority is derived from the frozen Phase 5C bridge and never supplied by a validation caller.",
+    "Current-share authority recursively closes every numeric root, official source, activity search receipt, and completed-claim transition.",
+    "A completed legal share event is consumed exactly once regardless of how many formal evidence documents corroborate it.",
+    "A canonical event Fact has all and only corroborating raw event Facts as direct parents, while the current-share Fact has all and only the opening Fact plus canonical event Facts as direct parents.",
+    "Coverage, claim transitions, and recursive current-share lineage are keyed by canonical group identity and retain the exact ResearchBundle dependency closure.",
+    "One official legal occurrence cannot split across reviewed economic-event keys; opening and output share Facts remain official high-confidence evidence.",
+    "A multi-root economic Claim is blocked until a graph-owned aggregate opening balance exists, and each accepted transition has exactly one Candidate, named-human Decision, and Claim.",
+    "Reserved canonical and output Fact IDs cannot alias conflicting or pre-existing graph objects."
+  ],
+  "strategies": [
+    {
+      "strategy_id": "market-access-gate",
+      "disposition": "explicit_authorized_access",
+      "rule": "A registered provider may start a quote request only after the exact market_reference_allowed transition and must return a replayable request and response receipt."
+    },
+    {
+      "strategy_id": "market-security-share-basis",
+      "disposition": "specialist_or_fail_closed",
+      "rule": "Accept only one primary common share class, reporting-currency official unadjusted close, quote-date current common shares, and split factor one; route unsupported structures specialist_required."
+    },
+    {
+      "strategy_id": "isolated-pinned-kernel",
+      "disposition": "canonical_subprocess_execution",
+      "rule": "Build and hash the exact pinned wheel, use a hash-recorded local wheelhouse, block network access, exchange canonical JSON over stdin and stdout, and preserve the validated result byte-for-byte."
+    },
+    {
+      "strategy_id": "market-authority-trust-root",
+      "disposition": "component_locked_authority",
+      "rule": "Load the exact repository-owned adapter, raw parser, calendar dataset, and security evidence compiler recorded by component-lock 1.1.0; reject caller-owned substitutes."
+    },
+    {
+      "strategy_id": "market-reference-v2-contract",
+      "disposition": "validation_only_contract",
+      "rule": "Bind the exact v4 authorization, governed access lineage, raw evidence, point-in-time share basis, Decimal market-equity identity, closure hash, and self-fingerprint without building evidence."
+    },
+    {
+      "strategy_id": "phase5c-dilution-authority-replay",
+      "disposition": "validation_only_recomputation",
+      "rule": "Derive included, excluded, and blocked option roots only from the exact full PriceBlindFreezeCompilationResult and current validated ContractGraph; replay current component lock, one unique current unsuperseded graph-owned v1-v4 Handoff run, Bundle/RunManifest, formal root Facts/Sources, unique typed Candidate-to-named-human-Decision-to-Claim chains, and consumption records whose root/key/identity resolve to reviewed bindings. Replay the authority again against the same scoped graph used by CurrentShareBundleEvidenceClosure. Artifact self-hashes, synchronized Handoff resigns, stale runs, duplicate payload identities, and cross-graph authority objects are insufficient."
+    },
+    {
+      "strategy_id": "recursive-current-share-evidence",
+      "disposition": "validation_only_recomputation",
+      "rule": "Derive raw numeric roots, exact common-security binding, cutoff-safe formal sources, complete corporate-action search coverage, and completed-claim transitions from the exact ContractGraph."
+    },
+    {
+      "strategy_id": "quote-date-current-share-compiler",
+      "disposition": "deterministic_internal_compilation",
+      "rule": "Strictly replay the price-blind, security, market-access, dilution, restatement, and recursive-evidence authorities; callers cannot select the Fact, date, path, status, or ShareBasisDecision."
+    },
+    {
+      "strategy_id": "cross-source-share-event-grouping",
+      "disposition": "corrective_grouping_accepted",
+      "rule": "Separate reviewed legal-event identity from evidence-object identity, retain all corroborating members, block semantic conflicts, and permit exactly one future numeric consumption per canonical group."
+    },
+    {
+      "strategy_id": "canonical-event-current-share-integration-v2",
+      "disposition": "validation_contract_only",
+      "rule": "Bind the collision-safe reserved canonical Fact, exactly-once numeric consumption, official high-confidence opening/output roots, exact one-entry-per-category coverage, category/security-specific direct-Fact and cutoff-safe N/A review chains, exactly-one option-transition review chains with multi-root Claims blocked absent an aggregate root, typed evidence cardinality, graph-byte binding of every coverage/transition object, exact recursive Bundle closure, exact source-byte code identity, independently replayed test inventory, and a documented one-time trust bootstrap with a preinstalled byte-locked 2B gate without exposing a production builder."
+    }
+  ],
+  "mappings": [
+    {
+      "mapping_id": "authorized-quote-request-to-receipt",
+      "source": "ValuationHandoff market_reference_allowed transition",
+      "target": "MarketQuoteRequest and MarketQuoteReceipt",
+      "strategy_id": "market-access-gate",
+      "failure_ids": ["P5E-F001", "P5E-F007", "P5E-F009", "P5E-F010", "P5E-F011", "P5E-F012"]
+    },
+    {
+      "mapping_id": "quote-and-share-basis-to-market-equity",
+      "source": "Authorized quote receipt and compiler-owned quote-date current-common-share Fact",
+      "target": "Phase 5E-2C MarketEvidenceCompilationResult, then Phase 5E-2D MarketReferenceSnapshot 4.0.0 builder inputs",
+      "strategy_id": "market-security-share-basis",
+      "failure_ids": ["P5E-F002", "P5E-F003", "P5E-F004", "P5E-F005"]
+    },
+    {
+      "mapping_id": "canonical-request-to-kernel-result",
+      "source": "Schema-valid request and fixed kernel identity",
+      "target": "Unmodified valuation result",
+      "strategy_id": "isolated-pinned-kernel",
+      "failure_ids": ["P5E-F006"]
+    },
+    {
+      "mapping_id": "raw-response-to-governed-receipt",
+      "source": "Exact registered adapter raw bytes plus reviewed security evidence",
+      "target": "GovernedMarketQuoteReceipt with adapter, parser, calendar, registration, raw-response, and evidence-closure hashes",
+      "strategy_id": "market-authority-trust-root",
+      "failure_ids": ["P5E-F013", "P5E-F014", "P5E-F015", "P5E-F016", "P5E-F017", "P5E-F018"]
+    },
+    {
+      "mapping_id": "governed-lineage-to-market-reference-v2",
+      "source": "Validated v4 Handoff, eligible MarketAccessResult, security compilation, ShareBasisDecision, and typed market evidence",
+      "target": "Historical MarketReferenceSnapshot 2.0.0 validation-only contract, superseded by the current v3 contract and the separately gated future v4 overlay",
+      "strategy_id": "market-reference-v2-contract",
+      "failure_ids": ["P5E-F019", "P5E-F020", "P5E-F021", "P5E-F022", "P5E-F023", "P5E-F024", "P5E-F026"]
+    },
+    {
+      "mapping_id": "frozen-phase5c-bridge-to-snapshot-dilution-witness",
+      "source": "Exact full PriceBlindFreezeCompilationResult, current component lock, graph-owned Bundle/RunManifest and unique current unsuperseded v1-v4 Handoff run, plus graph-owned Phase 5C Fact/Source/Candidate/human-Decision/Claim lineage",
+      "target": "Derived validation-only dilution authority and Snapshot overlap witness",
+      "strategy_id": "phase5c-dilution-authority-replay",
+      "failure_ids": ["P5E-F025"]
+    },
+    {
+      "mapping_id": "recursive-current-share-lineage-to-market-evidence-closure",
+      "source": "Exact current-share Fact, ultimate numeric roots, SourceDocuments, SourceSearchReceipts, corporate-action states, and reviewed claim transitions",
+      "target": "Code-derived CurrentShareEvidenceClosure committed into MarketReferenceSnapshot market-evidence closure",
+      "strategy_id": "recursive-current-share-evidence",
+      "failure_ids": ["P5E-F032", "P5E-F033"]
+    },
+    {
+      "mapping_id": "governed-identities-to-current-share-compilation",
+      "source": "Canonical full price-blind freeze, reviewed security, eligible governed market access, current ContractGraph, and graph-owned Phase 5C authority evidence subclosure",
+      "target": "Internal CurrentShareCompilationResult with Fact, ShareBasisDecision, and recursive evidence closure",
+      "strategy_id": "quote-date-current-share-compiler",
+      "failure_ids": ["P5E-F034", "P5E-F035", "P5E-F036", "P5E-F037"]
+    },
+    {
+      "mapping_id": "formal-share-event-evidence-to-canonical-event-group",
+      "source": "Cutoff-safe completed-event Facts bound to reviewed CapitalAllocationEvent identities and formal SourceDocuments",
+      "target": "Internal canonical ShareEventEvidenceGroup with all corroborating members and one future derived event Fact",
+      "strategy_id": "cross-source-share-event-grouping",
+      "failure_ids": ["P5E-F038", "P5E-F039", "P5E-F040"]
+    },
+    {
+      "mapping_id": "canonical-event-group-to-current-share-v2-contract",
+      "source": "Accepted ShareEventGroupingResult, canonical groups, reviewed members, ResearchBundle dependency closure, coverage receipts, reviewed Claim transitions, and graph-replayed Phase 5C authority scoped to the exact dependency object set",
+      "target": "Internal canonical Fact materialization, exactly-once roll-forward consumption, group-bound coverage and transition, and recursive CurrentShareEvidenceClosureV2",
+      "strategy_id": "canonical-event-current-share-integration-v2",
+      "failure_ids": ["P5E-F041", "P5E-F042", "P5E-F043", "P5E-F044", "P5E-F045", "P5E-F046", "P5E-F047", "P5E-F048", "P5E-F049", "P5E-F050", "P5E-F051", "P5E-F052", "P5E-F053", "P5E-F054", "P5E-F055", "P5E-F056", "P5E-F057", "P5E-F058", "P5E-F059", "P5E-F060", "P5E-F061", "P5E-F062", "P5E-F063", "P5E-F064", "P5E-F065", "P5E-F066"]
+    }
+  ]
+}

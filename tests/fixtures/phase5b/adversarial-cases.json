@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0.0",
+  "policy_id": "research-to-kernel-fact-mapping",
+  "cases": [
+    {"case_id": "bundle_without_graph", "failure_id": "P5-F001"},
+    {"case_id": "bundle_graph_identity_mismatch", "failure_id": "P5-F002"},
+    {"case_id": "secondary_source_in_ledger", "failure_id": "P5-F003"},
+    {"case_id": "guessed_source_metadata", "failure_id": "P5-F004"},
+    {"case_id": "ineligible_fact", "failure_id": "P5-F005"},
+    {"case_id": "near_name_concept", "failure_id": "P5-F006"},
+    {"case_id": "ambiguous_period", "failure_id": "P5-F007"},
+    {"case_id": "publication_date_as_measurement_date", "failure_id": "P5-F007"},
+    {"case_id": "foreign_currency_model_fact", "failure_id": "P5-F008"},
+    {"case_id": "per_share_as_total", "failure_id": "P5-F009"},
+    {"case_id": "percent_as_decimal", "failure_id": "P5-F009"},
+    {"case_id": "calculation_uses_assumption", "failure_id": "P5-F010"},
+    {"case_id": "unregistered_calculator", "failure_id": "P5-F010"},
+    {"case_id": "derived_fact_missing_parent", "failure_id": "P5-F011"},
+    {"case_id": "derived_fact_cycle", "failure_id": "P5-F011"},
+    {"case_id": "claim_as_numeric_fact", "failure_id": "P5-F012"},
+    {"case_id": "bundle_complete_implies_ready", "failure_id": "P5-F013"},
+    {"case_id": "dummy_routing_fact", "failure_id": "P5-F014"},
+    {"case_id": "unresolved_restatement_conflict", "failure_id": "P5-F007"},
+    {"case_id": "old_filing_overrides_amendment", "failure_id": "P5-F007"},
+    {"case_id": "market_source_in_price_blind_ledger", "failure_id": "P5-F003"}
+  ]
+}

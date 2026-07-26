@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/assumption.schema.json",
+  "title": "Assumption",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "assumption_id", "issuer_id", "concept", "value_type", "value", "unit", "currency", "horizon", "scenario", "rationale", "supporting_fact_ids", "supporting_claim_ids", "confidence"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "assumption_id": {"type": "string", "minLength": 1},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "concept": {"type": "string", "minLength": 1},
+    "value_type": {"enum": ["number", "text", "boolean", "null"]},
+    "value": {"type": ["number", "string", "boolean", "null"]},
+    "unit": {"type": ["string", "null"]},
+    "currency": {"type": ["string", "null"], "pattern": "^[A-Z]{3}$"},
+    "horizon": {"$ref": "#/$defs/period"},
+    "scenario": {"enum": ["black_swan", "bear", "base", "bull", "other"]},
+    "rationale": {"type": "string", "minLength": 1},
+    "supporting_fact_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "supporting_claim_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "confidence": {"enum": ["high", "medium", "low"]}
+  },
+  "allOf": [
+    {"if": {"properties": {"value_type": {"const": "number"}}}, "then": {"properties": {"value": {"type": "number"}}}},
+    {"if": {"properties": {"value_type": {"const": "text"}}}, "then": {"properties": {"value": {"type": "string"}}}},
+    {"if": {"properties": {"value_type": {"const": "boolean"}}}, "then": {"properties": {"value": {"type": "boolean"}}}},
+    {"if": {"properties": {"value_type": {"const": "null"}}}, "then": {"properties": {"value": {"type": "null"}}}}
+  ],
+  "$defs": {
+    "period": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {"start": {"type": "string", "format": "date"}, "end": {"type": "string", "format": "date"}}
+    }
+  }
+}

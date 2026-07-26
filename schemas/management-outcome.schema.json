@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/management-outcome.schema.json",
+  "title": "ManagementOutcome",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "outcome_id", "issuer_id", "commitment_id",
+    "predecessor_outcome_id", "assessed_at", "evaluation_period", "status",
+    "result_bindings", "result_scope", "result_measurement_basis", "claim_ids",
+    "missing_evidence"
+  ],
+  "properties": {
+    "schema_version": {"const": "2.0.0"},
+    "outcome_id": {"type": "string", "minLength": 1},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "commitment_id": {"type": "string", "minLength": 1},
+    "predecessor_outcome_id": {"type": ["string", "null"], "minLength": 1},
+    "assessed_at": {"type": "string", "format": "date"},
+    "evaluation_period": {"$ref": "#/$defs/period"},
+    "status": {"enum": ["pending", "met", "partially_met", "missed", "unverifiable", "blocked", "withdrawn", "superseded"]},
+    "result_bindings": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/result_binding"}},
+    "result_scope": {"$ref": "#/$defs/scope"},
+    "result_measurement_basis": {"$ref": "#/$defs/measurement_basis"},
+    "claim_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "missing_evidence": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  },
+  "allOf": [
+    {"if": {"properties": {"status": {"enum": ["pending", "met", "partially_met", "missed", "unverifiable", "withdrawn", "superseded"]}}}, "then": {"properties": {"claim_ids": {"minItems": 1}}}},
+    {"if": {"properties": {"status": {"enum": ["unverifiable", "blocked"]}}}, "then": {"properties": {"missing_evidence": {"minItems": 1}}}}
+  ],
+  "$defs": {
+    "period": {
+      "type": "object", "additionalProperties": false, "required": ["start", "end"],
+      "properties": {"start": {"type": "string", "format": "date"}, "end": {"type": "string", "format": "date"}}
+    },
+    "result_binding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["component_id", "role", "fact_id", "calculation_result_id"],
+      "properties": {
+        "component_id": {"type": "string", "minLength": 1},
+        "role": {"enum": ["actual", "milestone_evidence"]},
+        "fact_id": {"type": ["string", "null"], "minLength": 1},
+        "calculation_result_id": {"type": ["string", "null"], "minLength": 1}
+      },
+      "oneOf": [
+        {"properties": {"fact_id": {"type": "string"}, "calculation_result_id": {"type": "null"}}},
+        {"properties": {"fact_id": {"type": "null"}, "calculation_result_id": {"type": "string"}}}
+      ]
+    },
+    "scope": {
+      "type": "object", "additionalProperties": false,
+      "required": ["scope_type", "scope_id", "scope_label"],
+      "properties": {
+        "scope_type": {"enum": ["issuer", "segment", "product", "geography", "customer_cohort", "other"]},
+        "scope_id": {"type": "string", "minLength": 1},
+        "scope_label": {"type": "string", "minLength": 1}
+      }
+    },
+    "measurement_basis": {
+      "type": "object", "additionalProperties": false,
+      "required": ["accounting_basis", "currency_basis", "growth_basis", "aggregation_basis"],
+      "properties": {
+        "accounting_basis": {"enum": ["gaap", "non_gaap", "operational", "not_applicable"]},
+        "currency_basis": {"enum": ["reported", "constant_currency", "not_applicable"]},
+        "growth_basis": {"enum": ["reported", "organic", "inorganic", "not_applicable"]},
+        "aggregation_basis": {"enum": ["period", "point_in_time", "cumulative", "average"]}
+      }
+    }
+  }
+}

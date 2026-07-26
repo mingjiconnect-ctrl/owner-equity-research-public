@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/calculation-result.schema.json",
+  "title": "CalculationResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "calculation_id", "issuer_id", "concept", "value_type", "value", "unit", "currency", "period", "generator", "calculator_id", "calculator_version", "code_sha256", "input_fact_ids", "input_assumption_ids", "input_calculation_ids", "input_period_ids", "input_bindings", "input_fingerprint", "output_fingerprint", "generated_at"],
+  "properties": {
+    "schema_version": {"const": "2.0.0"},
+    "calculation_id": {"type": "string", "minLength": 1},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "concept": {"type": "string", "minLength": 1},
+    "value_type": {"enum": ["number", "text", "boolean", "null"]},
+    "value": {"type": ["number", "string", "boolean", "null"]},
+    "unit": {"type": ["string", "null"]},
+    "currency": {"type": ["string", "null"], "pattern": "^[A-Z]{3}$"},
+    "period": {"$ref": "#/$defs/period"},
+    "generator": {"const": "deterministic_program"},
+    "calculator_id": {"type": "string", "minLength": 1},
+    "calculator_version": {"type": "string", "minLength": 1},
+    "code_sha256": {"$ref": "#/$defs/sha256"},
+    "input_fact_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "input_assumption_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "input_calculation_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "input_period_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "input_bindings": {"type": "object", "additionalProperties": {"type": "string", "minLength": 1}},
+    "input_fingerprint": {"$ref": "#/$defs/sha256"},
+    "output_fingerprint": {"$ref": "#/$defs/sha256"},
+    "generated_at": {"type": "string", "format": "date-time"}
+  },
+  "allOf": [
+    {"if": {"properties": {"value_type": {"const": "number"}}}, "then": {"properties": {"value": {"type": "number"}}}},
+    {"if": {"properties": {"value_type": {"const": "text"}}}, "then": {"properties": {"value": {"type": "string"}}}},
+    {"if": {"properties": {"value_type": {"const": "boolean"}}}, "then": {"properties": {"value": {"type": "boolean"}}}},
+    {"if": {"properties": {"value_type": {"const": "null"}}}, "then": {"properties": {"value": {"type": "null"}}}},
+    {
+      "anyOf": [
+        {"properties": {"input_fact_ids": {"minItems": 1}}},
+        {"properties": {"input_assumption_ids": {"minItems": 1}}},
+        {"properties": {"input_calculation_ids": {"minItems": 1}}},
+        {"properties": {"input_period_ids": {"minItems": 1}}}
+      ]
+    }
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "period": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {"start": {"type": ["string", "null"], "format": "date"}, "end": {"type": ["string", "null"], "format": "date"}}
+    }
+  }
+}

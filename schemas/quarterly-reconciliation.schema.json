@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/schemas/quarterly-reconciliation.schema.json",
+  "title": "QuarterlyReconciliation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "reconciliation_id", "issuer_id", "period_id", "basis", "concept", "candidate_fact_ids", "authoritative_fact_id", "delta_calculation_id", "tolerance", "status", "selection_rule", "blocked", "notes"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "reconciliation_id": {"type": "string", "minLength": 1},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "period_id": {"type": "string", "minLength": 1},
+    "basis": {"enum": ["single_quarter", "ytd"]},
+    "concept": {"type": "string", "minLength": 1},
+    "candidate_fact_ids": {"type": "array", "minItems": 2, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "authoritative_fact_id": {"type": ["string", "null"], "minLength": 1},
+    "delta_calculation_id": {"type": ["string", "null"], "minLength": 1},
+    "tolerance": {"type": "number", "minimum": 0},
+    "status": {"enum": ["exact_match", "tolerance_match", "restated_authority", "conflict"]},
+    "selection_rule": {"enum": ["latest_regulatory_amendment", "regulatory_over_company_release", "no_regulatory_authority"]},
+    "blocked": {"type": "boolean"},
+    "notes": {"type": "string", "minLength": 1}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"enum": ["exact_match", "tolerance_match", "restated_authority"]}}},
+      "then": {"properties": {"authoritative_fact_id": {"type": "string", "minLength": 1}, "delta_calculation_id": {"type": "string", "minLength": 1}, "blocked": {"const": false}}}
+    },
+    {
+      "if": {"properties": {"status": {"const": "conflict"}}},
+      "then": {"properties": {"blocked": {"const": true}}}
+    },
+    {
+      "if": {"properties": {"selection_rule": {"const": "no_regulatory_authority"}}},
+      "then": {"properties": {"authoritative_fact_id": {"type": "null"}, "delta_calculation_id": {"type": "null"}, "status": {"const": "conflict"}, "blocked": {"const": true}}}
+    }
+  ]
+}

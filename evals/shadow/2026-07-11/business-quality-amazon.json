@@ -1,0 +1,110 @@
+{
+  "blocked_items": [
+    "formal_segment_scoped_business_model_not_promoted",
+    "independent_context_observations_not_promoted",
+    "reviewed_mechanism_claims_not_available"
+  ],
+  "cik": "0001018724",
+  "contains_claims": false,
+  "contains_facts": false,
+  "contains_market_price": false,
+  "contains_pdf": false,
+  "contains_publisher": false,
+  "contains_raw_source_content": false,
+  "contains_recommendation": false,
+  "contains_report": false,
+  "contains_scores": false,
+  "contains_target_price": false,
+  "contains_valuation": false,
+  "data_cutoff_date": "2026-07-11",
+  "formal_object_ids": {
+    "business_model_snapshot_ids": [],
+    "business_quality_review_ids": [],
+    "competitive_context_snapshot_ids": [],
+    "hypothesis_ids": []
+  },
+  "issuer_id": "issuer:amazon",
+  "manifest_version": "1.0.0",
+  "mechanism_topics": [
+    "network_effect",
+    "scale_cost_advantage"
+  ],
+  "network_access_performed": false,
+  "network_is_explicit": true,
+  "official_filings": [
+    {
+      "accession": "0001018724-26-000004",
+      "filing_date": "2026-02-06",
+      "form": "10-K",
+      "hash_scope": "official_metadata_tuple",
+      "index_url": "https://www.sec.gov/Archives/edgar/data/1018724/000101872426000004/0001018724-26-000004-index.htm",
+      "primary_document": "amzn-20251231.htm",
+      "report_period": "2025-12-31",
+      "source_identifier": "sec:0001018724-26-000004",
+      "source_metadata_sha256": "8dead3d9704a8945de100e7ab5a6ba32e3e8082499a1da7c2451ce5d3260b6d0",
+      "verification_mode": "official_sec_web_index"
+    },
+    {
+      "accession": "0001018724-26-000014",
+      "filing_date": "2026-04-30",
+      "form": "10-Q",
+      "hash_scope": "official_metadata_tuple",
+      "index_url": "https://www.sec.gov/Archives/edgar/data/1018724/000101872426000014/0001018724-26-000014-index.htm",
+      "primary_document": "amzn-20260331.htm",
+      "report_period": "2026-03-31",
+      "source_identifier": "sec:0001018724-26-000014",
+      "source_metadata_sha256": "9609a012a87a929ebbf460843d67d7fee0b8f0ef7ac5cd3eac5f5761c0e761d6",
+      "verification_mode": "official_sec_web_index"
+    }
+  ],
+  "review_status": "blocked",
+  "run_manifest": {
+    "anti_anchoring": {
+      "conclusion_frozen_at": null,
+      "current_conclusion_sha256": null,
+      "prior_materials_accessed": [],
+      "state": "pre_conclusion"
+    },
+    "completed_at": "2026-07-12T00:00:00Z",
+    "component_lock_sha256": "e640e0c99d68faac9695068f1151994ec8113f02fbabc6ea41e0f63d098e0fdd",
+    "component_versions": {
+      "owner-equity-research": "0.4.0-dev.12"
+    },
+    "data_cutoff_date": "2026-07-11",
+    "input_document_hashes": {
+      "sec:0001018724-26-000004": "8dead3d9704a8945de100e7ab5a6ba32e3e8082499a1da7c2451ce5d3260b6d0",
+      "sec:0001018724-26-000014": "9609a012a87a929ebbf460843d67d7fee0b8f0ef7ac5cd3eac5f5761c0e761d6"
+    },
+    "issuer_id": "issuer:amazon",
+    "missing_evidence": [
+      "formal_segment_scoped_business_model_not_promoted",
+      "independent_context_observations_not_promoted",
+      "reviewed_mechanism_claims_not_available"
+    ],
+    "output_artifact_hashes": {
+      "business-quality-shadow-summary": "fb048671a504beedf818a0225f42537679600c12e47c571e4cde16d95ba0d9a1"
+    },
+    "run_id": "business-quality-shadow:issuer:amazon:2026-07-11",
+    "schema_version": "1.0.0",
+    "started_at": "2026-07-12T00:00:00Z"
+  },
+  "scope_expectations": {
+    "issuer_wide_generalization_allowed": false,
+    "material_scope_labels": [
+      "North America",
+      "International",
+      "AWS"
+    ],
+    "scope_mode": "segment_specific"
+  },
+  "shadow_type": "phase4c_business_quality",
+  "source_verification_mode": "official_sec_web_index",
+  "status_counts": {
+    "blocked_hypothesis_count": 0,
+    "contested_hypothesis_count": 0,
+    "falsified_hypothesis_count": 0,
+    "proposed_hypothesis_count": 0,
+    "supported_hypothesis_count": 0,
+    "unresolved_mechanism_topic_count": 2
+  }
+}

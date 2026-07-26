@@ -1,0 +1,115 @@
+{
+  "blocked_items": [],
+  "cik": "1108524",
+  "contains_claims": false,
+  "contains_facts": false,
+  "contains_raw_source_content": false,
+  "contains_recommendation": false,
+  "contains_report": false,
+  "contains_scores": false,
+  "contains_target_price": false,
+  "contains_valuation": false,
+  "coverage": {
+    "blocked_count": 0,
+    "confirmed_count": 3,
+    "due_count": 0,
+    "evaluated_due_count": 0,
+    "met_count": 0,
+    "missed_count": 0,
+    "not_due_count": 2,
+    "open_count": 2,
+    "partially_met_count": 0,
+    "pending_count": 2,
+    "statement_count": 3,
+    "superseded_count": 1,
+    "unverifiable_count": 0,
+    "withdrawn_count": 0
+  },
+  "data_cutoff_date": "2026-07-11",
+  "issuer_id": "issuer:salesforce",
+  "manifest_version": "1.0.0",
+  "network_is_explicit": true,
+  "object_ids": {
+    "commitment_ids": [
+      "management-commitment:issuer:salesforce:fy30-60b",
+      "management-commitment:issuer:salesforce:fy30-63b",
+      "management-commitment:issuer:salesforce:fy27-revenue-range"
+    ],
+    "outcome_ids": [
+      "management-outcome:issuer:salesforce:fy30-60b:superseded",
+      "management-outcome:issuer:salesforce:fy30-63b:pending",
+      "management-outcome:issuer:salesforce:fy27-revenue-range:pending"
+    ],
+    "review_id": "management-review:issuer:salesforce:2026-07-11",
+    "statement_ids": [
+      "management-statement:issuer:salesforce:fy30-60b",
+      "management-statement:issuer:salesforce:fy30-63b",
+      "management-statement:issuer:salesforce:fy27-revenue-range"
+    ]
+  },
+  "review_status": "complete",
+  "run_manifest": {
+    "anti_anchoring": {
+      "conclusion_frozen_at": null,
+      "current_conclusion_sha256": null,
+      "prior_materials_accessed": [],
+      "state": "pre_conclusion"
+    },
+    "completed_at": "2026-07-12T03:56:32Z",
+    "component_lock_sha256": "0e4b21615b21a6f08decf09301eb0c9efbc11ee7085286e3a3932203421aec46",
+    "component_versions": {
+      "owner-equity-research": "0.4.0-dev.6"
+    },
+    "data_cutoff_date": "2026-07-11",
+    "input_document_hashes": {
+      "doc:issuer:salesforce:fy30-target-2025": "e5ba8a58a7f95780649b1acc756c9e087a3b1bcaae67d80478176770183a04e0",
+      "doc:issuer:salesforce:q1-fy27-results": "399db55a0c0ff2279b8fea72b2c59db87ac8f79abce0892187e2f757c92b2bc9",
+      "doc:issuer:salesforce:q4-fy26-results": "78e0ac7947dd5436857241607ad34b6363bd061b063439b8d91e6ecb4034093a"
+    },
+    "issuer_id": "issuer:salesforce",
+    "missing_evidence": [],
+    "output_artifact_hashes": {
+      "management-shadow-summary": "59961c68cf82b4304d28b7e191e1d97c0872b229d8ff68b4f21629b1e5960166"
+    },
+    "run_id": "management-shadow:issuer:salesforce:2026-07-11",
+    "schema_version": "1.0.0",
+    "started_at": "2026-07-12T03:56:28Z"
+  },
+  "sec_accessions": [
+    "0001108524-26-000060",
+    "0001108524-26-000127"
+  ],
+  "shadow_type": "phase4b_management_ledger",
+  "sources": [
+    {
+      "anchor_sha256": "4fd13a2ac2e87eb68a1dce9c8f3a2873201c651ac0438a42aa236487af3594ab",
+      "anchor_verified": true,
+      "document_id": "doc:issuer:salesforce:fy30-target-2025",
+      "evidence_sha256": "e5ba8a58a7f95780649b1acc756c9e087a3b1bcaae67d80478176770183a04e0",
+      "hash_scope": "normalized_official_excerpt",
+      "published_date": "2025-10-15",
+      "retrieval_mode": "verified_official_web_snapshot",
+      "source_url": "https://investor.salesforce.com/news/news-details/2025/Salesforce-Announces-New-FY30-Revenue-Target-of-60B-10-Organic-FY26-FY30-CAGR/default.aspx"
+    },
+    {
+      "anchor_sha256": "926d50d37fc0e2450c0c2a432db396b4de6a104dd2c2d9ab6db9fe1d2a187fa6",
+      "anchor_verified": true,
+      "document_id": "doc:issuer:salesforce:q4-fy26-results",
+      "evidence_sha256": "78e0ac7947dd5436857241607ad34b6363bd061b063439b8d91e6ecb4034093a",
+      "hash_scope": "normalized_official_excerpt",
+      "published_date": "2026-02-25",
+      "retrieval_mode": "verified_official_web_snapshot",
+      "source_url": "https://investor.salesforce.com/news/news-details/2026/Salesforce-Delivers-Record-Fourth-Quarter-Fiscal-2026-Results/default.aspx"
+    },
+    {
+      "anchor_sha256": "6c2bf7b9e3b9d2e51fbb399184a9032f758e630ae7758fac2c3993f29a2fd0a3",
+      "anchor_verified": true,
+      "document_id": "doc:issuer:salesforce:q1-fy27-results",
+      "evidence_sha256": "399db55a0c0ff2279b8fea72b2c59db87ac8f79abce0892187e2f757c92b2bc9",
+      "hash_scope": "normalized_official_excerpt",
+      "published_date": "2026-05-27",
+      "retrieval_mode": "verified_official_web_snapshot",
+      "source_url": "https://investor.salesforce.com/news/news-details/2026/Salesforce-Delivers-Record-First-Quarter-Fiscal-2027-Results/default.aspx"
+    }
+  ]
+}

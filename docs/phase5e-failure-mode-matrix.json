@@ -1,0 +1,470 @@
+{
+  "schema_version": "1.0.0",
+  "status": "PROJECT_OPERATIONALIZATION",
+  "extends_frozen_artifact": "docs/phase5-failure-mode-matrix.json",
+  "owner_phase": "5E",
+  "failures": [
+    {
+      "failure_id": "P5E-F001",
+      "priority": "P0",
+      "trigger": "Physical quote request begins before the exact market_reference_allowed transition.",
+      "fail_closed": "Reject the receipt, invalidate the run, and quarantine returned target-security market data.",
+      "verification": "Authorization, request, and retrieval timestamp ordering tests."
+    },
+    {
+      "failure_id": "P5E-F002",
+      "priority": "P0",
+      "trigger": "A non-one split factor is ignored, silently modeled, or applied twice.",
+      "fail_closed": "Route specialist_required under v0.5 alpha and do not create market equity.",
+      "verification": "Split-factor fail-closed and double-application tests."
+    },
+    {
+      "failure_id": "P5E-F003",
+      "priority": "P1",
+      "trigger": "Weighted-average EPS diluted shares, basic shares, authorized shares, or potential shares are used as quote-date current common shares.",
+      "fail_closed": "Block compilation until one registered quote-date current-common-share evidence path closes.",
+      "verification": "Share-basis and measurement-date tests."
+    },
+    {
+      "failure_id": "P5E-F004",
+      "priority": "P1",
+      "trigger": "ADR, cross-listing, differently priced share classes, multiple securities, or cross-currency equity is forced through the single-security path.",
+      "fail_closed": "Route specialist_required without approximating total market equity.",
+      "verification": "Security-identity routing matrix."
+    },
+    {
+      "failure_id": "P5E-F005",
+      "priority": "P1",
+      "trigger": "Adjusted, intraday, after-hours, VWAP, stale, halted, incomplete-session, or future quote is accepted.",
+      "fail_closed": "Block the quote receipt and downstream market reference.",
+      "verification": "Quote-basis, session, freshness, and cutoff tests."
+    },
+    {
+      "failure_id": "P5E-F006",
+      "priority": "P0",
+      "trigger": "Kernel runs in-process, with network enabled, or outside the hash-recorded wheel environment.",
+      "fail_closed": "Reject execution before run_dual_panel and retain no result.",
+      "verification": "Isolated runner, network-denial, and wheel-identity tests."
+    },
+    {
+      "failure_id": "P5E-F007",
+      "priority": "P0",
+      "trigger": "Provider identity, endpoint registration, request fingerprint, or raw-response hash cannot be replayed.",
+      "fail_closed": "Reject the market receipt and prevent downstream compilation.",
+      "verification": "Provider registration and receipt-fingerprint tests."
+    },
+    {
+      "failure_id": "P5E-F008",
+      "priority": "P0",
+      "trigger": "Phase 5E-0 exposes a network adapter, Snapshot builder, final-request compiler, kernel invocation, or valuation artifact writer.",
+      "fail_closed": "Block the policy-only PR and keep Phase 5E-1 unauthorized.",
+      "verification": "AST, package-root, CLI, Skill, and import-boundary tests."
+    },
+    {
+      "failure_id": "P5E-F009",
+      "priority": "P0",
+      "trigger": "An old, replaced, consumed, or ambiguous v4 authorization begins another market request.",
+      "fail_closed": "Block before the Provider call and retain the existing price-blind and market evidence unchanged.",
+      "verification": "Current-run, supersession, downstream-Handoff, and existing-Snapshot tests."
+    },
+    {
+      "failure_id": "P5E-F010",
+      "priority": "P0",
+      "trigger": "Caller or Provider controls governance timestamps, or the adapter is retried or replaced after an error.",
+      "fail_closed": "Block the access attempt; permit one orchestrator-owned call and no fallback.",
+      "verification": "Signature, fake-clock, call-count, timeout, and monotonic-regression tests."
+    },
+    {
+      "failure_id": "P5E-F011",
+      "priority": "P1",
+      "trigger": "Calendar coverage is guessed, incomplete, mismatched to the exchange, or returns a session after cutoff or before completion.",
+      "fail_closed": "Block before the Provider call without inferring a weekday or substitute session.",
+      "verification": "Calendar identity, holiday/weekend, cutoff, and incomplete-session tests."
+    },
+    {
+      "failure_id": "P5E-F012",
+      "priority": "P1",
+      "trigger": "An invalid raw response is promoted, returned, or persisted instead of quarantined by hash.",
+      "fail_closed": "Create no Receipt and expose only the response SHA-256 and registered issue codes.",
+      "verification": "Response mutation, raw-byte absence, quarantine-hash, and no-writer tests."
+    },
+    {
+      "failure_id": "P5E-F013",
+      "priority": "P0",
+      "trigger": "A caller supplies or subclasses a Provider, registry, parser, or calendar outside the component-lock authority.",
+      "fail_closed": "Block before access and require an exact repository-owned class and code hash.",
+      "verification": "Exact-class, bound-method, registry-hash, and signature tests."
+    },
+    {
+      "failure_id": "P5E-F014",
+      "priority": "P0",
+      "trigger": "Parsed quote fields are supplied by the Provider or disagree with the pinned parser output from raw bytes.",
+      "fail_closed": "Ignore all parsed claims, parse raw bytes once with the locked parser, and block invalid content.",
+      "verification": "Raw-only protocol, parser-hash, and forged-field tests."
+    },
+    {
+      "failure_id": "P5E-F015",
+      "priority": "P0",
+      "trigger": "Calendar data is caller-selected, incomplete, outside 2026 XNYS/XNAS coverage, or hash-mismatched.",
+      "fail_closed": "Block before Provider invocation without inferring a session.",
+      "verification": "Independent session oracle, holiday, DST, early-close, coverage, and SHA tests."
+    },
+    {
+      "failure_id": "P5E-F016",
+      "priority": "P0",
+      "trigger": "Ticker, MIC, share class, or security structure is caller supplied, outside the closure, future dated, or unsupported by human-reviewed evidence.",
+      "fail_closed": "Reject the identity compilation or route specialist_required before access.",
+      "verification": "Security proposal, closure, review-decision, and replay tests."
+    },
+    {
+      "failure_id": "P5E-F017",
+      "priority": "P1",
+      "trigger": "Quote text is noncanonical, nonfinite, nonpositive, exponential, localized, signed, or zero-padded.",
+      "fail_closed": "Reject before a Receipt exists.",
+      "verification": "Canonical Decimal adversarial matrix."
+    },
+    {
+      "failure_id": "P5E-F018",
+      "priority": "P0",
+      "trigger": "Credentials or raw response bytes appear in authority resources, requests, receipts, results, quarantine, logs, or audit artifacts.",
+      "fail_closed": "Reject the surface and preserve only approved endpoint IDs and raw SHA-256.",
+      "verification": "Secret and raw-content scans across wheel, runtime objects, logs, and audit output."
+    },
+    {
+      "failure_id": "P5E-F019",
+      "priority": "P0",
+      "trigger": "A v1, incomplete, or caller-asserted Snapshot bypasses the v2 authority lineage.",
+      "fail_closed": "Reject the Snapshot and require a complete v2 validation context.",
+      "verification": "Schema hard-break, missing-lineage, and context-replay tests."
+    },
+    {
+      "failure_id": "P5E-F020",
+      "priority": "P0",
+      "trigger": "Recorded or loopback evidence is marked valuation eligible, or live evidence lacks a locked live registration.",
+      "fail_closed": "Reject the Snapshot usage scope.",
+      "verification": "Evidence-mode conditional and authority-registration tests."
+    },
+    {
+      "failure_id": "P5E-F021",
+      "priority": "P0",
+      "trigger": "Raw evidence cannot be replayed, its locator leaks secrets, or its bytes disagree with the governed raw SHA.",
+      "fail_closed": "Reject the Snapshot before evidence promotion.",
+      "verification": "Repository fixture, CAS identity, locator-safety, and raw-hash tests."
+    },
+    {
+      "failure_id": "P5E-F022",
+      "priority": "P0",
+      "trigger": "Authoritative quote, shares, split factor, or market equity uses JSON numbers or fails exact Decimal round-trip.",
+      "fail_closed": "Reject the Snapshot and deterministic calculation binding.",
+      "verification": "Canonical-decimal, exact-product, unit, and CalculationResult tests."
+    },
+    {
+      "failure_id": "P5E-F023",
+      "priority": "P1",
+      "trigger": "The share basis is not quote-date current common shares or reuses an equity-bridge dilution root.",
+      "fail_closed": "Reject the Snapshot pending governed Phase 5E-2B evidence.",
+      "verification": "Share-date, basis-kind, corporate-action, and root-overlap tests."
+    },
+    {
+      "failure_id": "P5E-F024",
+      "priority": "P0",
+      "trigger": "Market-evidence closure, Snapshot self-fingerprint, or one-v4-to-one-Snapshot identity cannot replay.",
+      "fail_closed": "Reject the Snapshot and prevent successor authorization.",
+      "verification": "Closure ordering, fingerprint mutation, and duplicate-consumption tests."
+    },
+    {
+      "failure_id": "P5E-F025",
+      "priority": "P0",
+      "trigger": "A validation caller omits, relabels, or overlaps an option/dilution root that the frozen Phase 5C bridge classifies as included, excluded, or blocked.",
+      "fail_closed": "Recompute the authority from frozen economic-claim bindings, bridge role, and consumption records; reject the Snapshot or eligible share basis.",
+      "verification": "Caller-omission, included/excluded/blocked treatment, bridge-role, consumption, and denominator-lineage tests."
+    },
+    {
+      "failure_id": "P5E-F026",
+      "priority": "P1",
+      "trigger": "The public Snapshot Schema accepts a zero decimal that the Python contract rejects.",
+      "fail_closed": "Reject zero at Draft 2020-12 Schema validation and preserve one strictly positive canonical domain.",
+      "verification": "Schema-only zero-string matrix plus Python construction parity tests."
+    },
+    {
+      "failure_id": "P5E-F027",
+      "priority": "P0",
+      "trigger": "The research component lock accepts rc.1, an rc.2 lightweight tag, or an rc.2 tag object, target, package, Plugin, release artifact, or Schema hash that does not replay.",
+      "fail_closed": "Reject the Phase 5E-2A.2 boundary before any market-reference validation.",
+      "verification": "Independent annotated-tag, release-manifest, artifact-hash, and eight-Schema oracles."
+    },
+    {
+      "failure_id": "P5E-F028",
+      "priority": "P0",
+      "trigger": "Snapshot v2, fully diluted fields, weighted-average EPS shares, potential shares, authorized shares, or reserved shares are accepted as current common shares outstanding.",
+      "fail_closed": "Reject the Snapshot and require one registered quote-date current-share evidence path.",
+      "verification": "Schema hard-break, concept, basis-kind, and prohibited-share-kind tests."
+    },
+    {
+      "failure_id": "P5E-F029",
+      "priority": "P0",
+      "trigger": "A direct current-share Fact has parents or derivation; issued-less-treasury does not replay; or a roll-forward uses an unregistered, incomplete, future, or duplicated event.",
+      "fail_closed": "Reject the numeric lineage without guessing or using a plug.",
+      "verification": "Three-path lineage and exact-arithmetic adversarial tests."
+    },
+    {
+      "failure_id": "P5E-F030",
+      "priority": "P0",
+      "trigger": "A Phase 5C included or blocked dilution root forms the standard path, a positive option root is relabeled or hidden behind not_applicable, or any option/dilution claim root becomes a current-share numeric parent.",
+      "fail_closed": "Derive economic identity from registered root concepts, route included claims specialist_required, reject blocked and positive not_applicable claims, and keep excluded claims solely in the modeled bridge.",
+      "verification": "Claim-control disposition, synchronized relabel/not-applicable attacks, numeric-root separation, and consumption-record tests."
+    },
+    {
+      "failure_id": "P5E-F031",
+      "priority": "P0",
+      "trigger": "Market equity or the future request-v2 witness still uses diluted shares instead of the same canonical current-common-share Fact.",
+      "fail_closed": "Reject the Snapshot and future mapping witness.",
+      "verification": "Exact Decimal product, CalculationResult inputs, and rc.2 request-field mapping tests."
+    },
+    {
+      "failure_id": "P5E-F032",
+      "priority": "P0",
+      "trigger": "A current-share parent or roll-forward event hides an authorized, reserved, potential, future, low-confidence, cross-security, or otherwise ineligible ultimate root.",
+      "fail_closed": "Recursively derive the exact raw numeric roots and reject the current-share closure before Snapshot validation.",
+      "verification": "Nested-alias, invalid-opening, derived-event, temporal, confidence, source, and share-class tests."
+    },
+    {
+      "failure_id": "P5E-F033",
+      "priority": "P0",
+      "trigger": "A completed-event roll-forward lacks all-source search receipts, omits an activity category, treats search silence as zero, uses the legacy repurched spelling, or leaves an extinguished claim in the bridge.",
+      "fail_closed": "Reject the roll-forward until every category has observed, official-zero, or reviewed-not-applicable proof and every completed claim transition reconciles.",
+      "verification": "Search-receipt, category-state, spelling, and completed-claim transition tests."
+    },
+    {
+      "failure_id": "P5E-F034",
+      "priority": "P0",
+      "trigger": "A caller selects the quote date, current-share Fact, evidence path, status, or ShareBasisDecision.",
+      "fail_closed": "Expose only the keyword-only compiler inputs and derive every share output from replayed authorities.",
+      "verification": "Signature, package-root, CLI, Skill, and caller-forgery tests."
+    },
+    {
+      "failure_id": "P5E-F035",
+      "priority": "P0",
+      "trigger": "Duplicate current Facts or two eligible evidence paths disagree numerically.",
+      "fail_closed": "Block compilation; precedence may be used only after equivalent values replay.",
+      "verification": "Restatement, equivalent-duplicate, ambiguous-current, and cross-path conflict tests."
+    },
+    {
+      "failure_id": "P5E-F036",
+      "priority": "P0",
+      "trigger": "The price-blind artifact, component lock, security compilation, governed access result, issuer, cutoff, or security does not replay exactly.",
+      "fail_closed": "Return a blocked result without accessing a Provider or promoting share evidence.",
+      "verification": "Artifact, security, market-access, cutoff, and protected-hash mutation tests."
+    },
+    {
+      "failure_id": "P5E-F037",
+      "priority": "P1",
+      "trigger": "A roll-forward crosses a split or reverse split, misses an event, or uses a discontinuous opening period.",
+      "fail_closed": "Route a split window specialist_required and block incomplete or discontinuous event lineage.",
+      "verification": "Split-window, period-continuity, event-coverage, and deterministic-roll-forward tests."
+    },
+    {
+      "failure_id": "P5E-F038",
+      "priority": "P0",
+      "trigger": "The same legal or economic completed share event is disclosed in multiple formal sources and enters the roll-forward more than once.",
+      "fail_closed": "Keep Phase 5E-2C prohibited and reject numeric lineage until reviewed cross-source identity groups consume each event exactly once.",
+      "verification": "Pinned-baseline reproducer plus 8-K, 10-Q, 10-K, and official-IR corroboration cases."
+    },
+    {
+      "failure_id": "P5E-F039",
+      "priority": "P0",
+      "trigger": "Evidence assigned to one legal-event identity conflicts on share magnitude, legal effective date, event concept, security, or incremental event grain.",
+      "fail_closed": "Emit a registered ShareEventConflict and block the complete roll-forward; source priority cannot select a value.",
+      "verification": "Magnitude, date, concept, security, and cumulative-grain conflict cases."
+    },
+    {
+      "failure_id": "P5E-F040",
+      "priority": "P0",
+      "trigger": "Two same-date and same-magnitude events lack distinct reviewed legal identities, or corroborating option, warrant, or convertible evidence executes a claim transition more than once.",
+      "fail_closed": "Block ambiguous identity and bind every completed-claim transition to one canonical event group.",
+      "verification": "Ambiguous independent-event and duplicate completed-claim transition cases."
+    },
+    {
+      "failure_id": "P5E-F041",
+      "priority": "P0",
+      "trigger": "A canonical event Fact omits a corroborating raw Fact, adds a nonmember parent, or differs from the reserved identity-derived Fact ID.",
+      "fail_closed": "Reject materialization and the complete current-share numeric lineage.",
+      "verification": "Exact immediate-parent, reserved-ID, and corroborating-source metamorphic tests."
+    },
+    {
+      "failure_id": "P5E-F042",
+      "priority": "P0",
+      "trigger": "The roll-forward consumes a raw member, consumes a canonical group more than once, or has a parent other than opening plus canonical Facts.",
+      "fail_closed": "Reject the roll-forward before producing current shares.",
+      "verification": "Manual 100m minus one 5m group oracle and exact-parent graph tests."
+    },
+    {
+      "failure_id": "P5E-F043",
+      "priority": "P0",
+      "trigger": "Coverage maps a canonical group to the wrong category, omits a raw member or receipt, or counts one group more than once.",
+      "fail_closed": "Reject the coverage ledger and current-share closure.",
+      "verification": "Group-category, member-union, twelve-category, and eight-source-family tests."
+    },
+    {
+      "failure_id": "P5E-F044",
+      "priority": "P0",
+      "trigger": "A claim-sensitive canonical group has zero, duplicate, mismatched, or branching Claim transitions.",
+      "fail_closed": "Reject the Claim reconciliation and complete numeric lineage.",
+      "verification": "Option, warrant, convertible, exact-group, arithmetic, and chain tests."
+    },
+    {
+      "failure_id": "P5E-F045",
+      "priority": "P0",
+      "trigger": "Recursive current-share lineage contains a dangling edge, cycle, future/cross-issuer/cross-security evidence, Bundle-closure escape, or a hidden numeric root.",
+      "fail_closed": "Reject the closure; no Snapshot context may consume it.",
+      "verification": "Independent graph-walk, temporal, issuer/security, Bundle, and exact-root tests."
+    },
+    {
+      "failure_id": "P5E-F046",
+      "priority": "P1",
+      "trigger": "Phase 5E-2B.1-2A exposes a builder, compiler, writer, persistence, publication, scoring, valuation, report, PDF, Publisher, network, market-evidence, Snapshot, request, or kernel-execution capability, or modifies the existing current-share production path.",
+      "fail_closed": "Block acceptance and keep Phase 5E-2B.1-2B and Phase 5E-2C prohibited.",
+      "verification": "AST, package-root, CLI, Skill, diff-scope, and forbidden-capability scans."
+    },
+    {
+      "failure_id": "P5E-F047",
+      "priority": "P0",
+      "trigger": "A caller supplies a stale grouping result or synchronously forges a self-attested security Decision, result, and grouping that differ from the current validated ContractGraph.",
+      "fail_closed": "Replay grouping and reconstruct the eligible security identity from exact graph Facts and its human-reviewed Claim chain; reject any semantic mismatch.",
+      "verification": "Hidden-current-event, synchronized forged-security, and grouping-replay tests."
+    },
+    {
+      "failure_id": "P5E-F048",
+      "priority": "P0",
+      "trigger": "A coverage receipt uses an unregistered endpoint, tool version, request fingerprint, result identity, or completion identity.",
+      "fail_closed": "Recompute the closed search authority and receipt identity; reject caller-attested search evidence.",
+      "verification": "Endpoint, tool, request, result, completion-time, and receipt-ID mutation tests."
+    },
+    {
+      "failure_id": "P5E-F049",
+      "priority": "P0",
+      "trigger": "An observed share-event SourceDocument was not returned by a matching official source-family receipt.",
+      "fail_closed": "Reject observed coverage and the complete current-share lineage.",
+      "verification": "Observed-source-to-receipt family and result-set tests."
+    },
+    {
+      "failure_id": "P5E-F050",
+      "priority": "P0",
+      "trigger": "A Claim transition uses an ordinary-share Fact, omits the canonical event parent, accepts caller-attested Phase 5C authority, synchronously re-signs the artifact/protected hashes/v3-v4 Handoffs to inject a graph-external root, duplicates or conflicts a typed review identity, option-role root, or consumption record, adds a unique unexpected or unbound-root consumption record, reuses a superseded authorization run, coexists with a second active authorization run for the same issuer/cutoff, transplants authority from another graph, changes a reviewed root-to-economic-claim binding, forks one multi-root economic claim across lineages, or lacks the exact graph-owned human review chain.",
+      "fail_closed": "Re-derive authority from the exact full PriceBlindFreezeCompilationResult and the same validated scoped ContractGraph used by CurrentShareBundleEvidenceClosure; require current component lock, graph-owned Bundle/RunManifest, one unique current unsuperseded adjacent v1-v4 Handoff run, unique typed review arrays with exact binding cardinality, every consumption root/key/identity to resolve to its reviewed binding, and only the exact registered option-bridge deduction for each excluded root, plus every root Fact/formal Source/Candidate/named-human Decision/Claim; reject the transition reconciliation and all dependent numeric lineage.",
+      "verification": "Claim-root concept, canonical-parent, synchronized artifact-and-Handoff resign, duplicate typed identity, duplicate/unique-unexpected/unbound-root consumption, superseded and two-active authorization runs, graph-external root, cross-graph transplant, missing graph-owned review chain, reviewed-key, multi-root lineage, and one-to-one review tests."
+    },
+    {
+      "failure_id": "P5E-F051",
+      "priority": "P1",
+      "trigger": "A reviewed Candidate support or counterevidence object, or any SourceDocument content fingerprint, is omitted from or changed inside the recursive extension closure.",
+      "fail_closed": "Recompute the exact transitive extension and source closure; reject missing, extra, or drifted objects.",
+      "verification": "Counterevidence truncation and source-content mutation tests."
+    },
+    {
+      "failure_id": "P5E-F052",
+      "priority": "P1",
+      "trigger": "Canonical Fact primary-source selection depends on caller or input order.",
+      "fail_closed": "Select by the fixed official authority, publication date, document identity, Fact identity, and locator ordering.",
+      "verification": "Reversed member/source/candidate/decision order metamorphic test."
+    },
+    {
+      "failure_id": "P5E-F053",
+      "priority": "P0",
+      "trigger": "Post-Bundle current-share evidence mutates the public ResearchBundle closure, enters through an unversioned caller-selected extension, or lets an unrelated historical graph object change the governed closure fingerprint.",
+      "fail_closed": "Keep the public Bundle immutable and validate a separate exact research-bundle-current-share-extension/1.0.0 closure whose graph fingerprint covers only the scoped dependency objects plus component lock.",
+      "verification": "Base/extension set equality, extension-root replay, unrelated-history, and closure-fingerprint tests."
+    },
+    {
+      "failure_id": "P5E-F054",
+      "priority": "P0",
+      "trigger": "A Phase 5C economic-claim binding omits its Candidate or named-human ReviewDecision, violates the confirmed/blocked review-chain shape, or reuses one typed Candidate, ReviewDecision, or Claim while set-based comparison hides excess binding cardinality.",
+      "fail_closed": "Reject the synchronized artifact before replaying dilution authority; every binding must preserve and replay its exact state-dependent review chain, root-derived identity, and disposition, and every typed review object and root may be bound exactly once.",
+      "verification": "Synchronized bindings that omit review objects, reuse a review chain or root, hide a fully reviewed blocked binding, or relabel an option root must fail even when artifact and Handoff hashes are recomputed."
+    },
+    {
+      "failure_id": "P5E-F055",
+      "priority": "P0",
+      "trigger": "Coverage has duplicate registered categories, reuses one generic Candidate/ReviewDecision/Claim across categories, or accepts a not-applicable statement, scope, date, reviewer, evidence graph, or supporting source that is not category- and security-specific.",
+      "fail_closed": "Require exactly one entry per registered category, one unique reviewed N/A chain per category, the canonical category/security statement, issuer-wide empty business scope, period-safe formal support, and an exact named-human Candidate-to-Decision-to-Claim projection.",
+      "verification": "Duplicate-category, generic/reused N/A chain, scope, temporal, reviewer, evidence-hash, Claim-projection, source-closure, and shared-support positive-control tests."
+    },
+    {
+      "failure_id": "P5E-F056",
+      "priority": "P0",
+      "trigger": "A frozen Phase 5C option-or-dilution authority is generalized to convertible or warrant claims, or duplicate typed SourceDocuments or security-evidence identities are hidden by set comparison.",
+      "fail_closed": "Keep the standard Claim-transition path limited to reviewed option roots, route convertible and warrant transitions specialist_required, and reject duplicate typed source, Fact, source-ID, or object-fingerprint cardinality before Bundle replay.",
+      "verification": "Option positive control, convertible/warrant specialist routing, outer-closure bypass, duplicate Bundle SourceDocument, and duplicate security-evidence identity tests."
+    },
+    {
+      "failure_id": "P5E-F057",
+      "priority": "P0",
+      "trigger": "Coverage accepts a typed SourceDocument, receipt, zero/observed/support/counterevidence Fact, Candidate, Decision, or Claim with a graph-owned ID but different bytes; accepts non-Fact or reused binding identity; uses support or counterevidence after the Candidate date; permits a Candidate before the covered period end; or reviews after the data cutoff.",
+      "fail_closed": "Require direct-Fact-only globally unique bindings, Candidate-safe support/counterevidence Fact and source dates, Candidate timing from period end through cutoff, review through cutoff, and exact ID-plus-fingerprint membership in the graph-owned Bundle closure for every typed coverage object.",
+      "verification": "Pre-period Candidate, post-cutoff review, post-Candidate support/counterevidence Fact/source, non-Fact binding, cross-polarity binding reuse, zero/source byte substitution, and full recursive typed-parity probes."
+    },
+    {
+      "failure_id": "P5E-F058",
+      "priority": "P0",
+      "trigger": "A Claim transition carries a Fact period or SourceDocument publication after its Candidate or data cutoff, a post-cutoff or inexact Candidate/Decision/Claim chain, or any affected/remaining/evidence Fact, source, Claim, Candidate, or Decision has the same graph ID but different bytes.",
+      "fail_closed": "Require every direct transition evidence Fact and formal source to be no later than its Candidate, require the exact issuer-wide Candidate-to-named-human-Decision-to-Claim projection through cutoff, and byte-bind every typed transition object to the graph-owned Bundle closure.",
+      "verification": "Future transition Fact/source, future transition review, and same-ID/different-Decision-byte final-closure tests."
+    },
+    {
+      "failure_id": "P5E-F059",
+      "priority": "P0",
+      "trigger": "Materialization code identity, adversarial expected outcomes, test totals, skips, failures, or node IDs are accepted from mutable semantic labels or self-reported test manifests without byte-level and independent runtime replay.",
+      "fail_closed": "Bind code identity to exact source bytes, pin the complete case-to-expected registry, independently collect the exact node-ID inventory, run a second full JUnit suite, and require all counts and hashes to agree.",
+      "verification": "Source-byte mutation, case-expected drift, empty-test marker, exact node-ID hash, independent JUnit count, skip, failure, and manifest-disagreement tests."
+    },
+    {
+      "failure_id": "P5E-F060",
+      "priority": "P0",
+      "trigger": "Any same-repository PR is skipped by branch-name control flow or changes the pending acceptance trust root outside its reserved closeout; an acceptance PR targets a non-main or foreign base, contains more than one direct commit, changes beyond the exact two governance files, contains open, duplicate-key, non-finite, noncanonical, bool-as-integer, or float-as-integer evidence JSON, executes candidate code, gains secrets, accepts incomplete pagination, uses a wrong workflow file/ref/ID/state, accepts a permissive or cancelling JUnit grammar, omits audited-tree evidence, or produces a merged-main tree different from its acceptance head.",
+      "fail_closed": "Classify every same-repository main PR with a base-owned read-only gate and block non-acceptance trust-root changes. Pin exact Action/runtime and workflow file/ref/ID/name/active state; require one direct non-merge closeout commit; stable total-count-bound pagination; exact implementation and acceptance associations; exactly one current successful acceptance run; closed typed canonical four-file evidence; thirteen evidence-bearing checks; the exact pytest testsuites-to-property grammar with zero failures, errors, and skips; a complete audited file set; and merged-main tree equality before provenance replay.",
+      "verification": "Non-reserved status, closeout, workflow, verifier, writer, or node-ID trust-root changes; foreign/non-main use; duplicate, non-finite, overflow, compact, CRLF, unknown-field, bool-count, float-count, or non-list CI evidence; multi-commit, mode, symlink, nested ZIP, incomplete pagination, wrong workflow suffix/ref/metadata, stale association, old success plus current failure, missing or forged checks, root/suite/testcase attribute extensions, negative or cancelling counters, suite-level node IDs, namespaced/nested/system-output failures, wrong inventory, incomplete audited set, malicious merge tree, and audited-file mutation attacks."
+    },
+    {
+      "failure_id": "P5E-F061",
+      "priority": "P0",
+      "trigger": "The same issuer, security, official legal-event ID, and legal effective date is assigned more than one reviewed economic-event key and would split into multiple canonical groups.",
+      "fail_closed": "Reject grouping in the independent official-occurrence collision domain before any canonical numeric event can be consumed.",
+      "verification": "Economic-event-key drift across formal corroborating disclosures produces blocked_share_event_identity_ambiguous."
+    },
+    {
+      "failure_id": "P5E-F062",
+      "priority": "P0",
+      "trigger": "The opening common-share root is medium/low confidence, its SourceDocument is not official primary evidence, its graph-owned bytes drift from the Bundle binding, or the output changes that SourceDocument or is not high confidence.",
+      "fail_closed": "Reject the complete recursive current-share lineage before Snapshot eligibility.",
+      "verification": "Secondary-source, medium-confidence, opening same-ID/different-bytes, output-source drift, and output-confidence drift adversarial cases."
+    },
+    {
+      "failure_id": "P5E-F063",
+      "priority": "P0",
+      "trigger": "Several Phase 5C root Facts map to one economic Claim but no graph-owned aggregate opening-balance Fact proves the full amount.",
+      "fail_closed": "Reject the dilution authority instead of consuming one component and understating the remaining Claim.",
+      "verification": "Two-root same-economic-key authority construction is blocked; one-root control remains eligible."
+    },
+    {
+      "failure_id": "P5E-F064",
+      "priority": "P0",
+      "trigger": "A reserved canonical-event Fact ID contains bytes other than the independently derived materialization, a caller rewrites its binding/materialization authority, or the reserved output-share Fact ID is already occupied.",
+      "fail_closed": "Reject the Bundle evidence closure before materialization can overwrite, alias, or redefine graph evidence.",
+      "verification": "Canonical conflicting-byte, synchronized-binding rewrite, deterministic idempotent materialization, and output namespace-collision adversarial graphs."
+    },
+    {
+      "failure_id": "P5E-F065",
+      "priority": "P0",
+      "trigger": "One Claim transition carries zero or multiple Candidate, ReviewDecision, or Claim objects even if the arrays and binding sets are internally consistent.",
+      "fail_closed": "Require exactly one Candidate, one named-human Decision, and one Claim for the transition.",
+      "verification": "Two-by-two-by-two review-chain construction is rejected while the exact one-to-one control passes."
+    },
+    {
+      "failure_id": "P5E-F066",
+      "priority": "P0",
+      "trigger": "The gate bootstrap claims to certify itself, a malformed closeout loosens the trust root, a candidate installs or modifies its own successor judge, or shared governance advances outside the preinstalled base-owned 2B gate.",
+      "fail_closed": "Record independent bootstrap review explicitly, freeze the complete pending root and historical evidence, and require exact preinstalled verifier, trust, oracle, tests, branch, diff, and state bytes.",
+      "verification": "Pending/accepted state tests, malformed closeout, legacy no-op verifier, gate-byte drift, unauthorized branch, exact 2B implementation diff, and exact 2B acceptance-only diff."
+    }
+  ]
+}
