@@ -65,7 +65,10 @@ _EXTERNAL_CONTROLLER_DIFF = {
 CONTROL_ORACLE_FIXED_PATHS = frozenset(
     {
         "component-lock.json",
+        "docs/phase5-completion-overlay-v3.md",
         "scripts/phase5e-successor-gate-bundle.schema.json",
+        "scripts/phase5e-futu-market-authority-policy-v1.json",
+        "scripts/phase5e2b12a-acceptance-trust.json",
         "scripts/phase5e2b12b-acceptance-trust.json",
         "scripts/phase5e_audit_profiles.py",
         "scripts/phase5e_kernel_git_shim.sh",

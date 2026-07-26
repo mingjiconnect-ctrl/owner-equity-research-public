@@ -119,6 +119,11 @@ def test_control_oracle_launcher_and_runner_have_one_exact_fixed_inventory() -> 
     assert all(source == target for source, target in pairs)
     staged = {target for _, target in pairs} | {"component-lock.json"}
     assert staged == set(CONTROL_ORACLE_FIXED_PATHS)
+    assert {
+        "docs/phase5-completion-overlay-v3.md",
+        "scripts/phase5e-futu-market-authority-policy-v1.json",
+        "scripts/phase5e2b12a-acceptance-trust.json",
+    } <= staged
     assert "scripts/verify_phase5e_candidate_import_surface.py" not in staged
 
 

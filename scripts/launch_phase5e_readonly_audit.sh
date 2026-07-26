@@ -62,7 +62,7 @@ chmod 0600 "$runtime/final/started_at"
 
 # Only this bounded oracle surface is visible in the candidate rootfs.  The full control checkout
 # and the root-owned final evidence directory are never mounted for the candidate UID.
-install -d -m 0755 "$runtime/oracle/scripts" "$runtime/oracle/tests"
+install -d -m 0755 "$runtime/oracle/scripts" "$runtime/oracle/tests" "$runtime/oracle/docs"
 install -m 0555 "$control_repo/scripts/phase5e_kernel_git_shim.sh" \
   "$runtime/oracle/scripts/phase5e_kernel_git_shim.sh"
 install -m 0444 "$control_repo/scripts/verify_phase5e2b12a_semantic_oracle.py" \
@@ -79,10 +79,16 @@ install -m 0444 "$control_repo/scripts/verify_phase5e_successor_gate_oracle.py" 
   "$runtime/oracle/scripts/verify_phase5e_successor_gate_oracle.py"
 install -m 0444 "$control_repo/scripts/phase5e-successor-gate-bundle.schema.json" \
   "$runtime/oracle/scripts/phase5e-successor-gate-bundle.schema.json"
+install -m 0444 "$control_repo/scripts/phase5e2b12a-acceptance-trust.json" \
+  "$runtime/oracle/scripts/phase5e2b12a-acceptance-trust.json"
 install -m 0444 "$control_repo/scripts/phase5e2b12b-acceptance-trust.json" \
   "$runtime/oracle/scripts/phase5e2b12b-acceptance-trust.json"
 install -m 0444 "$control_repo/scripts/phase5e_audit_profiles.py" \
   "$runtime/oracle/scripts/phase5e_audit_profiles.py"
+install -m 0444 "$control_repo/scripts/phase5e-futu-market-authority-policy-v1.json" \
+  "$runtime/oracle/scripts/phase5e-futu-market-authority-policy-v1.json"
+install -m 0444 "$control_repo/docs/phase5-completion-overlay-v3.md" \
+  "$runtime/oracle/docs/phase5-completion-overlay-v3.md"
 successor_oracle="governance/phase5e-gates/phase5e2b12c/semantic-oracle.py.txt"
 if [[ -f "$control_repo/$successor_oracle" ]]; then
   install -D -m 0444 "$control_repo/$successor_oracle" "$runtime/oracle/$successor_oracle"

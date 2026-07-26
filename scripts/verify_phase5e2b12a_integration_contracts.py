@@ -158,6 +158,7 @@ PUBLIC_CANONICAL_MIGRATION_CHANGED_PATHS = {
     "scripts/phase5e2b12a-acceptance-trust.json",
     "scripts/phase5e_audit_profiles.py",
     "scripts/phase5e_candidate_exec.sh",
+    "scripts/launch_phase5e_readonly_audit.sh",
     "scripts/public_bootstrap.py",
     "scripts/run_phase5e_audit.py",
     "scripts/verify_phase5e_audit_runtime_matrix.py",
