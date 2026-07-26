@@ -160,6 +160,7 @@ PUBLIC_CANONICAL_MIGRATION_CHANGED_PATHS = {
     "scripts/phase5e_candidate_exec.sh",
     "scripts/public_bootstrap.py",
     "scripts/run_phase5e_audit.py",
+    "scripts/verify_phase5e_audit_runtime_matrix.py",
     "scripts/verify_phase5p_baseline.py",
     "scripts/verify_phase5e2b11_frozen_acceptance.py",
     "scripts/verify_phase5e2b12a_acceptance_gate.py",
