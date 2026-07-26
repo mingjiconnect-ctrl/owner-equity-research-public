@@ -774,10 +774,10 @@ def _repository(tmp_path: Path) -> tuple[Path, str, dict[str, Any], dict[str, An
         destination = repository / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)
-    trust_destination = repository / gate.TRUST_PATH.relative_to(ROOT)
+    trust_destination = repository / "scripts/phase5e2b12b-acceptance-trust.json"
     trust_destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(gate.TRUST_PATH, trust_destination)
-    base_trust_destination = repository / gate.BASE_TRUST_PATH.relative_to(ROOT)
+    base_trust_destination = repository / "scripts/phase5e2b12a-acceptance-trust.json"
     signers, signing = _test_receipt_authority()
     base_trust = json.loads(gate.BASE_TRUST_PATH.read_text())
     base_trust["external_feasibility_receipt_authority"]["status"] = "pinned"
@@ -1115,7 +1115,9 @@ def test_bundle_validation_fails_closed(tmp_path: Path, attack: str) -> None:
 def test_bundle_cannot_rebind_the_protected_behavior_oracle(tmp_path: Path) -> None:
     repository, _, bundle, _ = _repository(tmp_path)
     structural = ROOT / "scripts/verify_phase5e_successor_gate_oracle.py"
-    bundle["audit"]["protected_oracle_path"] = str(structural.relative_to(ROOT))
+    bundle["audit"]["protected_oracle_path"] = (
+        "scripts/verify_phase5e_successor_gate_oracle.py"
+    )
     bundle["audit"]["protected_oracle_sha256"] = hashlib.sha256(
         structural.read_bytes()
     ).hexdigest()
