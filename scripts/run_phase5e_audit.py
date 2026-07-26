@@ -39,6 +39,7 @@ from public_bootstrap import (  # noqa: E402
 )
 from verify_phase5e2b12a_integration_contracts import (  # noqa: E402
     PUBLIC_CANONICAL_MIGRATION_CHANGED_PATHS,
+    PUBLIC_CANONICAL_MIGRATION_OPTIONAL_CHANGED_PATHS,
 )
 
 # Compatibility alias for the frozen 2A tests and trust snapshot.  Runtime selection is always
@@ -1185,7 +1186,7 @@ def _regular_tracked_file(repository: Path, relative: str) -> bool:
     if not stat.S_ISREG(mode):
         return False
     tree_entry = _git(repository, "ls-tree", "HEAD", "--", relative)
-    return bool(tree_entry) and tree_entry.split()[0] == "100644"
+    return bool(tree_entry) and tree_entry.split()[0] in {"100644", "100755"}
 
 
 def _tracked_manifest(repository: Path) -> dict[str, Any]:
@@ -1705,10 +1706,15 @@ def main() -> int:
         )
         if public_mode:
             expected_public_paths = set(PUBLIC_CANONICAL_MIGRATION_CHANGED_PATHS)
+            permitted_public_paths = (
+                expected_public_paths
+                | PUBLIC_CANONICAL_MIGRATION_OPTIONAL_CHANGED_PATHS
+            )
             if phase_accepted:
                 expected_public_paths.add(PHASE5E2B12A_ACCEPTANCE_CLOSEOUT_PATH)
+                permitted_public_paths.add(PHASE5E2B12A_ACCEPTANCE_CLOSEOUT_PATH)
             unexpected_phase_paths = tuple(
-                sorted(phase_changed_files - expected_public_paths)
+                sorted(phase_changed_files - permitted_public_paths)
             )
             missing_phase_paths = tuple(
                 sorted(expected_public_paths - phase_changed_files)
