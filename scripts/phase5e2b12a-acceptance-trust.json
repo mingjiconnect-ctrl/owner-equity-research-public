@@ -11,14 +11,14 @@
     "installation_id": 149053154,
     "permissions": {
       "actions": "read",
+      "actions_variables": "read",
       "administration": "read",
       "contents": "read",
       "environments": "read",
       "metadata": "read",
       "pull_requests": "read",
       "secrets": "read",
-      "statuses": "write",
-      "variables": "read"
+      "statuses": "write"
     },
     "private_key_secret": "PHASE5E_CONTROLLER_PRIVATE_KEY",
     "repository": "mingjiconnect-ctrl/owner-equity-research-public",

@@ -165,6 +165,7 @@ if (
     or _controller_authority.get("permissions")
     != {
         "actions": "read",
+        "actions_variables": "read",
         "administration": "read",
         "contents": "read",
         "environments": "read",
@@ -172,7 +173,6 @@ if (
         "pull_requests": "read",
         "secrets": "read",
         "statuses": "write",
-        "variables": "read",
     }
     or _controller_authority.get("events") != []
 ):
@@ -821,6 +821,7 @@ CONTROLLER_APP_CHECKS = frozenset(
 REQUIRED_PROTECTION_CHECKS = GITHUB_ACTIONS_CHECKS | CONTROLLER_APP_CHECKS
 CONTROLLER_APP_INSTALLATION_PERMISSIONS = {
     "actions": "read",
+    "actions_variables": "read",
     "administration": "read",
     "contents": "read",
     "environments": "read",
@@ -828,7 +829,6 @@ CONTROLLER_APP_INSTALLATION_PERMISSIONS = {
     "pull_requests": "read",
     "secrets": "read",
     "statuses": "write",
-    "variables": "read",
 }
 
 
