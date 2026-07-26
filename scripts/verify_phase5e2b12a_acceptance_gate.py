@@ -1515,18 +1515,10 @@ def _verify_scoped_controller_token_identity(
     *,
     controller_app_id: int,
 ) -> tuple[int, str]:
-    app = _api_json("https://api.github.com/app", token)
     repositories = _api_json("https://api.github.com/installation/repositories", token)
-    owner, _ = repository_slug.split("/", 1)
-    app_slug = app.get("slug")
     scoped_repositories = repositories.get("repositories")
     if (
-        type(app.get("id")) is not int
-        or app.get("id") != controller_app_id
-        or not isinstance(app_slug, str)
-        or not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,98}[a-z0-9])?", app_slug)
-        or app.get("owner", {}).get("login") != owner
-        or app.get("permissions") != CONTROLLER_APP_INSTALLATION_PERMISSIONS
+        controller_app_id != PINNED_CONTROLLER_APP_ID
         or type(repositories.get("total_count")) is not int
         or repositories.get("total_count") != 1
         or not isinstance(scoped_repositories, list)
@@ -1534,7 +1526,7 @@ def _verify_scoped_controller_token_identity(
         or scoped_repositories[0].get("full_name") != repository_slug
     ):
         raise SystemExit("controller App token authority or repository scope is invalid")
-    return PINNED_CONTROLLER_INSTALLATION_ID, app_slug
+    return PINNED_CONTROLLER_INSTALLATION_ID, PINNED_CONTROLLER_APP_SLUG
 
 
 def _api_paginated_collection(
@@ -1692,16 +1684,6 @@ def _verify_single_repository_app_authority(
         or global_account.get("type") != expected_account_type
     ):
         raise SystemExit(f"{label} global installation authority is invalid")
-
-    token_app = _api_json("https://api.github.com/app", token)
-    if (
-        token_app.get("id") != app_id
-        or token_app.get("slug") != app_slug
-        or token_app.get("permissions") != expected_permissions
-        or token_app.get("events") != expected_events
-        or token_app.get("owner") != app_owner
-    ):
-        raise SystemExit(f"{label} installation token App identity is invalid")
 
     repositories = _api_paginated_collection(
         "https://api.github.com/installation/repositories",

@@ -1151,7 +1151,12 @@ def _remote_evidence(  # noqa: F811
                 "permissions": dict(acceptance_gate.CONTROLLER_APP_INSTALLATION_PERMISSIONS),
             }
         if url == "https://api.github.com/installation/repositories":
-            return {"total_count": 1, "repositories": [{"full_name": REPOSITORY_SLUG}]}
+            return {
+                "total_count": (
+                    1.0 if authority_mode == "floating_controller_app_id" else 1
+                ),
+                "repositories": [{"full_name": REPOSITORY_SLUG}],
+            }
         if url == f"https://api.github.com/repos/{REPOSITORY_SLUG}":
             return {
                 "id": 1312436919,
@@ -2224,13 +2229,13 @@ def test_remote_acceptance_rejects_controller_installation_identity_drift(
 
 
 @pytest.mark.parametrize(
-    "permission_attack",
+    "scope_attack",
     ("missing", "extra", "downgraded"),
 )
-def test_remote_acceptance_requires_exact_controller_app_permissions(
+def test_remote_acceptance_requires_exact_controller_token_repository_scope(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    permission_attack: str,
+    scope_attack: str,
 ) -> None:
     repository, root_commit, implementation_head, base = _repository(tmp_path)
     head = _remote_evidence(
@@ -2244,13 +2249,14 @@ def test_remote_acceptance_requires_exact_controller_app_permissions(
 
     def api(url: str, token: str) -> dict[str, Any]:
         payload = json.loads(json.dumps(prior_api(url, token)))
-        if url == "https://api.github.com/app":
-            if permission_attack == "missing":
-                payload["permissions"].pop("secrets")
-            elif permission_attack == "extra":
-                payload["permissions"]["issues"] = "read"
+        if url == "https://api.github.com/installation/repositories":
+            if scope_attack == "missing":
+                payload = {"total_count": 0, "repositories": []}
+            elif scope_attack == "extra":
+                payload["total_count"] = 2
+                payload["repositories"].append({"full_name": "owner/other"})
             else:
-                payload["permissions"]["statuses"] = "read"
+                payload["repositories"][0]["full_name"] = "owner/other"
         return payload
 
     monkeypatch.setattr(acceptance_gate, "_api_json", api)
@@ -2428,7 +2434,7 @@ def test_kernel_reader_authority_rejects_scope_permission_and_identity_drift(
     def api(url: str, token: str) -> dict[str, Any]:
         bare = url.split("?", 1)[0]
         if bare == "https://api.github.com/app":
-            assert token in {"app-jwt", "kernel-token"}
+            assert token == "app-jwt"
             return {
                 "id": 24680,
                 "slug": "phase5e-kernel-reader",
@@ -2546,7 +2552,7 @@ def test_kernel_reader_authority_accepts_exact_single_repository_read_scope(
     def api(url: str, token: str) -> dict[str, Any]:
         bare = url.split("?", 1)[0]
         if bare == "https://api.github.com/app":
-            assert token in {"app-jwt", "kernel-token"}
+            assert token == "app-jwt"
             return {
                 "id": 24680,
                 "slug": "phase5e-kernel-reader",
