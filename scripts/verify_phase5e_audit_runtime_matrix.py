@@ -327,8 +327,7 @@ def _blocked_junit_diagnostics(
                 nodeid = f"{classname}::{name}"
                 identity_kind = "junit_testcase"
                 if (
-                    not classname.startswith("tests")
-                    or not name
+                    not name
                     or len(nodeid) > 512
                     or any(ord(character) < 32 for character in nodeid)
                 ):
