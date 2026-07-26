@@ -1555,6 +1555,9 @@ def test_acceptance_workflow_is_base_owned_read_only_and_immutably_pinned() -> N
     assert "actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd" in text
     assert "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" in text
     assert "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093" in text
+    assert 'path: ${{ runner.temp }}/wheelhouse-download' in text
+    assert 'wheelhouse="$RUNNER_TEMP/wheelhouse-download"' in text
+    assert "wheelhouse-download/audit-wheelhouse" not in text
     assert "@v6" not in text
     assert "ubuntu-latest" not in text
     assert "runs-on: ubuntu-24.04" in text
