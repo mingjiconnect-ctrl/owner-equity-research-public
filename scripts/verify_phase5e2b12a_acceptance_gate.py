@@ -2080,14 +2080,11 @@ def _verify_remote_repository_governance(
         token,
     )
     status_checks = protection.get("required_status_checks")
-    contexts: set[str] = set()
     pinned_checks: dict[str, int] = {}
     raw_contexts: object = None
     if isinstance(status_checks, dict):
-        raw_contexts = status_checks.get("contexts", [])
+        raw_contexts = status_checks.get("contexts")
         raw_checks = status_checks.get("checks", [])
-        if isinstance(raw_contexts, list):
-            contexts.update(item for item in raw_contexts if isinstance(item, str))
         if isinstance(raw_checks, list):
             for item in raw_checks:
                 if (
@@ -2098,7 +2095,6 @@ def _verify_remote_repository_governance(
                 ):
                     raise SystemExit("main protection contains an unpinned or duplicate check")
                 pinned_checks[item["context"]] = item["app_id"]
-                contexts.add(item["context"])
     reviews = protection.get("required_pull_request_reviews")
     bypass = reviews.get("bypass_pull_request_allowances") if isinstance(reviews, dict) else None
     no_bypass = bypass is None or (
@@ -2122,10 +2118,14 @@ def _verify_remote_repository_governance(
         or repository.get("allow_rebase_merge") is not False
         or not isinstance(status_checks, dict)
         or status_checks.get("strict") is not True
-        or not isinstance(raw_contexts, list)
-        or len(raw_contexts) != len(REQUIRED_PROTECTION_CHECKS)
-        or set(raw_contexts) != REQUIRED_PROTECTION_CHECKS
-        or contexts != REQUIRED_PROTECTION_CHECKS
+        or (
+            raw_contexts is not None
+            and (
+                not isinstance(raw_contexts, list)
+                or len(raw_contexts) != len(REQUIRED_PROTECTION_CHECKS)
+                or set(raw_contexts) != REQUIRED_PROTECTION_CHECKS
+            )
+        )
         or set(pinned_checks) != REQUIRED_PROTECTION_CHECKS
         or any(
             pinned_checks[context] != GITHUB_ACTIONS_APP_ID

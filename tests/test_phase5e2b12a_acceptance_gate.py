@@ -1200,7 +1200,6 @@ def _remote_evidence(  # noqa: F811
             return {
                 "required_status_checks": {
                     "strict": True,
-                    "contexts": sorted(acceptance_gate.REQUIRED_PROTECTION_CHECKS),
                     "checks": checks,
                 },
                 "required_pull_request_reviews": {
@@ -2042,9 +2041,6 @@ def test_remote_acceptance_requires_non_bypass_public_main_protection(
             payload["allow_squash_merge"] = True
         elif url.endswith("/branches/main/protection"):
             if attack == "missing_required_check":
-                payload["required_status_checks"]["contexts"].remove(
-                    "phase5e/controller-structure"
-                )
                 payload["required_status_checks"]["checks"] = [
                     item
                     for item in payload["required_status_checks"]["checks"]
