@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import subprocess
+import sys
 import urllib.error
 import urllib.request
 import zipfile
@@ -50,6 +51,22 @@ def _git(repository: Path, *args: str) -> str:
         ["git", "-C", str(repository), *args],
         text=True,
     ).strip()
+
+
+def test_acceptance_gate_help_runs_under_isolated_python() -> None:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            str(ROOT / "scripts/verify_phase5e2b12a_acceptance_gate.py"),
+            "--help",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert "--verify-kernel-reader-authority-only" in completed.stdout
 
 
 def _commit(repository: Path, message: str) -> str:
