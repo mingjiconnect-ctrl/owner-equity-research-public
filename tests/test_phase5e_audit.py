@@ -33,6 +33,7 @@ from scripts.run_phase5e_audit import (
     _verify_profile_semantic_oracle_binding,
 )
 from scripts.verify_phase5e2b12a_integration_contracts import (
+    PUBLIC_CANONICAL_MIGRATION_CHANGED_PATHS,
     PUBLIC_CANONICAL_MIGRATION_OPTIONAL_CHANGED_PATHS,
 )
 
@@ -872,6 +873,10 @@ def test_phase5e2b12a_repository_wide_changed_path_boundary_is_closed() -> None:
     assert (
         PUBLIC_CANONICAL_MIGRATION_OPTIONAL_CHANGED_PATHS
         == {"docs/public-phase5e2b12a-revalidation.json"}
+    )
+    assert (
+        "scripts/phase5e_kernel_git_shim.sh"
+        in PUBLIC_CANONICAL_MIGRATION_CHANGED_PATHS
     )
     assert audit_runner._regular_tracked_file(
         ROOT,
