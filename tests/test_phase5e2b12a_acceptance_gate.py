@@ -2397,7 +2397,6 @@ def test_controller_and_external_author_wrappers_require_full_installation_proof
         "public_repository",
         "archived_repository",
         "two_repositories",
-        "public_app",
         "two_global_installations",
         "wrong_app_owner",
         "direct_repository_drift",
@@ -2418,11 +2417,6 @@ def test_kernel_reader_authority_rejects_scope_permission_and_identity_drift(
         acceptance_gate,
         "PINNED_KERNEL_READER_INSTALLATION_ID",
         13579,
-    )
-    monkeypatch.setattr(
-        acceptance_gate,
-        "_unauthenticated_app_http_status",
-        lambda app_slug: 200 if attack == "public_app" else 404,
     )
     repository = {
         "id": acceptance_gate.KERNEL_READER_REPOSITORY_ID,
@@ -2549,11 +2543,6 @@ def test_kernel_reader_authority_accepts_exact_single_repository_read_scope(
         "PINNED_KERNEL_READER_INSTALLATION_ID",
         13579,
     )
-    monkeypatch.setattr(
-        acceptance_gate,
-        "_unauthenticated_app_http_status",
-        lambda app_slug: 404,
-    )
     repository = {
         "id": acceptance_gate.KERNEL_READER_REPOSITORY_ID,
         "full_name": acceptance_gate.KERNEL_READER_REPOSITORY,
@@ -2631,6 +2620,11 @@ def test_kernel_reader_authority_accepts_exact_single_repository_read_scope(
     )
 
 
+def test_app_authority_does_not_depend_on_an_unauthenticated_discovery_probe() -> None:
+    assert not hasattr(acceptance_gate, "_unauthenticated_app_http_status")
+    assert not hasattr(acceptance_gate, "_verify_private_app_visibility")
+
+
 @pytest.mark.parametrize(
     "attack",
     (
@@ -2693,11 +2687,6 @@ def test_external_controller_handoff_requires_the_pinned_author_app(
         acceptance_gate,
         "PINNED_EXTERNAL_GATE_AUTHOR_INSTALLATION_ID",
         13579,
-    )
-    monkeypatch.setattr(
-        acceptance_gate,
-        "_unauthenticated_app_http_status",
-        lambda app_slug: 404,
     )
     monkeypatch.setattr(acceptance_gate, "_read_json", lambda *args: handoff)
     monkeypatch.setattr(

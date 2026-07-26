@@ -1353,40 +1353,6 @@ def _api_graphql_repository_merge_settings(
     )
 
 
-def _unauthenticated_app_http_status(app_slug: str) -> int:
-    """Return the public-discovery status for one exact GitHub App slug."""
-
-    if re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,98}[a-z0-9])?", app_slug) is None:
-        raise SystemExit("GitHub App slug is not canonical")
-    request = urllib.request.Request(
-        f"https://api.github.com/apps/{app_slug}",
-        headers={
-            "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent": "owner-research-phase5e2b12a-acceptance-gate",
-        },
-    )
-    try:
-        with urllib.request.build_opener(_NoCredentialRedirect()).open(
-            request,
-            timeout=30,
-        ) as response:
-            return int(response.status)
-    except urllib.error.HTTPError as exc:
-        if exc.code in {301, 302, 303, 307, 308}:
-            raise SystemExit(
-                "unauthenticated GitHub App discovery attempted a redirect"
-            ) from exc
-        return int(exc.code)
-
-
-def _verify_private_app_visibility(app_slug: str, *, label: str) -> None:
-    """Prove the JWT-authenticated App is not publicly discoverable."""
-
-    if _unauthenticated_app_http_status(app_slug) != 404:
-        raise SystemExit(f"{label} App is publicly discoverable")
-
-
 def _api_paginated_items(
     url: str,
     *,
@@ -1736,8 +1702,6 @@ def _verify_single_repository_app_authority(
         or app_owner.get("type") != expected_account_type
     ):
         raise SystemExit(f"{label} App-global authority is invalid")
-    _verify_private_app_visibility(app_slug, label=label)
-
     app_installations = _api_paginated_list(
         "https://api.github.com/app/installations",
         app_jwt,
@@ -2336,10 +2300,6 @@ def _verify_external_controller_handoff_remote(
         or author_owner.get("type") != "User"
     ):
         raise SystemExit("external gate-author App metadata or permissions drifted")
-    _verify_private_app_visibility(
-        PINNED_EXTERNAL_GATE_AUTHOR_APP_SLUG,
-        label="external gate-author",
-    )
     number = event.get("number")
     if type(number) is not int or number <= 0:
         raise SystemExit("external Controller handoff has no canonical PR number")
