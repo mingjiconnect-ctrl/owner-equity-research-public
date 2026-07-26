@@ -24,6 +24,7 @@ from scripts.run_phase5e_audit import (
     EXPECTED_AUDIT_CHECK_IDS,
     PHASE5E2B12A_ACCEPTANCE_CLOSEOUT_PATH,
     PHASE5E2B12A_ALLOWED_CHANGED_PATHS,
+    PHASE5E2B12A_OPTIONAL_CHANGED_PATHS,
     STATIC_CONTROL_FILES,
     _has_blocking_findings,
     _phase5e2b12a_changed_path_violations,
@@ -788,6 +789,13 @@ def test_phase5e2b12a_repository_wide_changed_path_boundary_is_closed() -> None:
         changed_paths | {PHASE5E2B12A_ACCEPTANCE_CLOSEOUT_PATH},
         accepted=True,
     ) == ((), ())
+    assert PHASE5E2B12A_OPTIONAL_CHANGED_PATHS == {
+        "docs/public-phase5e2b12a-revalidation.json"
+    }
+    assert _phase5e2b12a_changed_path_violations(
+        changed_paths | PHASE5E2B12A_OPTIONAL_CHANGED_PATHS,
+        accepted=accepted,
+    ) == ((), ())
     unexpected, missing = _phase5e2b12a_changed_path_violations(
         changed_paths | {"scripts/compile_phase5e2c_market_evidence.py"},
         accepted=accepted,
@@ -853,6 +861,8 @@ def test_phase5e_ci_permissions_and_isolation_are_enforced() -> None:
     assert "phase5e-independent.xml" not in text
     assert "phase5e-nodeids.txt" not in text
     assert "any(manifest[\"finding_counts\"].values())" in text
+    assert 'value.get("report_sha256", sys.argv[2])' in text
+    assert 'value.get("test_counts", {}).get(sys.argv[2], 0)' in text
     assert text.count("feature/phase5e2b12a-acceptance-closeout") >= 1
 
 

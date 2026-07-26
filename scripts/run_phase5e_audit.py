@@ -96,6 +96,9 @@ _PROFILE_RESOLUTION_FAILURE_PROFILE = AuditProfile(
 _JUNIT_FAILURE_TAGS = frozenset({"failure", "error", "skipped"})
 _NONNEGATIVE_DECIMAL = re.compile(r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)?\Z")
 PHASE5E2B12A_ACCEPTANCE_CLOSEOUT_PATH = "docs/phase5e2b12a-acceptance-closeout.json"
+PHASE5E2B12A_OPTIONAL_CHANGED_PATHS = {
+    "docs/public-phase5e2b12a-revalidation.json",
+}
 PHASE5E2B12A_ALLOWED_CHANGED_PATHS = {
     ".github/workflows/ci.yml",
     ".github/workflows/phase5e2b12a-acceptance-gate.yml",
@@ -749,10 +752,12 @@ def _phase5e2b12a_changed_path_violations(
     accepted: bool = False,
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
     expected_paths = set(PHASE5E2B12A_ALLOWED_CHANGED_PATHS)
+    permitted_paths = expected_paths | PHASE5E2B12A_OPTIONAL_CHANGED_PATHS
     if accepted:
         expected_paths.add(PHASE5E2B12A_ACCEPTANCE_CLOSEOUT_PATH)
+        permitted_paths.add(PHASE5E2B12A_ACCEPTANCE_CLOSEOUT_PATH)
     return (
-        tuple(sorted(changed_paths - expected_paths)),
+        tuple(sorted(changed_paths - permitted_paths)),
         tuple(sorted(expected_paths - changed_paths)),
     )
 
