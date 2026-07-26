@@ -425,8 +425,15 @@ def test_three_runtime_audit_aggregator_emits_only_sanitized_manifest(
         b"<system-out>private stdout</system-out>"
         b"</testcase></testsuite></testsuites>"
     )
+    fallback_junit = blocked_junit.replace(
+        b'<properties><property name="phase5e_nodeid" '
+        b'value="tests/test_one.py::test_one"/></properties>',
+        b"",
+    )
     blocked_evidence = {
-        runtime_id: blocked_junit for runtime_id in ("cp311", "cp312", "cp313")
+        "cp311": fallback_junit,
+        "cp312": blocked_junit,
+        "cp313": blocked_junit,
     }
 
     def blocked_private_file(path: Path, *, maximum_bytes: int) -> bytes:
@@ -456,7 +463,17 @@ def test_three_runtime_audit_aggregator_emits_only_sanitized_manifest(
             "skipped_tests": 0,
             "outcomes_reconciled": True,
             "blocked_test_nodeids": [
-                {"nodeid": "tests/test_one.py::test_one", "status": "failed"}
+                {
+                    "identity": (
+                        "tests.test_one::test_one"
+                        if runtime_id == "cp311"
+                        else "tests/test_one.py::test_one"
+                    ),
+                    "identity_kind": (
+                        "junit_testcase" if runtime_id == "cp311" else "nodeid"
+                    ),
+                    "status": "failed",
+                }
             ],
         }
         for runtime_id in ("cp311", "cp312", "cp313")
