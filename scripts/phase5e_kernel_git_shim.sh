@@ -31,4 +31,4 @@ if [[ "${1:-}" == "-C" && "${2:-}" == "$kernel_root" ]]; then
   exit 64
 fi
 
-exec /usr/bin/git "$@"
+exec /usr/bin/git -c safe.directory=/work "$@"

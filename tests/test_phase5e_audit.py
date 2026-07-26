@@ -913,6 +913,9 @@ def test_phase5e_ci_permissions_and_isolation_are_enforced() -> None:
     candidate_executor = (ROOT / "scripts/phase5e_candidate_exec.sh").read_text(
         encoding="utf-8"
     )
+    git_shim = (ROOT / "scripts/phase5e_kernel_git_shim.sh").read_text(
+        encoding="utf-8"
+    )
     assert (
         'chmod -R a-w "$control_repo" "$candidate_repo" "$kernel_interface" "$venv"'
         in launcher
@@ -932,6 +935,7 @@ def test_phase5e_ci_permissions_and_isolation_are_enforced() -> None:
         'mount -t tmpfs -o mode=0555,nosuid,nodev,noexec tmpfs "$root/oracle/tests"'
         in candidate_executor
     )
+    assert 'exec /usr/bin/git -c safe.directory=/work "$@"' in git_shim
     assert "/audit/control" not in candidate_executor
     assert "run_phase5e_audit.py" in launcher
     for protected_oracle in (
