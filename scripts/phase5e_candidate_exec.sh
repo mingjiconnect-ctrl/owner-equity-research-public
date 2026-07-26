@@ -94,7 +94,8 @@ exec unshare --mount --net --ipc --uts --pid --fork --kill-child bash -ceu '
   ulimit -u 256
   ulimit -v 4194304
   cd "$candidate_cwd"
-  exec timeout --signal=TERM --kill-after=10s 15m \
+  exec /venv/bin/python -P /oracle/scripts/phase5e_pid1_reaper.py \
+    timeout --signal=TERM --kill-after=10s 15m \
     setpriv --reuid=65534 --regid=65534 --clear-groups --no-new-privs \
     env -i \
       HOME=/scratch/home \
