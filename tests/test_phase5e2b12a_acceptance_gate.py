@@ -1851,7 +1851,7 @@ def _ordinary_repository(
     return repository, base, head_ref
 
 
-def test_pending_acceptance_rejects_every_non_acceptance_pr_except_exact_public_revalidation(
+def test_pending_acceptance_rejects_every_non_acceptance_pr(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2248,7 +2248,7 @@ def test_remote_acceptance_rejects_controller_installation_identity_drift(
     "scope_attack",
     ("missing", "extra", "downgraded"),
 )
-def test_remote_acceptance_requires_exact_controller_token_repository_scope(
+def test_remote_acceptance_requires_exact_controller_app_permissions(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     scope_attack: str,
@@ -2397,6 +2397,7 @@ def test_controller_and_external_author_wrappers_require_full_installation_proof
         "public_repository",
         "archived_repository",
         "two_repositories",
+        "public_app",
         "two_global_installations",
         "wrong_app_owner",
         "direct_repository_drift",
@@ -2406,6 +2407,11 @@ def test_kernel_reader_authority_rejects_scope_permission_and_identity_drift(
     monkeypatch: pytest.MonkeyPatch,
     attack: str,
 ) -> None:
+    if attack == "public_app":
+        assert not hasattr(acceptance_gate, "_unauthenticated_app_http_status")
+        assert not hasattr(acceptance_gate, "_verify_private_app_visibility")
+        return
+
     monkeypatch.setattr(acceptance_gate, "KERNEL_READER_AUTHORITY_STATUS", "pinned")
     monkeypatch.setattr(acceptance_gate, "PINNED_KERNEL_READER_APP_ID", 24680)
     monkeypatch.setattr(
@@ -2618,11 +2624,6 @@ def test_kernel_reader_authority_accepts_exact_single_repository_read_scope(
         app_slug="phase5e-kernel-reader",
         installation_id=13579,
     )
-
-
-def test_app_authority_does_not_depend_on_an_unauthenticated_discovery_probe() -> None:
-    assert not hasattr(acceptance_gate, "_unauthenticated_app_http_status")
-    assert not hasattr(acceptance_gate, "_verify_private_app_visibility")
 
 
 @pytest.mark.parametrize(
