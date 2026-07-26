@@ -923,11 +923,15 @@ def test_phase5e_ci_permissions_and_isolation_are_enforced() -> None:
     assert "--reuid=65534" in candidate_executor
     assert 'mount --bind "$interface" "$root/interface"' in candidate_executor
     assert (
-        "PYTHONPATH=/oracle:/work/src:/work:/work/tests:"
-        "/oracle/tests"
+        "PYTHONPATH=/oracle:/work/src:/work:/work/tests"
         in candidate_executor
     )
     assert "/interface/kernel/src" not in candidate_executor
+    assert 'mount --bind "$oracle/tests" "$root/work/tests"' in candidate_executor
+    assert (
+        'mount -t tmpfs -o mode=0555,nosuid,nodev,noexec tmpfs "$root/oracle/tests"'
+        in candidate_executor
+    )
     assert "/audit/control" not in candidate_executor
     assert "run_phase5e_audit.py" in launcher
     for protected_oracle in (

@@ -55,6 +55,9 @@ exec unshare --mount --net --ipc --uts --pid --fork --kill-child bash -ceu '
   mount -o remount,ro,bind "$root/candidate-import/scripts"
   mount --bind "$candidate/tests" "$root/candidate-import/tests"
   mount -o remount,ro,bind "$root/candidate-import/tests"
+  mount --bind "$oracle/tests" "$root/work/tests"
+  mount -o remount,ro,bind "$root/work/tests"
+  mount -t tmpfs -o mode=0555,nosuid,nodev,noexec tmpfs "$root/oracle/tests"
   mount --bind /usr "$root/usr"
   mount -o remount,ro,bind "$root/usr"
   mount --bind /bin "$root/bin"
@@ -107,7 +110,7 @@ exec unshare --mount --net --ipc --uts --pid --fork --kill-child bash -ceu '
       PYTHONSAFEPATH=1 \
       PYTEST_ADDOPTS="--import-mode=importlib -p no:cacheprovider" \
       PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 \
-      PYTHONPATH=/oracle:/work/src:/work:/work/tests:/oracle/tests \
+      PYTHONPATH=/oracle:/work/src:/work:/work/tests \
       PIP_CONFIG_FILE=/dev/null \
       PIP_NO_INDEX=1 \
       PHASE5E_CANDIDATE_REPOSITORY=/work \
