@@ -67,6 +67,8 @@ install -m 0555 "$control_repo/scripts/phase5e_kernel_git_shim.sh" \
   "$runtime/oracle/scripts/phase5e_kernel_git_shim.sh"
 install -m 0555 "$control_repo/scripts/phase5e_pid1_reaper.py" \
   "$runtime/oracle/scripts/phase5e_pid1_reaper.py"
+install -m 0444 "$control_repo/scripts/public_bootstrap.py" \
+  "$runtime/oracle/scripts/public_bootstrap.py"
 install -m 0444 "$control_repo/scripts/verify_phase5e2b12a_semantic_oracle.py" \
   "$runtime/oracle/scripts/verify_phase5e2b12a_semantic_oracle.py"
 install -m 0444 "$control_repo/scripts/verify_phase5e2b12b_semantic_oracle.py" \

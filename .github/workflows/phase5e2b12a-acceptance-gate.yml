@@ -760,6 +760,31 @@ jobs:
           set -euo pipefail
           private_output="$RUNNER_TEMP/phase5e-audit-private.json"
           output="$RUNNER_TEMP/phase5e-audit.json"
+          for runtime in cp311 cp312 cp313; do
+            sudo "$RUNNER_TEMP/phase5e-audit-venv-cp311/bin/python" -I - \
+              "$RUNNER_TEMP/phase5e-audit-runtime-$runtime/final/findings.json" \
+              "$runtime" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          report_path = Path(sys.argv[1])
+          runtime_id = sys.argv[2]
+          try:
+              report = json.loads(report_path.read_text(encoding="utf-8"))
+              finding_ids = sorted(
+                  item["finding_id"]
+                  for item in report.get("findings", [])
+                  if isinstance(item, dict)
+                  and isinstance(item.get("finding_id"), str)
+              )
+              print(
+                  f"{runtime_id} protected audit finding ids: "
+                  + (", ".join(finding_ids) if finding_ids else "none")
+              )
+          except (OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError):
+              print(f"{runtime_id} protected audit finding ids: unavailable")
+          PY
           set +e
           sudo "$RUNNER_TEMP/phase5e-audit-venv-cp311/bin/python" -I \
             "$GITHUB_WORKSPACE/_control/scripts/verify_phase5e_audit_runtime_matrix.py" \

@@ -124,8 +124,19 @@ def test_control_oracle_launcher_and_runner_have_one_exact_fixed_inventory() -> 
         "docs/phase5-completion-overlay-v3.md",
         "scripts/phase5e-futu-market-authority-policy-v1.json",
         "scripts/phase5e2b12a-acceptance-trust.json",
+        "scripts/public_bootstrap.py",
     } <= staged
     assert "scripts/verify_phase5e_candidate_import_surface.py" not in staged
+
+
+def test_protected_workflow_logs_only_sanitized_finding_ids() -> None:
+    workflow = (
+        ROOT / ".github/workflows/phase5e2b12a-acceptance-gate.yml"
+    ).read_text(encoding="utf-8")
+    assert "protected audit finding ids:" in workflow
+    assert 'item["finding_id"]' in workflow
+    assert 'item.get("evidence")' not in workflow
+    assert 'item["evidence"]' not in workflow
 
 
 def test_dynamic_successor_behavior_never_starts_after_structural_failure(

@@ -73,6 +73,7 @@ CONTROL_ORACLE_FIXED_PATHS = frozenset(
         "scripts/phase5e_audit_profiles.py",
         "scripts/phase5e_kernel_git_shim.sh",
         "scripts/phase5e_pid1_reaper.py",
+        "scripts/public_bootstrap.py",
         "scripts/verify_phase5e2b12a_semantic_oracle.py",
         "scripts/verify_phase5e2b12b_semantic_oracle.py",
         "scripts/verify_phase5e2b12c_semantic_oracle.py",
