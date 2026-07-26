@@ -281,8 +281,8 @@ gate, accepted gate, successor pending acceptance, accepted successor, and total
 exact next inert seed. Recompute the dynamic audit profile from the deepest validated gate and
 never execute a candidate oracle. Keep `Phase 5E-2B.1-2C` (current-share recursive closure)
 distinct from `Phase 5E-2C` (exact market evidence). Phase 6 through Phase 9 are outside this map
-and require a separate reviewed authorization. The missing pinned Controller App, kernel-only
-read-only Kernel Reader App, and protected
-environments on the current GitHub Free private repository block remote acceptance.
+and require a separate reviewed authorization. The public canonical repository has pinned
+Controller, Gate Author, and kernel-only Reader Apps; verify their protected environments, exact
+main protection, CI, and P0-P3-zero audits before accepting a transition.
 
 Phase 5 current authority: S3 -> G1 -> G2 -> G3 -> G4 -> G5 -> external 2C-P; after feasibility a new protected gate is required; Phase 6-9 require separate reviewed control-plane authorization; Phase 5E-2B.1-2C != Phase 5E-2C.

@@ -179,8 +179,8 @@ G5 (total closeout plus the exact next-gate seed). Dynamic audit profiles follow
 validated gate and candidate oracle files stay inert. `Phase 5E-2B.1-2C` is current-share
 coverage/Claim-transition/recursive closure; `Phase 5E-2C` is the later exact market-evidence
 phase. Phase 6 through Phase 9 are outside this map and require a separate reviewed control-plane
-authorization. The current GitHub Free private repository lacks the pinned Controller App, the
-separate kernel-only read-only Kernel Reader App, and protected environments, so no G1-G5 remote
-acceptance may be claimed yet.
+authorization. The public canonical repository now has pinned Controller, external Gate Author,
+and kernel-only read-only Reader Apps. No G1-G5 remote acceptance may be claimed until their
+protected environments, exact branch protection, CI, and P0-P3-zero audit gates are verified.
 
 Phase 5 current authority: S3 -> G1 -> G2 -> G3 -> G4 -> G5 -> external 2C-P; after feasibility a new protected gate is required; Phase 6-9 require separate reviewed control-plane authorization; Phase 5E-2B.1-2C != Phase 5E-2C.

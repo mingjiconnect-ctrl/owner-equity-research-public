@@ -2,7 +2,7 @@
   "schema_version": "1.0.0",
   "matrix_id": "phase5-research-to-pinned-kernel",
   "research_baseline": {
-    "repository": "mingjiconnect-ctrl/owner-equity-research",
+    "repository": "mingjiconnect-ctrl/owner-equity-research-public",
     "tag": "v0.4.0-alpha.1",
     "commit": "30d6e77780175deeffc5c211749bcb0169aa1dde"
   },

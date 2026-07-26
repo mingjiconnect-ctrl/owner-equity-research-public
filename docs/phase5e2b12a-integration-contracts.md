@@ -142,9 +142,9 @@ controller repeats G1 (inert gate), G2 (accepted gate), G3 (successor pending ac
 (successor accepted), and G5 (total closeout with the exact next-gate seed). Dynamic profiles bind
 the deepest validated gate and candidate oracle content stays inert. `Phase 5E-2B.1-2C` denotes
 current-share coverage/Claim-transition/recursive closure; `Phase 5E-2C` denotes exact market
-evidence. Phase 6 through Phase 9 remain outside this map. The current private GitHub Free
-repository lacks the pinned Controller App, the kernel-only read-only Kernel Reader App, and
-protected environments, so external acceptance is
-blocked until that separately administered authority exists.
+evidence. Phase 6 through Phase 9 remain outside this map. The public canonical repository has
+pinned Controller, Gate Author, and kernel-only Reader Apps; external acceptance remains blocked
+until their protected environments, exact main protection, CI, and P0-P3-zero audits verify the
+separately administered authority.
 
 Phase 5 current authority: S3 -> G1 -> G2 -> G3 -> G4 -> G5 -> external 2C-P; after feasibility a new protected gate is required; Phase 6-9 require separate reviewed control-plane authorization; Phase 5E-2B.1-2C != Phase 5E-2C.

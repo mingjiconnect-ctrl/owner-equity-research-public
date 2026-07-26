@@ -3,12 +3,12 @@
     "account_id": 263841576,
     "account_login": "mingjiconnect-ctrl",
     "account_type": "User",
-    "app_id": null,
+    "app_id": 4395341,
     "app_id_variable": "PHASE5E_CONTROLLER_APP_ID",
-    "app_slug": null,
+    "app_slug": "owner-equity-p5-controller",
     "controller_environment": "phase5e-controller-main-only",
     "events": [],
-    "installation_id": null,
+    "installation_id": 149053154,
     "permissions": {
       "actions": "read",
       "administration": "read",
@@ -21,10 +21,10 @@
       "variables": "read"
     },
     "private_key_secret": "PHASE5E_CONTROLLER_PRIVATE_KEY",
-    "repository": "mingjiconnect-ctrl/owner-equity-research",
-    "repository_id": 1297121992,
+    "repository": "mingjiconnect-ctrl/owner-equity-research-public",
+    "repository_id": 1312436919,
     "repository_selection": "selected",
-    "status": "bootstrap_pending"
+    "status": "pinned"
   },
   "expected_audit_check_ids": [
     "audit-controller-integrity",
@@ -86,23 +86,23 @@
     "account_id": 263841576,
     "account_login": "mingjiconnect-ctrl",
     "account_type": "User",
-    "app_id": null,
+    "app_id": 4395382,
     "app_id_variable": "PHASE5E_EXTERNAL_GATE_AUTHOR_APP_ID",
-    "app_slug": null,
+    "app_slug": "owner-equity-gate-author",
     "environment": "phase5e-external-gate-author",
     "events": [],
-    "installation_id": null,
+    "installation_id": 149053714,
     "permissions": {
       "contents": "write",
       "metadata": "read",
       "pull_requests": "write"
     },
     "private_key_secret": "PHASE5E_EXTERNAL_GATE_AUTHOR_PRIVATE_KEY",
-    "repository": "mingjiconnect-ctrl/owner-equity-research",
-    "repository_id": 1297121992,
+    "repository": "mingjiconnect-ctrl/owner-equity-research-public",
+    "repository_id": 1312436919,
     "repository_selection": "selected",
     "reserved_branch": "feature/phase5e2c0-controller-gate-bootstrap",
-    "status": "bootstrap_pending"
+    "status": "pinned"
   },
   "futu_market_authority_policy": {
     "overlay_path": "docs/phase5-completion-overlay-v3.md",
@@ -115,12 +115,12 @@
     "account_id": 263841576,
     "account_login": "mingjiconnect-ctrl",
     "account_type": "User",
-    "app_id": null,
+    "app_id": 4395373,
     "app_id_variable": "PHASE5E_KERNEL_READER_APP_ID",
-    "app_slug": null,
+    "app_slug": "owner-equity-kernel-reader",
     "environment": "phase5e-private-kernel-readonly",
     "events": [],
-    "installation_id": null,
+    "installation_id": 149053583,
     "permissions": {
       "contents": "read",
       "metadata": "read"
@@ -129,7 +129,7 @@
     "repository": "mingjiconnect-ctrl/owner-valuation-kernel",
     "repository_id": 1296284659,
     "repository_selection": "selected",
-    "status": "bootstrap_pending"
+    "status": "pinned"
   },
   "phase5d_baseline": "bdac6e4a23e821c73a2545167f478cfc0348316f",
   "phase5e0_baseline": "ac70357624c95f78b5567bc8eb8544c13fa375dd",
@@ -155,6 +155,7 @@
     "docs/adr/0037-phase5e2b11-production-share-event-grouping.md",
     "docs/adr/0038-phase5e2b12a-current-share-integration-contracts.md",
     "docs/adr/0039-phase5e2b12a-semantic-trust-boundaries.md",
+    "docs/adr/0040-public-canonical-repository.md",
     "docs/phase-status.json",
     "docs/phase5-acceptance.md",
     "docs/phase5-completion-overlay-v1.md",
@@ -180,6 +181,7 @@
     "docs/phase5e2b11-acceptance-closeout.md",
     "docs/phase5e2b11-production-grouping.md",
     "docs/phase5e2b12a-integration-contracts.md",
+    "docs/public-bootstrap-provenance.json",
     "docs/roadmap.md",
     "plugins/owner-equity-research/.codex-plugin/plugin.json",
     "plugins/owner-equity-research/skills/owner-equity-research/SKILL.md",
@@ -190,10 +192,12 @@
     "scripts/phase5e2b12a-acceptance-trust.json",
     "scripts/phase5e2b12b-acceptance-trust.json",
     "scripts/phase5e-futu-market-authority-policy-v1.json",
+    "scripts/public_bootstrap.py",
     "scripts/pytest_phase5e_nodeids.py",
     "scripts/run_phase5e_audit.py",
     "scripts/verify_all.py",
     "scripts/verify_market_access_authority.py",
+    "scripts/verify_public_bootstrap.py",
     "scripts/verify_phase5d6_baseline.py",
     "scripts/verify_phase5e0_baseline.py",
     "scripts/verify_phase5e0_policies.py",
@@ -276,9 +280,9 @@
     "scripts/verify_phase5e2b12b_semantic_oracle.py": "291208c1f2e9012c800a10d6b121f8a8ee58f13532264af5cb6036ab1d430141",
     "scripts/verify_phase5e2b12c_semantic_oracle.py": "e55690d7905c3b3b407f1fe7955f39e878a3c74e731157c7a4f9155b54281a95",
     "scripts/verify_phase5e2c0_semantic_oracle.py": "4c9001ec5ff8fa3f457f77b3fef1aea229c55b72322e4ed55ffa72feb034fa0c",
-    "scripts/verify_phase5e_successor_gate.py": "1abcd9765ce1946a670d47af5656257f7124954bd84fdbf9c43c5deea6d7b09a",
-    "scripts/verify_phase5e_successor_gate_oracle.py": "0a0787739929fb1a7d1efcd284af9420d05bdbc876bae3a9115932b29a06b493",
+    "scripts/verify_phase5e_successor_gate.py": "864aaebe1f073819f4264d2a3e014b8d383f74399a0befecd6f82ce6308c6922",
+    "scripts/verify_phase5e_successor_gate_oracle.py": "a65d176d942cb6c2e4ad0564cfd3489f602207642cfb3279b70366e9d78a7ecc",
     "tests/test_phase5e2b12b_acceptance_gate.py": "e530c54effdc9f78d000135522e62a6751a5381223ca6acb09e7090953aa5611",
-    "tests/test_phase5e_successor_gate.py": "9021e27cbb2c1bce2dc159a21826b236978b0128a7f9dbbea634cee4a8b88b20"
+    "tests/test_phase5e_successor_gate.py": "5d5a2cdadaae8f35347a54fa9b01f48dccf8f1f3972b892dee8d251b88876d51"
   }
 }

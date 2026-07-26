@@ -291,6 +291,18 @@ def _remote_evidence(
         "PINNED_KERNEL_READER_INSTALLATION_ID",
         13579,
     )
+    monkeypatch.setattr(acceptance_gate, "EXTERNAL_GATE_AUTHORITY_STATUS", "pinned")
+    monkeypatch.setattr(acceptance_gate, "PINNED_EXTERNAL_GATE_AUTHOR_APP_ID", 11223)
+    monkeypatch.setattr(
+        acceptance_gate,
+        "PINNED_EXTERNAL_GATE_AUTHOR_APP_SLUG",
+        "phase5e-gate-author",
+    )
+    monkeypatch.setattr(
+        acceptance_gate,
+        "PINNED_EXTERNAL_GATE_AUTHOR_INSTALLATION_ID",
+        44556,
+    )
     monkeypatch.setattr(
         acceptance_gate,
         "STATIC_CONTROL_FILES",
@@ -437,15 +449,19 @@ def _remote_evidence(
             f"{environment_base}/{acceptance_gate.CONTROLLER_ENVIRONMENT_NAME}"
         )
         kernel_environment = f"{environment_base}/{acceptance_gate.KERNEL_ENVIRONMENT_NAME}"
+        gate_environment = (
+            f"{environment_base}/{acceptance_gate.EXTERNAL_GATE_AUTHOR_ENVIRONMENT}"
+        )
         if url == environment_base:
             environments = [
                 {"id": 1, "name": acceptance_gate.CONTROLLER_ENVIRONMENT_NAME},
                 {"id": 2, "name": acceptance_gate.KERNEL_ENVIRONMENT_NAME},
+                {"id": 3, "name": acceptance_gate.EXTERNAL_GATE_AUTHOR_ENVIRONMENT},
             ]
             if authority_mode == "missing_kernel_environment":
-                environments = environments[:1]
+                environments = [environments[0], environments[2]]
             return {"total_count": len(environments), "environments": environments}
-        if url in {controller_environment, kernel_environment}:
+        if url in {controller_environment, kernel_environment, gate_environment}:
             environment_name = url.rsplit("/", 1)[-1]
             deployment_policy = {
                 "protected_branches": False,
@@ -457,7 +473,11 @@ def _remote_evidence(
                     "custom_branch_policies": False,
                 }
             return {
-                "id": 1 if url == controller_environment else 2,
+                "id": (
+                    1
+                    if url == controller_environment
+                    else (2 if url == kernel_environment else 3)
+                ),
                 "name": environment_name,
                 "protection_rules": [{"id": 3, "type": "branch_policy"}],
                 "deployment_branch_policy": deployment_policy,
@@ -465,6 +485,7 @@ def _remote_evidence(
         if url in {
             f"{controller_environment}/deployment-branch-policies",
             f"{kernel_environment}/deployment-branch-policies",
+            f"{gate_environment}/deployment-branch-policies",
         }:
             policy_name = (
                 "feature/*"
@@ -672,6 +693,18 @@ def _remote_evidence(  # noqa: F811
         acceptance_gate,
         "PINNED_KERNEL_READER_INSTALLATION_ID",
         13579,
+    )
+    monkeypatch.setattr(acceptance_gate, "EXTERNAL_GATE_AUTHORITY_STATUS", "pinned")
+    monkeypatch.setattr(acceptance_gate, "PINNED_EXTERNAL_GATE_AUTHOR_APP_ID", 11223)
+    monkeypatch.setattr(
+        acceptance_gate,
+        "PINNED_EXTERNAL_GATE_AUTHOR_APP_SLUG",
+        "phase5e-gate-author",
+    )
+    monkeypatch.setattr(
+        acceptance_gate,
+        "PINNED_EXTERNAL_GATE_AUTHOR_INSTALLATION_ID",
+        44556,
     )
     monkeypatch.setattr(
         acceptance_gate,
@@ -897,15 +930,19 @@ def _remote_evidence(  # noqa: F811
             f"{environment_base}/{acceptance_gate.CONTROLLER_ENVIRONMENT_NAME}"
         )
         kernel_environment = f"{environment_base}/{acceptance_gate.KERNEL_ENVIRONMENT_NAME}"
+        gate_environment = (
+            f"{environment_base}/{acceptance_gate.EXTERNAL_GATE_AUTHOR_ENVIRONMENT}"
+        )
         if url == environment_base:
             environments = [
                 {"id": 1, "name": acceptance_gate.CONTROLLER_ENVIRONMENT_NAME},
                 {"id": 2, "name": acceptance_gate.KERNEL_ENVIRONMENT_NAME},
+                {"id": 3, "name": acceptance_gate.EXTERNAL_GATE_AUTHOR_ENVIRONMENT},
             ]
             if authority_mode == "missing_kernel_environment":
-                environments = environments[:1]
+                environments = [environments[0], environments[2]]
             return {"total_count": len(environments), "environments": environments}
-        if url in {controller_environment, kernel_environment}:
+        if url in {controller_environment, kernel_environment, gate_environment}:
             deployment_policy = {
                 "protected_branches": False,
                 "custom_branch_policies": True,
@@ -913,7 +950,11 @@ def _remote_evidence(  # noqa: F811
             if authority_mode == "unrestricted_environment" and url == controller_environment:
                 deployment_policy["custom_branch_policies"] = False
             return {
-                "id": 1 if url == controller_environment else 2,
+                "id": (
+                    1
+                    if url == controller_environment
+                    else (2 if url == kernel_environment else 3)
+                ),
                 "name": url.rsplit("/", 1)[-1],
                 "can_admins_bypass": authority_mode == "environment_admin_bypass",
                 "protection_rules": (
@@ -927,6 +968,7 @@ def _remote_evidence(  # noqa: F811
         if url in {
             f"{controller_environment}/deployment-branch-policies",
             f"{kernel_environment}/deployment-branch-policies",
+            f"{gate_environment}/deployment-branch-policies",
         }:
             policy_name = (
                 "feature/*"
@@ -1037,6 +1079,25 @@ def _remote_evidence(  # noqa: F811
             if authority_mode == "extra_kernel_variable":
                 variables.append(_variable_item("UNRELATED", "1"))
             return {"total_count": len(variables), "variables": variables}
+        if url == f"{gate_environment}/secrets":
+            return {
+                "total_count": 1,
+                "secrets": [
+                    _secret_item(
+                        acceptance_gate.EXTERNAL_GATE_AUTHOR_PRIVATE_KEY_SECRET
+                    )
+                ],
+            }
+        if url == f"{gate_environment}/variables":
+            return {
+                "total_count": 1,
+                "variables": [
+                    _variable_item(
+                        acceptance_gate.EXTERNAL_GATE_AUTHOR_APP_ID_VARIABLE,
+                        "11223",
+                    )
+                ],
+            }
         return None
 
     def fake_api_json(url: str, token: str) -> Any:
@@ -1094,15 +1155,30 @@ def _remote_evidence(  # noqa: F811
             return {"total_count": 1, "repositories": [{"full_name": REPOSITORY_SLUG}]}
         if url == f"https://api.github.com/repos/{REPOSITORY_SLUG}":
             return {
-                "id": 1297121992,
+                "id": 1312436919,
                 "full_name": REPOSITORY_SLUG,
                 "owner": {"id": 263841576, "login": "owner", "type": "User"},
                 "fork": False,
                 "default_branch": "main",
-                "private": True,
+                "private": False,
                 "allow_merge_commit": True,
                 "allow_squash_merge": False,
                 "allow_rebase_merge": False,
+            }
+        if bare == f"https://api.github.com/repos/{REPOSITORY_SLUG}/actions/artifacts":
+            artifact_name = (
+                "unapproved-private-evidence"
+                if authority_mode == "unapproved_public_artifact"
+                else f"phase5e-audit-{implementation_head}"
+            )
+            artifact_id: object = (
+                "not-an-integer"
+                if authority_mode == "malformed_public_artifact"
+                else 7001
+            )
+            return {
+                "total_count": 1,
+                "artifacts": [{"id": artifact_id, "name": artifact_name}],
             }
         if url.endswith("/branches/main/protection"):
             checks = [
@@ -1875,7 +1951,7 @@ def test_base_owned_gate_replays_exact_remote_ci_and_audit_evidence(
         "wrong_controller_app_id",
     ),
 )
-def test_remote_acceptance_requires_non_bypass_private_main_protection(
+def test_remote_acceptance_requires_non_bypass_public_main_protection(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     attack: str,
@@ -1964,8 +2040,8 @@ def test_remote_acceptance_requires_non_bypass_private_main_protection(
         "extra_kernel_variable",
         "wrong_kernel_variable_value",
         "noncanonical_kernel_variable_value",
-        "extra_repository_collaborator",
-        "pending_repository_invitation",
+        "unapproved_public_artifact",
+        "malformed_public_artifact",
     ),
 )
 def test_remote_acceptance_requires_exact_environment_and_secret_authority(
@@ -1986,7 +2062,7 @@ def test_remote_acceptance_requires_exact_environment_and_secret_authority(
         SystemExit,
         match=(
             "environment|secret|variable|App ID|controller App token authority|"
-            "artifact audience|repository invitations"
+            "artifact|pagination"
         ),
     ):
         verify_acceptance(

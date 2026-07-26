@@ -11,6 +11,23 @@ import subprocess
 import sys
 from pathlib import Path
 
+try:
+    from scripts.public_bootstrap import (
+        commit_exists,
+        public_root_commit,
+        public_root_file,
+        public_root_paths,
+        verify_public_bootstrap_snapshot,
+    )
+except ModuleNotFoundError:  # direct script execution
+    from public_bootstrap import (  # type: ignore[no-redef]
+        commit_exists,
+        public_root_commit,
+        public_root_file,
+        public_root_paths,
+        verify_public_bootstrap_snapshot,
+    )
+
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = "4fd643df73108b1fa3ab3ce1eb258ae3c3ce8a6d"
 EXPECTED_VERSION = "0.5.0.dev11"
@@ -123,6 +140,39 @@ PHASE5E2B12A_ALLOWED_CHANGED_PATHS = {
     "tests/test_phase5e_audit.py",
     "tests/test_plugin_boundaries.py",
 }
+PUBLIC_CANONICAL_MIGRATION_CHANGED_PATHS = {
+    "AGENTS.md",
+    "README.md",
+    "docs/adr/0040-public-canonical-repository.md",
+    "docs/phase5-completion-overlay-v2.md",
+    "docs/phase5-interface-matrix.json",
+    "docs/phase5e2b12a-integration-contracts.md",
+    "docs/roadmap.md",
+    "plugins/owner-equity-research/skills/owner-equity-research/SKILL.md",
+    (
+        "plugins/owner-equity-research/skills/owner-equity-research/"
+        "references/market-execution-policy.md"
+    ),
+    "plugins/owner-equity-research/skills/owner-research-audit/SKILL.md",
+    "scripts/phase5e2b12a-acceptance-trust.json",
+    "scripts/public_bootstrap.py",
+    "scripts/verify_phase5e2b11_frozen_acceptance.py",
+    "scripts/verify_phase5e2b12a_acceptance_gate.py",
+    "scripts/verify_phase5e2b12a_integration_contracts.py",
+    "scripts/verify_phase5e2b12a_semantic_oracle.py",
+    "scripts/verify_phase5e_successor_gate.py",
+    "scripts/verify_phase5e_successor_gate_oracle.py",
+    "scripts/verify_phase_state.py",
+    "scripts/verify_public_bootstrap.py",
+    "tests/test_phase5e2b12a_acceptance_gate.py",
+    "tests/test_phase5e_audit.py",
+    "tests/test_phase5e_successor_gate.py",
+    "tests/test_public_bootstrap.py",
+}
+
+
+def _public_mode() -> bool:
+    return not commit_exists(BASELINE, ROOT)
 
 
 def _git(*arguments: str, text: bool = False) -> bytes | str:
@@ -131,6 +181,8 @@ def _git(*arguments: str, text: bool = False) -> bytes | str:
 
 
 def _baseline_file(relative: str) -> bytes:
+    if _public_mode():
+        return public_root_file(relative, ROOT)
     value = _git("show", f"{BASELINE}:{relative}")
     assert isinstance(value, bytes)
     return value
@@ -178,6 +230,8 @@ def _ast_sha256(source: str) -> str:
 
 
 def _baseline_paths(prefix: str) -> tuple[str, ...]:
+    if _public_mode():
+        return public_root_paths(prefix, ROOT)
     value = _git("ls-tree", "-r", "--name-only", BASELINE, prefix, text=True)
     assert isinstance(value, str)
     return tuple(item for item in value.splitlines() if item)
@@ -187,7 +241,14 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--frozen-contract-replay", action="store_true")
     args = parser.parse_args()
-    if subprocess.run(
+    if _public_mode():
+        try:
+            verify_public_bootstrap_snapshot(ROOT)
+        except ValueError as exc:
+            raise SystemExit(
+                "Phase 5E-2B.1-2A public bootstrap provenance failed"
+            ) from exc
+    elif subprocess.run(
         ["git", "-C", str(ROOT), "merge-base", "--is-ancestor", BASELINE, "HEAD"],
         check=False,
     ).returncode:
@@ -210,8 +271,17 @@ def main() -> int:
     if missing:
         raise SystemExit(f"Phase 5E-2B.1-2A files are missing: {missing}")
 
+    comparison_commit = public_root_commit(ROOT) if _public_mode() else BASELINE
     changed_paths = set(
-        str(_git("diff", "--name-only", "--no-renames", BASELINE, text=True)).splitlines()
+        str(
+            _git(
+                "diff",
+                "--name-only",
+                "--no-renames",
+                comparison_commit,
+                text=True,
+            )
+        ).splitlines()
     ) | set(
         str(_git("ls-files", "--others", "--exclude-standard", text=True)).splitlines()
     )
@@ -221,9 +291,12 @@ def main() -> int:
         and phase_status.get("status") == "accepted_closed"
         and (ROOT / ACCEPTANCE_CLOSEOUT).is_file()
     )
-    expected_changed_paths = set(PHASE5E2B12A_ALLOWED_CHANGED_PATHS)
-    if accepted:
-        expected_changed_paths.add(ACCEPTANCE_CLOSEOUT)
+    if _public_mode():
+        expected_changed_paths = set(PUBLIC_CANONICAL_MIGRATION_CHANGED_PATHS)
+    else:
+        expected_changed_paths = set(PHASE5E2B12A_ALLOWED_CHANGED_PATHS)
+        if accepted:
+            expected_changed_paths.add(ACCEPTANCE_CLOSEOUT)
     if not args.frozen_contract_replay and changed_paths != expected_changed_paths:
         raise SystemExit(
             "Phase 5E-2B.1-2A repository-wide changed-path boundary drifted: "

@@ -11,9 +11,15 @@ import sys
 import tempfile
 from pathlib import Path
 
+try:
+    from scripts.public_bootstrap import commit_exists, verify_public_bootstrap_snapshot
+except ModuleNotFoundError:  # Direct ``python -I scripts/...`` execution.
+    from public_bootstrap import commit_exists, verify_public_bootstrap_snapshot
+
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = "4fd643df73108b1fa3ab3ce1eb258ae3c3ce8a6d"
 BASELINE_TREE = "598b62617a6e40aa2dfecaa8820081ab8202e1fb"
+IMPLEMENTATION_TREE = "70609764d5710a137d4555ca86cf7b793263548e"
 EXPECTED_FILE_SHA256 = {
     "docs/phase-status.json": (
         "dd9aa49a43383f21cfc290f8933d2e8fc94354980d12f0663d04eaaf26df42be"
@@ -42,6 +48,29 @@ def _baseline_file(relative: str) -> bytes:
 
 
 def main() -> int:
+    if not commit_exists(BASELINE, ROOT):
+        verify_public_bootstrap_snapshot(ROOT)
+        for relative, expected in EXPECTED_FILE_SHA256.items():
+            if relative == "docs/phase-status.json":
+                continue
+            if hashlib.sha256((ROOT / relative).read_bytes()).hexdigest() != expected:
+                raise SystemExit(f"Phase 5E-2B.1-1 frozen evidence drifted: {relative}")
+        state = json.loads((ROOT / "docs/phase-status.json").read_bytes())
+        implementation = state["closeout"]["implementation"]
+        audit = implementation["audit"]
+        if (
+            implementation["phase"] != "Phase 5E-2B.1-1"
+            or implementation["implementation_pull_request"] != 72
+            or implementation["substantive_merge_commit"]
+            != "11e8ba904bee27fd247ca4f6f9ae5194ba24897a"
+            or implementation["substantive_tree_sha"] != IMPLEMENTATION_TREE
+            or audit["version"] != "2.3.2.3.2"
+            or any(audit["finding_counts"].values())
+            or "Phase 5E-2C" not in state["prohibited"]
+        ):
+            raise SystemExit("public Phase 5E-2B.1-1 closeout evidence is invalid")
+        print("Phase 5E-2B.1-1 public provenance snapshot verified")
+        return 0
     if subprocess.run(
         ["git", "-C", str(ROOT), "merge-base", "--is-ancestor", BASELINE, "HEAD"],
         check=False,

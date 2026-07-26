@@ -146,15 +146,13 @@ artifacts; they must be regenerated rather than patched.
 ## CI and remote-governance boundary
 
 Candidate-owned pull-request CI receives no Actions/environment secret or private-kernel
-credential. A protected-base job may create a credential-free but source-bearing,
-content-addressed kernel interface pack without checking out candidate code; the candidate audit
-consumes only that pack in a no-network, read-only sandbox. Trusted
-audit manifests are written by protected-base controls, not candidate scripts. Before publishing
-that one-day private artifact, the remote gate requires the personal research repository to have
-exactly one collaborator (its owner) and no pending invitations; any broader artifact audience
-blocks acceptance.
+credential. A protected-base job consumes a credential-free, content-addressed kernel interface
+inside the credentialed audit job without checking out candidate code. The private-kernel
+interface is never uploaded to the public repository. Trusted audit manifests are written by
+protected-base controls, not candidate scripts. Public artifacts are restricted to hash-locked
+dependency wheels and a normalized credential-free audit manifest.
 
-Private-repository branch protection, protected environments, a pre-pinned dedicated Controller
+Public-repository branch protection, protected environments, a pre-pinned dedicated Controller
 App, a separate one-repository read-only Kernel Reader App, and
 Administration/Actions/Secrets/Variables/Environments read evidence are external
 prerequisites. Because the repository currently has one human administrator, the protected
@@ -163,11 +161,7 @@ acceptance authority; the branch rule deliberately requires zero human approvals
 bypass. If the GitHub account cannot enforce those controls, remote acceptance remains blocked even
 when local semantic tests pass.
 
-Current external state is explicitly blocked at Controller bootstrap: the private repository is on
-GitHub Free, the branch-protection endpoint returns 403, no protected environments or pinned
-Controller/Kernel Reader App installations exist, and merge/squash/rebase are all enabled. Until
-GitHub Pro (or an
-equivalent enforceable private-repository authority), the dedicated App, both protected
-environments, exact main protection, and merge-mode restrictions are verified and pinned, no
-acceptance-only PR may be created and no successor may be declared accepted/closed. This external
-blocker does not change `docs/phase-status.json` or authorize later production work.
+The public canonical repository now has pinned Controller, Gate Author, and kernel-only Reader App
+installations. App creation alone does not authorize acceptance: all protected environments,
+exact main protection, merge-mode restrictions, CI, and P0-P3-zero audits must still be verified
+before an acceptance-only PR may close a successor phase.

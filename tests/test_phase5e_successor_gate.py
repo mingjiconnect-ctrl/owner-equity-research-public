@@ -136,8 +136,8 @@ def _signed_receipt_fixture(
 
 def _receipt_expected_context() -> dict[str, object]:
     return {
-        "repository_id": 1297121992,
-        "repository": "mingjiconnect-ctrl/owner-equity-research",
+        "repository_id": 1312436919,
+        "repository": "mingjiconnect-ctrl/owner-equity-research-public",
         "source_gate_id": "phase5e2b12c",
         "source_owner_phase": "Phase 5E-2B.1-2C",
         "target_owner_phase": "Phase 5E-2C-0",
@@ -702,8 +702,8 @@ def _write_external_handoff_candidate(
     ).hexdigest()
     challenge_nonce = "9" * 64
     receipt_expected = {
-            "repository_id": 1297121992,
-            "repository": "mingjiconnect-ctrl/owner-equity-research",
+            "repository_id": 1312436919,
+            "repository": "mingjiconnect-ctrl/owner-equity-research-public",
             "source_gate_id": gate.bootstrap_authority()["gate_id"],
             "source_owner_phase": gate.bootstrap_authority()["owner_phase"],
             "target_owner_phase": gate._EXTERNAL_TARGET_PHASE,
@@ -1801,7 +1801,7 @@ def test_external_receipts_are_signed_bound_ordered_and_time_limited(
 
     for field, value in (
         ("sequence", True),
-        ("repository_id", 1297121992.0),
+        ("repository_id", 1312436919.0),
         ("feasibility_conditions", ["raw_protobuf_s2c_bytes_are_stably_capturable"]),
     ):
         malformed = copy.deepcopy(receipts)

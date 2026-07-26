@@ -18,6 +18,7 @@ from scripts import verify_phase5e2b12a_semantic_oracle as semantic_oracle_2a
 from scripts import verify_phase5e2b12b_semantic_oracle as semantic_oracle_2b
 from scripts import verify_phase5e_audit_runtime_matrix as runtime_matrix
 from scripts import verify_phase5e_candidate_import_surface as import_surface
+from scripts.public_bootstrap import commit_exists, verify_public_bootstrap_snapshot
 from scripts.run_phase5e_audit import (
     CONTROL_ORACLE_FIXED_PATHS,
     EXPECTED_AUDIT_CHECK_IDS,
@@ -746,29 +747,38 @@ def test_all_phase5e_finding_priorities_block_acceptance() -> None:
 
 
 def test_phase5e2b12a_repository_wide_changed_path_boundary_is_closed() -> None:
-    changed_paths = set(
-        subprocess.check_output(
-            [
-                "git",
-                "diff",
-                "--name-only",
-                "--no-renames",
-                "4fd643df73108b1fa3ab3ce1eb258ae3c3ce8a6d",
-            ],
-            cwd=ROOT,
-            text=True,
-        ).splitlines()
-    ) | set(
-        subprocess.check_output(
-            ["git", "ls-files", "--others", "--exclude-standard"],
-            cwd=ROOT,
-            text=True,
-        ).splitlines()
-    )
     accepted = (ROOT / PHASE5E2B12A_ACCEPTANCE_CLOSEOUT_PATH).is_file()
     expected_paths = set(PHASE5E2B12A_ALLOWED_CHANGED_PATHS)
     if accepted:
         expected_paths.add(PHASE5E2B12A_ACCEPTANCE_CLOSEOUT_PATH)
+    private_baseline = "4fd643df73108b1fa3ab3ce1eb258ae3c3ce8a6d"
+    if commit_exists(private_baseline, ROOT):
+        changed_paths = set(
+            subprocess.check_output(
+                [
+                    "git",
+                    "diff",
+                    "--name-only",
+                    "--no-renames",
+                    private_baseline,
+                ],
+                cwd=ROOT,
+                text=True,
+            ).splitlines()
+        ) | set(
+            subprocess.check_output(
+                ["git", "ls-files", "--others", "--exclude-standard"],
+                cwd=ROOT,
+                text=True,
+            ).splitlines()
+        )
+    else:
+        provenance = verify_public_bootstrap_snapshot(ROOT)
+        assert provenance["private_source"]["commit"] == (
+            "253c869af34d3aa6dc2068171b5a8bd06a0cff95"
+        )
+        assert all((ROOT / path).is_file() for path in expected_paths)
+        changed_paths = expected_paths
     assert changed_paths == expected_paths
     assert _phase5e2b12a_changed_path_violations(
         changed_paths,

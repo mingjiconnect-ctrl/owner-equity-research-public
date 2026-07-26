@@ -236,9 +236,9 @@
   `Phase 5E-2C` is the later exact market-evidence phase. They are distinct names.
 - Dynamic audit profiles come from the deepest validated gate. Candidate oracle files remain inert
   manifests and cannot replace the independent protected-base oracle.
-- The private GitHub Free repository still lacks the pinned Controller App, the separate
-  kernel-only read-only Kernel Reader App, and protected environments. Until that external
-  authority is installed, no acceptance-only PR or G1-G5
-  transition may be declared accepted and later phases remain prohibited.
+- The public canonical repository uses three pinned, single-repository GitHub Apps: Controller,
+  private-kernel Reader, and external Gate Author. App creation alone is not acceptance:
+  protected environments, exact branch protection, CI, and zero P0-P3 audit findings remain
+  mandatory before any acceptance-only PR or G1-G5 transition.
 
 Phase 5 current authority: S3 -> G1 -> G2 -> G3 -> G4 -> G5 -> external 2C-P; after feasibility a new protected gate is required; Phase 6-9 require separate reviewed control-plane authorization; Phase 5E-2B.1-2C != Phase 5E-2C.

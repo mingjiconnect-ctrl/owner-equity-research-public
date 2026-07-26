@@ -1544,8 +1544,8 @@ def _external_handoff_seed(
     receipts = _external_receipts(
         handoff.get("receipt_bindings"),
         expected={
-            "repository_id": 1297121992,
-            "repository": "mingjiconnect-ctrl/owner-equity-research",
+            "repository_id": 1312436919,
+            "repository": "mingjiconnect-ctrl/owner-equity-research-public",
             "source_gate_id": authority["gate_id"],
             "source_owner_phase": authority["owner_phase"],
             "target_owner_phase": _EXTERNAL_TARGET_PHASE,

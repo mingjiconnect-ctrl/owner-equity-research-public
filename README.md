@@ -1,5 +1,12 @@
 # owner-equity-research
 
+Canonical repository:
+[`mingjiconnect-ctrl/owner-equity-research-public`](https://github.com/mingjiconnect-ctrl/owner-equity-research-public).
+It starts from a content-addressed clean root; the former private repository and
+its commit graph are retained only as historical provenance. Public visibility
+does not expose the private valuation kernel, credentials, or licensed market
+data and does not by itself grant an open-source license.
+
 Private, engineering-grade foundations for auditable public-equity research.
 
 Phase 4E-0 and Phase 4E-1 are accepted/closed. Phase 4E-2 closes and freezes the Phase 4
@@ -257,12 +264,11 @@ python scripts/verify_component_lock.py \
 ```
 
 Candidate-owned pull-request CI never receives a private-kernel credential. A protected-base job
-may use a separately verified Kernel Reader GitHub App installed only on the pinned private kernel
-repository. Its short-lived token is limited to `contents: read` and `metadata: read` and is used
-only to produce a credential-free but source-bearing pinned interface pack; candidate audit jobs
-receive only that pack and never receive the App private key or installation token. The remote gate
-also requires the private research repository's artifact audience to be exactly its sole owner,
-with no pending collaborator invitations.
+uses the separately verified Kernel Reader GitHub App installed only on the pinned private kernel
+repository. Its short-lived token is limited to `contents: read` and `metadata: read`; the bounded
+kernel interface is consumed inside that credentialed job and is never uploaded to the public
+repository. Public artifacts are restricted to hash-locked dependency wheels and a normalized,
+credential-free audit manifest.
 
 ### Recursive Phase 5 gate
 
@@ -270,9 +276,9 @@ After legacy S3, remaining Phase 5 work uses a protected-base recursive G1 → G
 an inert gate, accepted gate, successor pending acceptance, accepted successor, then total closeout
 and the exact next inert seed. `Phase 5E-2B.1-2C` means current-share recursive closure;
 `Phase 5E-2C` means exact market evidence. Dynamic audit profiles come from the deepest validated
-gate, while candidate oracle text stays inert. The current GitHub Free private-repository setup
-lacks the pinned Controller App, the separate kernel-only read-only Kernel Reader App, and
-protected environments, so remote acceptance remains blocked.
+gate, while candidate oracle text stays inert. The public canonical repository has three pinned,
+single-repository GitHub Apps; acceptance still requires their protected environments, exact
+branch protection, CI success, and zero P0-P3 findings.
 Phase 6 through Phase 9 are outside this map and require a separate reviewed authorization.
 
 Phase 5 current authority: S3 -> G1 -> G2 -> G3 -> G4 -> G5 -> external 2C-P; after feasibility a new protected gate is required; Phase 6-9 require separate reviewed control-plane authorization; Phase 5E-2B.1-2C != Phase 5E-2C.

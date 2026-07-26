@@ -24,6 +24,19 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+try:
+    from scripts.public_bootstrap import (
+        commit_exists,
+        public_root_commit,
+        verify_public_bootstrap_snapshot,
+    )
+except ModuleNotFoundError:  # direct script execution
+    from public_bootstrap import (  # type: ignore[no-redef]
+        commit_exists,
+        public_root_commit,
+        verify_public_bootstrap_snapshot,
+    )
+
 CONTROL_ROOT = Path(__file__).resolve().parents[1]
 ROOT = Path(os.environ.get("PHASE5E_CANDIDATE_REPOSITORY", CONTROL_ROOT)).resolve()
 TYPE_MODULE = ROOT / "src/owner_research/valuation_share_event_integration_types.py"
@@ -472,6 +485,20 @@ def main() -> int:
         _literal_assignment(INTEGRATION_ORACLE, "PHASE5E2B12A_ALLOWED_CHANGED_PATHS")
     )
     audit_paths = set(_literal_assignment(AUDIT_RUNNER, "PHASE5E2B12A_ALLOWED_CHANGED_PATHS"))
+    private_baseline = "4fd643df73108b1fa3ab3ce1eb258ae3c3ce8a6d"
+    public_mode = not commit_exists(private_baseline, ROOT)
+    if public_mode:
+        verify_public_bootstrap_snapshot(ROOT)
+        comparison_commit = public_root_commit(ROOT)
+        expected_paths = set(
+            _literal_assignment(
+                INTEGRATION_ORACLE,
+                "PUBLIC_CANONICAL_MIGRATION_CHANGED_PATHS",
+            )
+        )
+    else:
+        comparison_commit = private_baseline
+        expected_paths = set(integration_paths)
     actual_paths = set(
         subprocess.check_output(
             [
@@ -481,7 +508,7 @@ def main() -> int:
                 "diff",
                 "--name-only",
                 "--no-renames",
-                "4fd643df73108b1fa3ab3ce1eb258ae3c3ce8a6d",
+                comparison_commit,
             ],
             text=True,
         ).splitlines()
@@ -497,8 +524,7 @@ def main() -> int:
         and phase_status.get("status") == "accepted_closed"
         and (ROOT / ACCEPTANCE_CLOSEOUT).is_file()
     )
-    expected_paths = set(integration_paths)
-    if accepted:
+    if accepted and not public_mode:
         expected_paths.add(ACCEPTANCE_CLOSEOUT)
     required_boundary_paths = {
         ".github/workflows/ci.yml",

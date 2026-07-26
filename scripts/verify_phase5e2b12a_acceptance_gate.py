@@ -128,9 +128,9 @@ if (
     or _controller_authority.get("account_id") != 263841576
     or _controller_authority.get("account_login") != "mingjiconnect-ctrl"
     or _controller_authority.get("account_type") != "User"
-    or _controller_authority.get("repository_id") != 1297121992
+    or _controller_authority.get("repository_id") != 1312436919
     or _controller_authority.get("repository")
-    != "mingjiconnect-ctrl/owner-equity-research"
+    != "mingjiconnect-ctrl/owner-equity-research-public"
     or _controller_authority.get("repository_selection") != "selected"
     or _controller_authority.get("permissions")
     != {
@@ -205,9 +205,9 @@ if (
     or _external_gate_authority.get("account_id") != 263841576
     or _external_gate_authority.get("account_login") != "mingjiconnect-ctrl"
     or _external_gate_authority.get("account_type") != "User"
-    or _external_gate_authority.get("repository_id") != 1297121992
+    or _external_gate_authority.get("repository_id") != 1312436919
     or _external_gate_authority.get("repository")
-    != "mingjiconnect-ctrl/owner-equity-research"
+    != "mingjiconnect-ctrl/owner-equity-research-public"
     or _external_gate_authority.get("repository_selection") != "selected"
     or _external_gate_authority.get("permissions")
     != {"contents": "write", "metadata": "read", "pull_requests": "write"}
@@ -1575,6 +1575,7 @@ def _verify_single_repository_app_authority(
     expected_repository_id: int,
     expected_repository: str,
     expected_repository_selection: str,
+    expected_private: bool,
     expected_permissions: dict[str, str],
     expected_events: list[object],
     label: str,
@@ -1655,7 +1656,7 @@ def _verify_single_repository_app_authority(
     if (
         repository.get("id") != expected_repository_id
         or repository.get("full_name") != expected_repository
-        or repository.get("private") is not True
+        or repository.get("private") is not expected_private
         or repository.get("fork") is not False
         or repository.get("archived") is not False
         or repository.get("disabled") is not False
@@ -1716,6 +1717,7 @@ def _verify_controller_token_authority(
         expected_repository_id=CONTROLLER_REPOSITORY_ID,
         expected_repository=CONTROLLER_REPOSITORY,
         expected_repository_selection=CONTROLLER_REPOSITORY_SELECTION,
+        expected_private=False,
         expected_permissions=CONTROLLER_PERMISSIONS,
         expected_events=CONTROLLER_EVENTS,
         label="controller",
@@ -1755,6 +1757,7 @@ def _verify_external_gate_author_token_authority(
         expected_repository_selection=str(
             _external_gate_authority["repository_selection"]
         ),
+        expected_private=False,
         expected_permissions=dict(_external_gate_authority["permissions"]),
         expected_events=list(_external_gate_authority["events"]),
         label="external gate-author",
@@ -2041,52 +2044,42 @@ def _verify_environment_and_secret_authority(
         )
 
 
-def _verify_repository_artifact_audience(
+def _verify_public_artifact_policy(
     repository_slug: str,
     token: str,
     repository: dict[str, Any],
 ) -> None:
-    """Limit source-bearing audit artifacts to the sole personal-repository owner."""
+    """Allow only explicitly sanitized artifacts in the public repository."""
 
     owner = repository.get("owner")
     expected_login = repository_slug.split("/", 1)[0]
     if (
-        not isinstance(owner, dict)
+        repository.get("private") is not False
+        or not isinstance(owner, dict)
         or type(owner.get("id")) is not int
         or owner["id"] <= 0
         or owner.get("login") != expected_login
         or owner.get("type") != "User"
     ):
-        raise SystemExit("research repository owner identity is not closed")
-    collaborators = _api_paginated_list(
-        f"https://api.github.com/repos/{repository_slug}/collaborators?affiliation=all",
+        raise SystemExit("public research repository identity is invalid")
+    artifacts = _api_paginated_collection(
+        f"https://api.github.com/repos/{repository_slug}/actions/artifacts",
         token,
+        collection_key="artifacts",
+        per_page=100,
+        identity_key="id",
     )
-    if len(collaborators) != 1:
-        raise SystemExit("source-bearing artifact audience is not owner-only")
-    collaborator = collaborators[0]
-    if (
-        collaborator.get("id") != owner["id"]
-        or collaborator.get("login") != expected_login
-        or collaborator.get("type") != "User"
-        or collaborator.get("site_admin") is not False
-        or collaborator.get("role_name") != "admin"
-        or collaborator.get("permissions")
-        != {
-            "admin": True,
-            "maintain": True,
-            "pull": True,
-            "push": True,
-            "triage": True,
-        }
-    ):
-        raise SystemExit("source-bearing artifact audience identity is invalid")
-    invitations = _api_paginated_list(
-        f"https://api.github.com/repos/{repository_slug}/invitations",
-        token,
+    allowed = (
+        re.compile(r"phase5e-audit-wheelhouse-[1-9][0-9]*\Z"),
+        re.compile(r"phase5e-audit-[0-9a-f]{40}\Z"),
     )
-    if invitations:
-        raise SystemExit("pending repository invitations widen the audit artifact audience")
+    for artifact in artifacts:
+        name = artifact.get("name")
+        if (
+            not isinstance(name, str)
+            or not any(pattern.fullmatch(name) for pattern in allowed)
+        ):
+            raise SystemExit("public repository contains an unapproved Actions artifact")
 
 
 def _verify_remote_repository_governance(
@@ -2115,7 +2108,7 @@ def _verify_remote_repository_governance(
         f"https://api.github.com/repos/{repository_slug}",
         token,
     )
-    _verify_repository_artifact_audience(repository_slug, token, repository)
+    _verify_public_artifact_policy(repository_slug, token, repository)
     protection = _api_json(
         f"https://api.github.com/repos/{repository_slug}/branches/main/protection",
         token,
@@ -2157,7 +2150,7 @@ def _verify_remote_repository_governance(
         or repository.get("owner", {}).get("type") != "User"
         or repository.get("fork") is not False
         or repository.get("default_branch") != "main"
-        or repository.get("private") is not True
+        or repository.get("private") is not False
         or repository.get("allow_merge_commit") is not True
         or repository.get("allow_squash_merge") is not False
         or repository.get("allow_rebase_merge") is not False
@@ -2188,7 +2181,7 @@ def _verify_remote_repository_governance(
         or rulesets != []
     ):
         raise SystemExit(
-            "private main branch lacks the required non-bypass acceptance protections"
+            "public main branch lacks the required non-bypass acceptance protections"
         )
     _verify_environment_and_secret_authority(
         repository_slug,

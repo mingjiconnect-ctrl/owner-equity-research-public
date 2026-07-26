@@ -7,6 +7,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+try:
+    from scripts.public_bootstrap import commit_exists, verify_public_bootstrap_snapshot
+except ModuleNotFoundError:  # Direct ``python -I scripts/...`` execution.
+    from public_bootstrap import commit_exists, verify_public_bootstrap_snapshot
+
 ROOT = Path(__file__).resolve().parents[1]
 
 PHASE5C0_CLOSEOUT = {
@@ -499,6 +504,29 @@ def _tree(commit: str) -> str:
     ).strip()
 
 
+def _verify_recorded_closeout_tree(closeout: dict[str, object]) -> None:
+    head = str(closeout["substantive_head_commit"])
+    merge = str(closeout["substantive_merge_commit"])
+    recorded_tree = str(closeout["substantive_tree_sha"])
+    if commit_exists(head, ROOT) and commit_exists(merge, ROOT):
+        head_tree = _tree(head)
+        merge_tree = _tree(merge)
+        if head_tree != recorded_tree or merge_tree != head_tree:
+            raise SystemExit(f"{closeout['phase']} commits do not resolve to the recorded tree")
+        return
+    # The clean public repository deliberately omits the private commit graph.
+    # Its immutable root snapshot content-addresses the phase ledger that
+    # contains these historical commit/tree records.
+    verify_public_bootstrap_snapshot(ROOT)
+    if not all(
+        isinstance(value, str)
+        and len(value) == 40
+        and all(character in "0123456789abcdef" for character in value)
+        for value in (head, merge, recorded_tree)
+    ):
+        raise SystemExit(f"{closeout['phase']} external closeout identity is malformed")
+
+
 def _resolve_successor_position(ref: str) -> dict[str, object]:
     """Resolve recursive successor state without importing a mutable module."""
 
@@ -729,10 +757,7 @@ def main() -> int:
         state["closeout"]["policy_closeout"]["historical_phase5e2b_closeout"],
         state["closeout"]["implementation"],
     ):
-        head_tree = _tree(closeout["substantive_head_commit"])
-        merge_tree = _tree(closeout["substantive_merge_commit"])
-        if head_tree != closeout["substantive_tree_sha"] or merge_tree != head_tree:
-            raise SystemExit(f"{closeout['phase']} commits do not resolve to the recorded tree")
+        _verify_recorded_closeout_tree(closeout)
     files = {
         "AGENTS.md": ROOT / "AGENTS.md",
         "README.md": ROOT / "README.md",
