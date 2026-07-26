@@ -129,16 +129,6 @@ def test_control_oracle_launcher_and_runner_have_one_exact_fixed_inventory() -> 
     assert "scripts/verify_phase5e_candidate_import_surface.py" not in staged
 
 
-def test_protected_workflow_logs_only_sanitized_finding_ids() -> None:
-    workflow = (
-        ROOT / ".github/workflows/phase5e2b12a-acceptance-gate.yml"
-    ).read_text(encoding="utf-8")
-    assert "protected audit finding ids:" in workflow
-    assert 'item["finding_id"]' in workflow
-    assert 'item.get("evidence")' not in workflow
-    assert 'item["evidence"]' not in workflow
-
-
 def test_dynamic_successor_behavior_never_starts_after_structural_failure(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -920,6 +910,10 @@ def test_phase5e_ci_permissions_and_isolation_are_enforced() -> None:
     assert job["runs-on"] == "ubuntu-24.04"
     assert comment_job["runs-on"] == "ubuntu-24.04"
     assert "ubuntu-latest" not in text
+    assert "protected audit finding ids:" in text
+    assert 'item["finding_id"]' in text
+    assert 'item.get("evidence")' not in text
+    assert 'item["evidence"]' not in text
     assert text.count("actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd") >= 8
     assert text.count("actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c") >= 4
     assert "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" in text
@@ -929,6 +923,7 @@ def test_phase5e_ci_permissions_and_isolation_are_enforced() -> None:
         assert f'python-version: "{version}"' in text
     assert "Remove remotes and unrelated Git identity before sandboxing" in text
     launcher = (ROOT / "scripts/launch_phase5e_readonly_audit.sh").read_text(encoding="utf-8")
+    audit_runner = (ROOT / "scripts/run_phase5e_audit.py").read_text(encoding="utf-8")
     candidate_executor = (ROOT / "scripts/phase5e_candidate_exec.sh").read_text(
         encoding="utf-8"
     )
@@ -944,6 +939,8 @@ def test_phase5e_ci_permissions_and_isolation_are_enforced() -> None:
     )
     assert "unshare --mount --net --pid" in launcher
     assert "--no-new-privs" in launcher
+    assert "socket.if_nameindex()" in audit_runner
+    assert 'Path("/sys/class/net").iterdir()' not in audit_runner
     assert "pivot_root" in candidate_executor
     assert "--reuid=65534" in candidate_executor
     assert 'mount --bind "$interface" "$root/interface"' in candidate_executor

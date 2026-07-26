@@ -8,6 +8,7 @@ import os
 import platform
 import re
 import signal
+import socket
 import stat
 import subprocess
 import sys
@@ -1410,7 +1411,10 @@ def _linux_sandbox_evidence(repository: Path, kernel_interface: Path) -> tuple[b
         for line in status_text.splitlines()
         if ":" in line
     }
-    interfaces = tuple(sorted(path.name for path in Path("/sys/class/net").iterdir()))
+    # /sys may retain the parent namespace's interface view when it was mounted
+    # before unshare(2).  Query the active network namespace through libc
+    # instead; this is the same namespace socket operations would use.
+    interfaces = tuple(sorted(name for _index, name in socket.if_nameindex()))
     evidence = {
         "audit_marker": os.environ.get("AUDIT_OS_SANDBOX"),
         "effective_uid": os.geteuid(),
