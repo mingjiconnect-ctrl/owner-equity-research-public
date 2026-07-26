@@ -24,6 +24,10 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+CONTROL_ROOT = Path(__file__).resolve().parents[1]
+if str(CONTROL_ROOT) not in sys.path:
+    sys.path.insert(0, str(CONTROL_ROOT))
+
 try:
     from scripts.public_bootstrap import (
         commit_exists,
@@ -37,7 +41,6 @@ except ModuleNotFoundError:  # direct script execution
         verify_public_bootstrap_snapshot,
     )
 
-CONTROL_ROOT = Path(__file__).resolve().parents[1]
 ROOT = Path(os.environ.get("PHASE5E_CANDIDATE_REPOSITORY", CONTROL_ROOT)).resolve()
 TYPE_MODULE = ROOT / "src/owner_research/valuation_share_event_integration_types.py"
 POLICY = ROOT / "src/owner_research/resources/current_share/canonical-event-integration-policy.json"
@@ -322,7 +325,7 @@ def _test_functions(path: Path) -> dict[str, ast.FunctionDef | ast.AsyncFunction
 
 
 def _execute_production_contract_oracle() -> None:
-    tests_path = CONTROL_ROOT / "tests"
+    tests_path = ROOT / "tests"
     prior_path = list(sys.path)
     sys.path.append(str(tests_path))
     sys.path.append(str(ROOT / "src"))

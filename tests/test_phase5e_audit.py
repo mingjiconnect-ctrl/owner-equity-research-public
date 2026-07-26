@@ -14,6 +14,7 @@ import pytest
 import yaml
 
 from scripts import run_phase5e_audit as audit_runner
+from scripts import verify_phase5e2b12a_acceptance_gate as acceptance_gate_2a
 from scripts import verify_phase5e2b12a_semantic_oracle as semantic_oracle_2a
 from scripts import verify_phase5e2b12b_semantic_oracle as semantic_oracle_2b
 from scripts import verify_phase5e_audit_runtime_matrix as runtime_matrix
@@ -954,6 +955,12 @@ def test_phase5e_ci_permissions_and_isolation_are_enforced() -> None:
         'mount -t tmpfs -o mode=0555,nosuid,nodev,noexec tmpfs "$root/oracle/tests"'
         in candidate_executor
     )
+    assert acceptance_gate_2a._trusted_successor_surface_path(
+        Path("/oracle"), "tests/test_phase5e_successor_gate.py"
+    ) == Path("/work/tests/test_phase5e_successor_gate.py")
+    assert acceptance_gate_2a._trusted_successor_surface_path(
+        ROOT, "scripts/verify_phase5e_successor_gate.py"
+    ) == ROOT / "scripts/verify_phase5e_successor_gate.py"
     assert 'exec /usr/bin/git -c safe.directory=/work "$@"' in git_shim
     assert 'for copied_path in (repository, *repository.rglob("*"))' in successor_tests
     assert "stat.S_IWUSR" in successor_tests
@@ -1108,6 +1115,33 @@ def test_2b_semantic_oracle_cannot_treat_candidate_system_exit_zero_as_success(
 
 
 def test_2b_semantic_oracle_runs_in_an_isolated_interpreter() -> None:
+    phase2a = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-c",
+            (
+                "import runpy,sys;"
+                "runpy.run_path(sys.argv[1],run_name='_phase5e2b12a_isolated_load')"
+            ),
+            str(ROOT / "scripts/verify_phase5e2b12a_semantic_oracle.py"),
+        ],
+        cwd="/",
+        env={
+            "HOME": os.environ.get("HOME", "/tmp"),
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "TMPDIR": os.environ.get("TMPDIR", "/tmp"),
+        },
+        capture_output=True,
+        check=False,
+        timeout=120,
+    )
+    assert phase2a.returncode == 0, phase2a.stderr.decode(errors="replace")
+    assert phase2a.stderr == b""
+
     completed = subprocess.run(
         [
             sys.executable,
