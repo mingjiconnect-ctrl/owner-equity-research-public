@@ -429,7 +429,7 @@ def test_three_runtime_audit_aggregator_emits_only_sanitized_manifest(
         b'<properties><property name="phase5e_nodeid" '
         b'value="tests/test_one.py::test_one"/></properties>',
         b"",
-    )
+    ).replace(b'classname="tests.test_one"', b'classname=""')
     blocked_evidence = {
         "cp311": fallback_junit,
         "cp312": blocked_junit,
@@ -465,7 +465,7 @@ def test_three_runtime_audit_aggregator_emits_only_sanitized_manifest(
             "blocked_test_nodeids": [
                 {
                     "identity": (
-                        "tests.test_one::test_one"
+                        "::test_one"
                         if runtime_id == "cp311"
                         else "tests/test_one.py::test_one"
                     ),
