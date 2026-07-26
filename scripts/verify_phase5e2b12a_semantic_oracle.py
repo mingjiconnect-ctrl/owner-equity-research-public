@@ -496,9 +496,16 @@ def main() -> int:
                 "PUBLIC_CANONICAL_MIGRATION_CHANGED_PATHS",
             )
         )
+        permitted_paths = expected_paths | set(
+            _literal_assignment(
+                INTEGRATION_ORACLE,
+                "PUBLIC_CANONICAL_MIGRATION_OPTIONAL_CHANGED_PATHS",
+            )
+        )
     else:
         comparison_commit = private_baseline
         expected_paths = set(integration_paths)
+        permitted_paths = expected_paths
     actual_paths = set(
         subprocess.check_output(
             [
@@ -526,6 +533,7 @@ def main() -> int:
     )
     if accepted and not public_mode:
         expected_paths.add(ACCEPTANCE_CLOSEOUT)
+        permitted_paths.add(ACCEPTANCE_CLOSEOUT)
     required_boundary_paths = {
         ".github/workflows/ci.yml",
         ".github/workflows/phase5e2b12a-acceptance-gate.yml",
@@ -540,7 +548,8 @@ def main() -> int:
     }
     if not args.frozen_contract_replay and (
         integration_paths != audit_paths
-        or expected_paths != actual_paths
+        or actual_paths - permitted_paths
+        or expected_paths - actual_paths
         or not required_boundary_paths.issubset(integration_paths)
     ):
         raise SystemExit("repository-wide Phase 5E-2B.1-2A changed-path boundary is open")
