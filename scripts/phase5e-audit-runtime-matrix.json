@@ -12,24 +12,24 @@
       "python_version": "3.11.15",
       "runtime_id": "cp311",
       "wheel_count": 25,
-      "wheel_manifest_sha256": "78ca8a3becdac5c860679b204a7f6a1adebe04a38227034f3a698da256a77ff0"
+      "wheel_manifest_sha256": "1a1b518642b026590986654d5d5f6c256db5877e2861f44f63f879714f493ec4"
     },
     {
       "abi": "cp312",
       "python_version": "3.12.13",
       "runtime_id": "cp312",
       "wheel_count": 25,
-      "wheel_manifest_sha256": "10ea11515b4b0b9568a63285cc795afe10053ea9fcb34e1d5f921cf0379b8cb1"
+      "wheel_manifest_sha256": "ebd58e4a3662b48df167aa994f8a011398e05b5c52e7b0122cecaef6f96f463e"
     },
     {
       "abi": "cp313",
       "python_version": "3.13.13",
       "runtime_id": "cp313",
       "wheel_count": 25,
-      "wheel_manifest_sha256": "dda2358548e9cf893f227b5a0a9a9c5f37b81c050ec3283a8888a1528058a396"
+      "wheel_manifest_sha256": "6bdf2a818ce6134d07eea2e6364044a4f3f3a79fefc19fda3015f52b9a4565ae"
     }
   ],
   "schema_version": "1.0.0",
   "union_wheel_count": 33,
-  "union_wheel_manifest_sha256": "4ff44cd3caa84f3fbc61f77bab2ebdbb8c96f839a6da05d2ad40588b0d4a1389"
+  "union_wheel_manifest_sha256": "1835657e700aa6345d7445c5140b4f79bf2df6b4a1c32f11432ff513cf741fe0"
 }

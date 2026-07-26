@@ -179,6 +179,9 @@ PUBLIC_CANONICAL_MIGRATION_CHANGED_PATHS = {
 }
 PUBLIC_CANONICAL_MIGRATION_OPTIONAL_CHANGED_PATHS = {
     "docs/public-phase5e2b12a-revalidation.json",
+    "scripts/phase5e-audit-requirements.lock",
+    "scripts/phase5e-audit-runtime-matrix.json",
+    "scripts/phase5e-audit-wheelhouse.sha256",
     "scripts/phase5e_pid1_reaper.py",
 }
 
