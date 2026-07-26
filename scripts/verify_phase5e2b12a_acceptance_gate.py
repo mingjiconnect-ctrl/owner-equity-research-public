@@ -547,6 +547,16 @@ REQUIRED_AUDITED_PATHS = frozenset(
 )
 CLOSEOUT_PATH = "docs/phase5e2b12a-acceptance-closeout.json"
 STATUS_PATH = "docs/phase-status.json"
+PUBLIC_REVALIDATION_PATH = "docs/public-phase5e2b12a-revalidation.json"
+PUBLIC_REVALIDATION_BRANCH = "fix/phase5e2b12a-r2-coverage-claim-parity"
+PUBLIC_REVALIDATION_PAYLOAD = {
+    "kind": "public_canonical_audit_revalidation",
+    "phase": "Phase 5E-2B.1-2A",
+    "public_repository": "mingjiconnect-ctrl/owner-equity-research-public",
+    "reason_code": "public-controller-bootstrap-revalidation",
+    "release_tag": None,
+    "schema_version": "1.0.0",
+}
 MUTABLE_GOVERNANCE_PATHS = frozenset(
     {
         STATUS_PATH,
@@ -3904,11 +3914,40 @@ def verify_non_acceptance_pr(
             prohibited=PENDING_PROHIBITED,
         ):
             raise SystemExit("pending 2A base governance state is malformed")
+        if head_ref == PUBLIC_REVALIDATION_BRANCH:
+            if (
+                not require_remote
+                or token is None
+                or controller_app_id is None
+                or _path_exists(repository, base, PUBLIC_REVALIDATION_PATH)
+                or _commit_parents(repository, head) != (base,)
+                or _diff_entries(repository, base, head)
+                != (("A", PUBLIC_REVALIDATION_PATH),)
+                or _mode(repository, head, PUBLIC_REVALIDATION_PATH) != "100644"
+                or _read_json(repository, head, PUBLIC_REVALIDATION_PATH)
+                != PUBLIC_REVALIDATION_PAYLOAD
+            ):
+                raise SystemExit(
+                    "public Controller revalidation is not the exact one-file audit marker"
+                )
+            _verify_remote_repository_governance(
+                repository_slug,
+                token,
+                controller_app_id=controller_app_id,
+            )
+            return
         raise SystemExit("pending 2A permits only the reserved acceptance closeout PR")
 
     closeout = _read_json(repository, base, CLOSEOUT_PATH)
     if not _accepted_closeout_has_closed_shape(closeout):
         raise SystemExit("accepted 2A base evidence is malformed")
+    if (
+        not _path_exists(repository, base, PUBLIC_REVALIDATION_PATH)
+        or _read_json(repository, base, PUBLIC_REVALIDATION_PATH)
+        != PUBLIC_REVALIDATION_PAYLOAD
+        or PUBLIC_REVALIDATION_PATH in changed_paths
+    ):
+        raise SystemExit("accepted public Controller revalidation marker drifted")
     violations = sorted(changed_paths & PERMANENT_ACCEPTED_TRUST_ROOT)
     if violations:
         raise SystemExit(

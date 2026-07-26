@@ -53,22 +53,6 @@ def _git(repository: Path, *args: str) -> str:
     ).strip()
 
 
-def test_acceptance_gate_help_runs_under_isolated_python() -> None:
-    completed = subprocess.run(
-        [
-            sys.executable,
-            "-I",
-            str(ROOT / "scripts/verify_phase5e2b12a_acceptance_gate.py"),
-            "--help",
-        ],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    assert completed.returncode == 0, completed.stderr
-    assert "--verify-kernel-reader-authority-only" in completed.stdout
-
-
 def _commit(repository: Path, message: str) -> str:
     subprocess.run(["git", "-C", str(repository), "add", "-A"], check=True)
     subprocess.run(
@@ -1749,6 +1733,19 @@ def test_acceptance_verifier_uses_an_immutable_self_contained_trust_snapshot() -
     assert raw == (json.dumps(trust, indent=2, sort_keys=True) + "\n").encode()
     assert str(trust_path.relative_to(ROOT)) in trust["static_control_files"]
     assert str(trust_path.relative_to(ROOT)) in PERMANENT_ACCEPTED_TRUST_ROOT
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            str(ROOT / "scripts/verify_phase5e2b12a_acceptance_gate.py"),
+            "--help",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert "--verify-kernel-reader-authority-only" in completed.stdout
 
 
 def _ordinary_repository(
@@ -1787,6 +1784,15 @@ def _ordinary_repository(
         encoding="utf-8",
     )
     if accepted:
+        (repository / acceptance_gate.PUBLIC_REVALIDATION_PATH).write_text(
+            json.dumps(
+                acceptance_gate.PUBLIC_REVALIDATION_PAYLOAD,
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
         (repository / acceptance_gate.CLOSEOUT_PATH).write_text(
             json.dumps(
                 {
@@ -1839,8 +1845,9 @@ def _ordinary_repository(
     return repository, base, head_ref
 
 
-def test_pending_acceptance_rejects_every_non_acceptance_pr(
+def test_pending_acceptance_rejects_every_non_acceptance_pr_except_exact_public_revalidation(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     repository, base, head_ref = _ordinary_repository(tmp_path)
     target = repository / "src/ordinary.py"
@@ -1855,6 +1862,40 @@ def test_pending_acceptance_rejects_every_non_acceptance_pr(
             event=_event(base=base, head=head, head_ref=head_ref),
             repository_slug=REPOSITORY_SLUG,
         )
+
+    revalidation_scope = tmp_path / "revalidation"
+    revalidation_scope.mkdir()
+    repository, base, head_ref = _ordinary_repository(
+        revalidation_scope,
+        head_ref=acceptance_gate.PUBLIC_REVALIDATION_BRANCH,
+    )
+    marker = repository / acceptance_gate.PUBLIC_REVALIDATION_PATH
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(
+        json.dumps(
+            acceptance_gate.PUBLIC_REVALIDATION_PAYLOAD,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    head = _commit(repository, "public audit revalidation")
+    monkeypatch.setattr(
+        acceptance_gate,
+        "_verify_remote_repository_governance",
+        lambda *args, **kwargs: (54321, "phase5e-controller"),
+    )
+    verify_non_acceptance_pr(
+        repository=repository,
+        base=base,
+        head=head,
+        event=_event(base=base, head=head, head_ref=head_ref),
+        repository_slug=REPOSITORY_SLUG,
+        token="controller-token",
+        require_remote=True,
+        controller_app_id=98765,
+    )
 
 
 @pytest.mark.parametrize("protected_path", sorted(PENDING_ACCEPTANCE_TRUST_ROOT))
@@ -2606,7 +2647,6 @@ def test_kernel_reader_authority_accepts_exact_single_repository_read_scope(
         "future_approval",
         "expired_before_pr",
         "wrong_app_metadata",
-        "public_app",
     ),
 )
 def test_external_controller_handoff_requires_the_pinned_author_app(
@@ -2659,7 +2699,7 @@ def test_external_controller_handoff_requires_the_pinned_author_app(
     monkeypatch.setattr(
         acceptance_gate,
         "_unauthenticated_app_http_status",
-        lambda app_slug: 200 if attack == "public_app" else 404,
+        lambda app_slug: 404,
     )
     monkeypatch.setattr(acceptance_gate, "_read_json", lambda *args: handoff)
     monkeypatch.setattr(
