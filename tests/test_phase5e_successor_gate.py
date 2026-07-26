@@ -4,6 +4,7 @@ import copy
 import hashlib
 import json
 import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -934,6 +935,12 @@ def _repository(tmp_path: Path) -> tuple[Path, str, dict[str, Any], dict[str, An
     cases_path = repository / paths["cases"]
     cases_path.write_bytes(cases_raw)
     _canonical(repository / paths["bundle"], bundle)
+    # The protected audit mounts the candidate checkout read-only and strips all
+    # write bits before the controller-owned tests copy fixture bytes from it.
+    # Restore owner-write only on the isolated, nobody-owned temporary Git
+    # repository so later adversarial transitions can mutate their fixtures.
+    for copied_path in (repository, *repository.rglob("*")):
+        copied_path.chmod(copied_path.stat().st_mode | stat.S_IWUSR)
     return repository, base, bundle, predecessor
 
 
