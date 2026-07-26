@@ -1156,6 +1156,7 @@ def _remote_evidence(  # noqa: F811
                     1.0 if authority_mode == "floating_controller_app_id" else 1
                 ),
                 "repositories": [{"full_name": REPOSITORY_SLUG}],
+                "repository_selection": "selected",
             }
         if url == f"https://api.github.com/repos/{REPOSITORY_SLUG}":
             return {
@@ -2488,7 +2489,11 @@ def test_kernel_reader_authority_rejects_scope_permission_and_identity_drift(
             repositories = [repository]
             if attack == "two_repositories":
                 repositories.append({**repository, "id": repository["id"] + 1})
-            return {"total_count": len(repositories), "repositories": repositories}
+            return {
+                "total_count": len(repositories),
+                "repositories": repositories,
+                "repository_selection": "selected",
+            }
         if bare == f"https://api.github.com/repos/{acceptance_gate.KERNEL_READER_REPOSITORY}":
             return (
                 {**repository, "default_branch": "other"}
@@ -2586,7 +2591,11 @@ def test_kernel_reader_authority_accepts_exact_single_repository_read_scope(
             ]
         assert token == "kernel-token"
         if bare == "https://api.github.com/installation/repositories":
-            return {"total_count": 1, "repositories": [repository]}
+            return {
+                "total_count": 1,
+                "repositories": [repository],
+                "repository_selection": "selected",
+            }
         if bare == f"https://api.github.com/repos/{acceptance_gate.KERNEL_READER_REPOSITORY}":
             return repository
         raise AssertionError(url)
