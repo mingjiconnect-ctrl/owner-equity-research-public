@@ -670,7 +670,7 @@ jobs:
           PY313: ${{ steps.py313.outputs.python-path }}
         run: |
           set -euo pipefail
-          wheelhouse="$RUNNER_TEMP/wheelhouse-download/audit-wheelhouse"
+          wheelhouse="$RUNNER_TEMP/wheelhouse-download"
           python -I - "$wheelhouse" \
             "$GITHUB_WORKSPACE/_control/scripts/phase5e-audit-wheelhouse.sha256" <<'PY'
           import hashlib
