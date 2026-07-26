@@ -26,6 +26,19 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+try:
+    from scripts.public_bootstrap import (
+        commit_exists,
+        public_root_commit,
+        verify_public_bootstrap_snapshot,
+    )
+except ModuleNotFoundError:  # direct script execution
+    from public_bootstrap import (  # type: ignore[no-redef]
+        commit_exists,
+        public_root_commit,
+        verify_public_bootstrap_snapshot,
+    )
+
 _SCRIPT_DIR = Path(__file__).resolve().parent
 
 
@@ -478,8 +491,8 @@ if (
     raise RuntimeError("preinstalled Phase 5E-2B.1-2B gate bytes drifted")
 
 AUDIT_VERSION = _CURRENT_AUDIT_PROFILE.audit_version
-EXPECTED_TEST_COUNT = 1372
-EXPECTED_NODEID_SHA256 = "f8ad01e5e645a907150bd4c58a846545909b84b7648352ed6e0012c28a70f6ec"
+EXPECTED_TEST_COUNT = 1374
+EXPECTED_NODEID_SHA256 = "eab85a4981f3fdcfe841c5e730af10f3e2b50ce41c617f3f9204b17a7ba4a79b"
 REQUIRED_AUDITED_PATHS = frozenset(
     {
         ".github/workflows/phase5e2b12a-acceptance-gate.yml",
@@ -3525,6 +3538,11 @@ def _verify_remote_evidence(
     ):
         raise SystemExit("canonical merged-main audit report is not acceptance-grade")
     audited_hashes = report.get("audited_file_sha256", {})
+    if commit_exists(PHASE5D_BASELINE, repository):
+        audit_comparison_commit = PHASE5D_BASELINE
+    else:
+        verify_public_bootstrap_snapshot(repository)
+        audit_comparison_commit = public_root_commit(repository)
     expected_audited_paths = set(STATIC_CONTROL_FILES) | set(
         str(
             _git(
@@ -3532,7 +3550,7 @@ def _verify_remote_evidence(
                 "diff",
                 "--name-only",
                 "--no-renames",
-                PHASE5D_BASELINE,
+                audit_comparison_commit,
                 implementation_merge,
             )
         ).splitlines()

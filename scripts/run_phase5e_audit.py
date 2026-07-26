@@ -32,6 +32,14 @@ from phase5e_audit_profiles import (  # noqa: E402
     resolve_controller_audit_profile,
     resolve_controller_gate_position,
 )
+from public_bootstrap import (  # noqa: E402
+    commit_exists,
+    public_root_commit,
+    verify_public_bootstrap_snapshot,
+)
+from verify_phase5e2b12a_integration_contracts import (  # noqa: E402
+    PUBLIC_CANONICAL_MIGRATION_CHANGED_PATHS,
+)
 
 # Compatibility alias for the frozen 2A tests and trust snapshot.  Runtime selection is always
 # derived from the protected controller profile below.
@@ -68,9 +76,9 @@ CONTROL_ORACLE_FIXED_PATHS = frozenset(
         "scripts/verify_phase5e_successor_gate_oracle.py",
     }
 )
-EXPECTED_PHASE5E2B12A_TEST_COUNT = 1372
+EXPECTED_PHASE5E2B12A_TEST_COUNT = 1374
 EXPECTED_PHASE5E2B12A_NODEID_SHA256 = (
-    "f8ad01e5e645a907150bd4c58a846545909b84b7648352ed6e0012c28a70f6ec"
+    "eab85a4981f3fdcfe841c5e730af10f3e2b50ce41c617f3f9204b17a7ba4a79b"
 )
 _PROFILE_RESOLUTION_FAILURE_CHECK_ID = "phase5e-audit-profile-resolution"
 _PROFILE_RESOLUTION_FAILURE_PROFILE = AuditProfile(
@@ -1654,25 +1662,34 @@ def main() -> int:
         evidence=sandbox_evidence,
         priority="P0",
     )
+    public_mode = not commit_exists(PHASE5D_BASELINE, repository)
+    if public_mode:
+        verify_public_bootstrap_snapshot(repository)
+        research_comparison_commit = public_root_commit(repository)
+    else:
+        research_comparison_commit = PHASE5D_BASELINE
     changed_files = set(
         _git(
             repository,
             "diff",
             "--name-only",
             "--no-renames",
-            PHASE5D_BASELINE,
+            research_comparison_commit,
             "HEAD",
         ).splitlines()
     )
     phase_status = json.loads((repository / "docs/phase-status.json").read_text())
     if profile.profile_kind == "legacy_2a":
+        phase_comparison_commit = (
+            research_comparison_commit if public_mode else PHASE5E2B11_BASELINE
+        )
         phase_changed_files = set(
             _git(
                 repository,
                 "diff",
                 "--name-only",
                 "--no-renames",
-                PHASE5E2B11_BASELINE,
+                phase_comparison_commit,
                 "HEAD",
             ).splitlines()
         )
@@ -1681,12 +1698,23 @@ def main() -> int:
             and phase_status.get("status") == "accepted_closed"
             and (repository / PHASE5E2B12A_ACCEPTANCE_CLOSEOUT_PATH).is_file()
         )
-        unexpected_phase_paths, missing_phase_paths = (
-            _phase5e2b12a_changed_path_violations(
-                phase_changed_files,
-                accepted=phase_accepted,
+        if public_mode:
+            expected_public_paths = set(PUBLIC_CANONICAL_MIGRATION_CHANGED_PATHS)
+            if phase_accepted:
+                expected_public_paths.add(PHASE5E2B12A_ACCEPTANCE_CLOSEOUT_PATH)
+            unexpected_phase_paths = tuple(
+                sorted(phase_changed_files - expected_public_paths)
             )
-        )
+            missing_phase_paths = tuple(
+                sorted(expected_public_paths - phase_changed_files)
+            )
+        else:
+            unexpected_phase_paths, missing_phase_paths = (
+                _phase5e2b12a_changed_path_violations(
+                    phase_changed_files,
+                    accepted=phase_accepted,
+                )
+            )
         changed_path_check_id = "phase5e2b12a-repository-wide-changed-path-boundary"
         changed_path_summary = (
             "Phase 5E-2B.1-2A changed paths escaped the closed repository-wide boundary."
@@ -1778,7 +1806,15 @@ def main() -> int:
     )
     research_ok = (
         subprocess.run(
-            ["git", "-C", str(repository), "merge-base", "--is-ancestor", PHASE5D_BASELINE, "HEAD"]
+            [
+                "git",
+                "-C",
+                str(repository),
+                "merge-base",
+                "--is-ancestor",
+                research_comparison_commit,
+                "HEAD",
+            ]
         ).returncode
         == 0
     )
