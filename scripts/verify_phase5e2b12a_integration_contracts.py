@@ -174,6 +174,9 @@ PUBLIC_CANONICAL_MIGRATION_CHANGED_PATHS = {
     "tests/test_phase5e_successor_gate.py",
     "tests/test_public_bootstrap.py",
 }
+PUBLIC_CANONICAL_MIGRATION_OPTIONAL_CHANGED_PATHS = {
+    "docs/public-phase5e2b12a-revalidation.json",
+}
 
 
 def _public_mode() -> bool:
@@ -298,14 +301,21 @@ def main() -> int:
     )
     if _public_mode():
         expected_changed_paths = set(PUBLIC_CANONICAL_MIGRATION_CHANGED_PATHS)
+        permitted_changed_paths = (
+            expected_changed_paths | PUBLIC_CANONICAL_MIGRATION_OPTIONAL_CHANGED_PATHS
+        )
     else:
         expected_changed_paths = set(PHASE5E2B12A_ALLOWED_CHANGED_PATHS)
         if accepted:
             expected_changed_paths.add(ACCEPTANCE_CLOSEOUT)
-    if not args.frozen_contract_replay and changed_paths != expected_changed_paths:
+        permitted_changed_paths = expected_changed_paths
+    if not args.frozen_contract_replay and (
+        changed_paths - permitted_changed_paths
+        or expected_changed_paths - changed_paths
+    ):
         raise SystemExit(
             "Phase 5E-2B.1-2A repository-wide changed-path boundary drifted: "
-            f"unexpected={sorted(changed_paths - expected_changed_paths)}; "
+            f"unexpected={sorted(changed_paths - permitted_changed_paths)}; "
             f"missing={sorted(expected_changed_paths - changed_paths)}"
         )
     changed_package_paths = {

@@ -32,6 +32,9 @@ from scripts.run_phase5e_audit import (
     _strict_junit_tree,
     _verify_profile_semantic_oracle_binding,
 )
+from scripts.verify_phase5e2b12a_integration_contracts import (
+    PUBLIC_CANONICAL_MIGRATION_OPTIONAL_CHANGED_PATHS,
+)
 
 ROOT = Path(__file__).parents[1]
 WRITER = ROOT / "scripts" / "write_phase5e_audit.py"
@@ -792,6 +795,14 @@ def test_phase5e2b12a_repository_wide_changed_path_boundary_is_closed() -> None:
     assert PHASE5E2B12A_OPTIONAL_CHANGED_PATHS == {
         "docs/public-phase5e2b12a-revalidation.json"
     }
+    assert (
+        PUBLIC_CANONICAL_MIGRATION_OPTIONAL_CHANGED_PATHS
+        == {"docs/public-phase5e2b12a-revalidation.json"}
+    )
+    assert audit_runner._regular_tracked_file(
+        ROOT,
+        "scripts/verify_phase5e2a21_recursive_evidence.py",
+    )
     assert _phase5e2b12a_changed_path_violations(
         changed_paths | PHASE5E2B12A_OPTIONAL_CHANGED_PATHS,
         accepted=accepted,
