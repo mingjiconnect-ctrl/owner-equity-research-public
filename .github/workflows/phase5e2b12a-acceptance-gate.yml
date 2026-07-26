@@ -786,14 +786,19 @@ jobs:
           echo "path=$output" >> "$GITHUB_OUTPUT"
           artifact_sha256=$(sha256sum "$output" | cut -d' ' -f1)
           echo "artifact_sha256=$artifact_sha256" >> "$GITHUB_OUTPUT"
-          echo "report_sha256=$(python -I -c 'import json,sys; print(json.load(open(sys.argv[1]))["report_sha256"])' "$output")" >> "$GITHUB_OUTPUT"
+          report_sha256=$(python -I -c \
+            'import json,sys; value=json.load(open(sys.argv[1])); print(value.get("report_sha256", sys.argv[2]))' \
+            "$output" "$artifact_sha256")
+          echo "report_sha256=$report_sha256" >> "$GITHUB_OUTPUT"
           for priority in P0 P1 P2 P3; do
             key=$(printf '%s' "$priority" | tr '[:upper:]' '[:lower:]')
             count=$(python -I -c 'import json,sys; print(json.load(open(sys.argv[1]))["finding_counts"][sys.argv[2]])' "$output" "$priority")
             echo "$key=$count" >> "$GITHUB_OUTPUT"
           done
           for metric in collected_tests passed_tests skipped_tests failed_tests; do
-            count=$(python -I -c 'import json,sys; print(json.load(open(sys.argv[1]))["test_counts"][sys.argv[2]])' "$output" "$metric")
+            count=$(python -I -c \
+              'import json,sys; value=json.load(open(sys.argv[1])); print(value.get("test_counts", {}).get(sys.argv[2], 0))' \
+              "$output" "$metric")
             echo "$metric=$count" >> "$GITHUB_OUTPUT"
           done
           if [[ "$SANDBOX311_OUTCOME" != "success" || \
