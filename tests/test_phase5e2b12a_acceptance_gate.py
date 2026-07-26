@@ -2341,6 +2341,11 @@ def test_kernel_reader_authority_rejects_scope_permission_and_identity_drift(
         "PINNED_KERNEL_READER_INSTALLATION_ID",
         13579,
     )
+    monkeypatch.setattr(
+        acceptance_gate,
+        "_unauthenticated_app_http_status",
+        lambda app_slug: 200 if attack == "public_app" else 404,
+    )
     repository = {
         "id": acceptance_gate.KERNEL_READER_REPOSITORY_ID,
         "full_name": acceptance_gate.KERNEL_READER_REPOSITORY,
@@ -2371,7 +2376,6 @@ def test_kernel_reader_authority_rejects_scope_permission_and_identity_drift(
             return {
                 "id": 24680,
                 "slug": "phase5e-kernel-reader",
-                "public": attack == "public_app",
                 "owner": {
                     "id": (
                         1
@@ -2476,6 +2480,11 @@ def test_kernel_reader_authority_accepts_exact_single_repository_read_scope(
         "PINNED_KERNEL_READER_INSTALLATION_ID",
         13579,
     )
+    monkeypatch.setattr(
+        acceptance_gate,
+        "_unauthenticated_app_http_status",
+        lambda app_slug: 404,
+    )
     repository = {
         "id": acceptance_gate.KERNEL_READER_REPOSITORY_ID,
         "full_name": acceptance_gate.KERNEL_READER_REPOSITORY,
@@ -2498,7 +2507,6 @@ def test_kernel_reader_authority_accepts_exact_single_repository_read_scope(
             return {
                 "id": 24680,
                 "slug": "phase5e-kernel-reader",
-                "public": False,
                 "owner": {
                     "id": acceptance_gate.KERNEL_READER_ACCOUNT_ID,
                     "login": acceptance_gate.KERNEL_READER_ACCOUNT_LOGIN,
@@ -2581,6 +2589,7 @@ def test_kernel_reader_authority_accepts_exact_single_repository_read_scope(
         "future_approval",
         "expired_before_pr",
         "wrong_app_metadata",
+        "public_app",
     ),
 )
 def test_external_controller_handoff_requires_the_pinned_author_app(
@@ -2630,6 +2639,11 @@ def test_external_controller_handoff_requires_the_pinned_author_app(
         "PINNED_EXTERNAL_GATE_AUTHOR_INSTALLATION_ID",
         13579,
     )
+    monkeypatch.setattr(
+        acceptance_gate,
+        "_unauthenticated_app_http_status",
+        lambda app_slug: 200 if attack == "public_app" else 404,
+    )
     monkeypatch.setattr(acceptance_gate, "_read_json", lambda *args: handoff)
     monkeypatch.setattr(
         acceptance_gate,
@@ -2644,7 +2658,6 @@ def test_external_controller_handoff_requires_the_pinned_author_app(
             return {
                 "id": 24682 if attack == "wrong_app_metadata" else 24680,
                 "slug": "phase5e-gate-author",
-                "public": False,
                 "owner": {
                     "id": 263841576,
                     "login": "mingjiconnect-ctrl",
