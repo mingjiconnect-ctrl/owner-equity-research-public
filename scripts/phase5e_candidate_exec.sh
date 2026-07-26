@@ -107,7 +107,7 @@ exec unshare --mount --net --ipc --uts --pid --fork --kill-child bash -ceu '
       PYTHONSAFEPATH=1 \
       PYTEST_ADDOPTS="--import-mode=importlib -p no:cacheprovider" \
       PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 \
-      PYTHONPATH=/oracle:/interface/kernel/src:/candidate-import \
+      PYTHONPATH=/oracle:/oracle/tests:/interface/kernel/src:/candidate-import:/candidate-import/tests \
       PIP_CONFIG_FILE=/dev/null \
       PIP_NO_INDEX=1 \
       PHASE5E_CANDIDATE_REPOSITORY=/work \

@@ -96,6 +96,7 @@ jobs:
           app-id: ${{ vars.PHASE5E_EXTERNAL_GATE_AUTHOR_APP_ID }}
           private-key: ${{ secrets.PHASE5E_EXTERNAL_GATE_AUTHOR_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+          repositories: owner-equity-research-public
           permission-contents: read
           permission-metadata: read
           permission-pull-requests: read
@@ -243,14 +244,7 @@ jobs:
           app-id: ${{ vars.PHASE5E_CONTROLLER_APP_ID }}
           private-key: ${{ secrets.PHASE5E_CONTROLLER_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-          permission-actions: read
-          permission-administration: read
-          permission-contents: read
-          permission-environments: read
-          permission-pull-requests: read
-          permission-secrets: read
-          permission-statuses: read
-          permission-variables: read
+          repositories: owner-equity-research-public
           skip-token-revoke: true
       - name: Verify controller authority immediately before evidence replay
         working-directory: _control
@@ -554,6 +548,7 @@ jobs:
           app-id: ${{ vars.PHASE5E_KERNEL_READER_APP_ID }}
           private-key: ${{ secrets.PHASE5E_KERNEL_READER_PRIVATE_KEY }}
           owner: mingjiconnect-ctrl
+          repositories: owner-valuation-kernel
           permission-contents: read
           permission-metadata: read
           skip-token-revoke: true
@@ -998,15 +993,7 @@ jobs:
           app-id: ${{ vars.PHASE5E_CONTROLLER_APP_ID }}
           private-key: ${{ secrets.PHASE5E_CONTROLLER_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-          permission-actions: read
-          permission-administration: read
-          permission-contents: read
-          permission-environments: read
-          permission-metadata: read
-          permission-pull-requests: read
-          permission-secrets: read
-          permission-statuses: write
-          permission-variables: read
+          repositories: owner-equity-research-public
           skip-token-revoke: true
       - name: Check out protected-base controller for final governance replay
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -1244,15 +1231,7 @@ jobs:
           app-id: ${{ vars.PHASE5E_CONTROLLER_APP_ID }}
           private-key: ${{ secrets.PHASE5E_CONTROLLER_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-          permission-actions: read
-          permission-administration: read
-          permission-contents: read
-          permission-environments: read
-          permission-metadata: read
-          permission-pull-requests: read
-          permission-secrets: read
-          permission-statuses: read
-          permission-variables: read
+          repositories: owner-equity-research-public
           skip-token-revoke: true
       - name: Reverify controller global scope before merged-main replay
         working-directory: _control

@@ -6,8 +6,14 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+try:
+    from scripts.public_bootstrap import commit_exists, verify_public_bootstrap_snapshot
+except ModuleNotFoundError:  # Direct ``python -I scripts/...`` execution.
+    from public_bootstrap import commit_exists, verify_public_bootstrap_snapshot
+
 ROOT = Path(__file__).resolve().parents[1]
 PHASE5P_MERGE = "ba1ac50a7ae5f3f3af637015369599abd24c9b73"
+PUBLIC_CANONICAL_MERGE = "184e5097e1da982b63ae818aad2b82a472eab007"
 IMMUTABLE_PATHS = (
     "docs/phase5-plan.md",
     "docs/phase5-methodology.md",
@@ -30,15 +36,21 @@ def _git(*args: str, text: bool = True) -> str | bytes:
 
 
 def main() -> int:
+    baseline = PHASE5P_MERGE
+    if not commit_exists(PHASE5P_MERGE, ROOT):
+        verify_public_bootstrap_snapshot(ROOT)
+        if not commit_exists(PUBLIC_CANONICAL_MERGE, ROOT):
+            raise SystemExit("Canonical public Phase 5P baseline is unavailable")
+        baseline = PUBLIC_CANONICAL_MERGE
     ancestry = subprocess.run(
-        ["git", "-C", str(ROOT), "merge-base", "--is-ancestor", PHASE5P_MERGE, "HEAD"]
+        ["git", "-C", str(ROOT), "merge-base", "--is-ancestor", baseline, "HEAD"]
     )
     if ancestry.returncode:
         raise SystemExit("HEAD is not descended from the accepted Phase 5P merge")
     for relative in IMMUTABLE_PATHS:
-        baseline = _git("show", f"{PHASE5P_MERGE}:{relative}", text=False)
+        baseline_bytes = _git("show", f"{baseline}:{relative}", text=False)
         current = (ROOT / relative).read_bytes()
-        if current != baseline:
+        if current != baseline_bytes:
             raise SystemExit(f"Accepted Phase 5P artifact was rewritten: {relative}")
     print("Canonical Phase 5P planning baseline is unchanged")
     return 0

@@ -141,6 +141,7 @@ PHASE5E2B12A_ALLOWED_CHANGED_PATHS = {
     "tests/test_plugin_boundaries.py",
 }
 PUBLIC_CANONICAL_MIGRATION_CHANGED_PATHS = {
+    ".github/workflows/phase5e2b12a-acceptance-gate.yml",
     "AGENTS.md",
     "README.md",
     "docs/adr/0040-public-canonical-repository.md",
@@ -155,7 +156,11 @@ PUBLIC_CANONICAL_MIGRATION_CHANGED_PATHS = {
     ),
     "plugins/owner-equity-research/skills/owner-research-audit/SKILL.md",
     "scripts/phase5e2b12a-acceptance-trust.json",
+    "scripts/phase5e_audit_profiles.py",
+    "scripts/phase5e_candidate_exec.sh",
     "scripts/public_bootstrap.py",
+    "scripts/run_phase5e_audit.py",
+    "scripts/verify_phase5p_baseline.py",
     "scripts/verify_phase5e2b11_frozen_acceptance.py",
     "scripts/verify_phase5e2b12a_acceptance_gate.py",
     "scripts/verify_phase5e2b12a_integration_contracts.py",
