@@ -986,6 +986,7 @@ def test_phase5e_ci_permissions_and_isolation_are_enforced() -> None:
     assert "any(manifest[\"finding_counts\"].values())" in text
     assert 'value.get("report_sha256", sys.argv[2])' in text
     assert 'value.get("test_counts", {}).get(sys.argv[2], 0)' in text
+    assert "\n          PY\n          done\n          set +e\n" in text
     assert text.count("feature/phase5e2b12a-acceptance-closeout") >= 1
 
 

@@ -785,6 +785,7 @@ jobs:
           except (OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError):
               print(f"{runtime_id} protected audit finding ids: unavailable")
           PY
+          done
           set +e
           sudo "$RUNNER_TEMP/phase5e-audit-venv-cp311/bin/python" -I \
             "$GITHUB_WORKSPACE/_control/scripts/verify_phase5e_audit_runtime_matrix.py" \
