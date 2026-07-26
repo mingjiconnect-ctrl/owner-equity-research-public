@@ -1997,6 +1997,22 @@ def test_base_owned_gate_replays_exact_remote_ci_and_audit_evidence(
         implementation_merge=base,
         monkeypatch=monkeypatch,
     )
+    prior_api = acceptance_gate._api_json
+
+    def app_shaped_api(url: str, token: str) -> dict[str, Any]:
+        payload = json.loads(json.dumps(prior_api(url, token)))
+        if url == f"https://api.github.com/repos/{REPOSITORY_SLUG}":
+            payload.pop("allow_merge_commit")
+            payload.pop("allow_squash_merge")
+            payload.pop("allow_rebase_merge")
+        return payload
+
+    monkeypatch.setattr(acceptance_gate, "_api_json", app_shaped_api)
+    monkeypatch.setattr(
+        acceptance_gate,
+        "_api_graphql_repository_merge_settings",
+        lambda repository_slug, token: (True, False, False),
+    )
     verify_acceptance(
         repository=repository,
         base=base,

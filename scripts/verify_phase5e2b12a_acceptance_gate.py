@@ -1281,6 +1281,78 @@ def _api_json(url: str, token: str) -> dict[str, Any]:
     return value
 
 
+def _api_graphql_repository_merge_settings(
+    repository_slug: str,
+    token: str,
+) -> tuple[bool, bool, bool]:
+    """Read the three repository merge-mode booleans through GitHub GraphQL."""
+
+    if repository_slug.count("/") != 1:
+        raise SystemExit("repository slug is not canonical")
+    owner, name = repository_slug.split("/", 1)
+    if not owner or not name:
+        raise SystemExit("repository slug is not canonical")
+    payload = json.dumps(
+        {
+            "query": (
+                "query($owner:String!,$name:String!){"
+                "repository(owner:$owner,name:$name){"
+                "mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed"
+                "}}"
+            ),
+            "variables": {"name": name, "owner": owner},
+        },
+        allow_nan=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode()
+    request = urllib.request.Request(
+        "https://api.github.com/graphql",
+        data=payload,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "owner-research-phase5e2b12a-acceptance-gate",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.build_opener(_NoCredentialRedirect()).open(
+            request,
+            timeout=30,
+        ) as response:
+            value = json.load(response)
+    except urllib.error.HTTPError as exc:
+        if exc.code in {301, 302, 303, 307, 308}:
+            raise SystemExit("authenticated GitHub GraphQL response redirected") from exc
+        raise
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"data"}
+        or not isinstance(value.get("data"), dict)
+        or set(value["data"]) != {"repository"}
+        or not isinstance(value["data"].get("repository"), dict)
+    ):
+        raise SystemExit("GitHub GraphQL merge-policy response is malformed")
+    repository = value["data"]["repository"]
+    expected = {
+        "mergeCommitAllowed",
+        "squashMergeAllowed",
+        "rebaseMergeAllowed",
+    }
+    if set(repository) != expected or any(
+        type(repository[field]) is not bool for field in expected
+    ):
+        raise SystemExit("GitHub GraphQL merge-policy response is malformed")
+    return (
+        repository["mergeCommitAllowed"],
+        repository["squashMergeAllowed"],
+        repository["rebaseMergeAllowed"],
+    )
+
+
 def _unauthenticated_app_http_status(app_slug: str) -> int:
     """Return the public-discovery status for one exact GitHub App slug."""
 
@@ -2074,6 +2146,20 @@ def _verify_remote_repository_governance(
         f"https://api.github.com/repos/{repository_slug}",
         token,
     )
+    rest_merge_settings = (
+        repository.get("allow_merge_commit"),
+        repository.get("allow_squash_merge"),
+        repository.get("allow_rebase_merge"),
+    )
+    if rest_merge_settings == (None, None, None):
+        merge_settings = _api_graphql_repository_merge_settings(
+            repository_slug,
+            token,
+        )
+    elif all(type(value) is bool for value in rest_merge_settings):
+        merge_settings = rest_merge_settings
+    else:
+        merge_settings = (None, None, None)
     _verify_public_artifact_policy(repository_slug, token, repository)
     protection = _api_json(
         f"https://api.github.com/repos/{repository_slug}/branches/main/protection",
@@ -2121,11 +2207,7 @@ def _verify_remote_repository_governance(
         "repository-origin": repository.get("fork") is False,
         "repository-default-branch": repository.get("default_branch") == "main",
         "repository-public": repository.get("private") is False,
-        "merge-commit-only": (
-            repository.get("allow_merge_commit") is True
-            and repository.get("allow_squash_merge") is False
-            and repository.get("allow_rebase_merge") is False
-        ),
+        "merge-commit-only": merge_settings == (True, False, False),
         "status-check-shape": isinstance(status_checks, dict),
         "status-check-strict": (
             isinstance(status_checks, dict) and status_checks.get("strict") is True
