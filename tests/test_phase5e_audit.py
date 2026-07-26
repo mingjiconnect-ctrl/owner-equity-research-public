@@ -414,6 +414,55 @@ def test_three_runtime_audit_aggregator_emits_only_sanitized_manifest(
     assert "nodeid_sha256" not in text
     assert "findings.json" not in text
 
+    blocked_junit = (
+        b'<testsuites name="pytest tests"><testsuite name="pytest" errors="0" '
+        b'failures="1" skipped="0" tests="1" time="0.001" '
+        b'timestamp="2026-07-18T00:00:00+00:00" hostname="audit">'
+        b'<testcase classname="tests.test_one" name="test_one" time="0.001">'
+        b'<properties><property name="phase5e_nodeid" '
+        b'value="tests/test_one.py::test_one"/></properties>'
+        b'<failure message="redacted" type="AssertionError">private trace</failure>'
+        b"</testcase></testsuite></testsuites>"
+    )
+    blocked_evidence = {
+        runtime_id: blocked_junit for runtime_id in ("cp311", "cp312", "cp313")
+    }
+
+    def blocked_private_file(path: Path, *, maximum_bytes: int) -> bytes:
+        raw = blocked_evidence[path.parent.name]
+        assert len(raw) <= maximum_bytes
+        return raw
+
+    monkeypatch.setattr(runtime_matrix, "_private_file", blocked_private_file)
+    emergency_output = tmp_path / "phase5e-emergency-audit.json"
+    runtime_matrix._write_emergency_manifest(
+        output=emergency_output,
+        reviewed_commit="a" * 40,
+        ci_run_ids=("123",),
+        error=ValueError("JUnit contains a failure or skip"),
+        runtime_roots={
+            runtime_id: tmp_path / runtime_id
+            for runtime_id in ("cp311", "cp312", "cp313")
+        },
+    )
+    emergency = json.loads(emergency_output.read_text(encoding="utf-8"))
+    assert emergency["error_code"] == "protected_runtime_junit_blocked"
+    assert emergency["finding_counts"] == {"P0": 1, "P1": 0, "P2": 0, "P3": 0}
+    assert emergency["runtime_diagnostics"] == [
+        {
+            "runtime_id": runtime_id,
+            "failed_tests": 1,
+            "skipped_tests": 0,
+            "blocked_test_nodeids": [
+                {"nodeid": "tests/test_one.py::test_one", "status": "failed"}
+            ],
+        }
+        for runtime_id in ("cp311", "cp312", "cp313")
+    ]
+    serialized = emergency_output.read_text(encoding="utf-8")
+    assert "private trace" not in serialized
+    assert "redacted" not in serialized
+
 
 def test_three_runtime_audit_oracle_rejects_hidden_junit_children() -> None:
     nodeids = ("tests/test_one.py::test_one",)

@@ -243,6 +243,116 @@ def _strict_junit(raw: bytes, expected_nodeids: tuple[str, ...]) -> dict[str, in
     }
 
 
+def _blocked_junit_diagnostics(
+    runtime_roots: dict[str, Path],
+) -> tuple[dict[str, Any], ...]:
+    """Extract only public test identities from otherwise valid blocked JUnit.
+
+    The protected controller deliberately withholds assertion text, stdout, paths outside the
+    repository, and raw evidence.  Test node ids are already part of the public repository and are
+    sufficient to make a failed audit actionable without weakening the zero-finding gate.
+    """
+
+    diagnostics: list[dict[str, Any]] = []
+    for runtime_id in sorted(runtime_roots):
+        raw = _private_file(
+            runtime_roots[runtime_id] / "phase5e-independent.xml",
+            maximum_bytes=_PRIVATE_LIMITS["phase5e-independent.xml"],
+        )
+        root = ET.fromstring(raw)
+        if root.tag != "testsuites" or root.attrib != {"name": "pytest tests"}:
+            raise ValueError("blocked JUnit root shape is open")
+        suites = tuple(root)
+        if len(suites) != 1 or suites[0].tag != "testsuite":
+            raise ValueError("blocked JUnit must contain exactly one suite")
+        suite = suites[0]
+        expected_suite_keys = {
+            "name",
+            "errors",
+            "failures",
+            "skipped",
+            "tests",
+            "time",
+            "timestamp",
+            "hostname",
+        }
+        if set(suite.attrib) != expected_suite_keys or suite.attrib["name"] != "pytest":
+            raise ValueError("blocked JUnit suite shape is open")
+        for key in ("tests", "errors", "failures", "skipped"):
+            value = suite.attrib[key]
+            if not value.isascii() or not value.isdigit() or str(int(value)) != value:
+                raise ValueError("blocked JUnit count is noncanonical")
+        failed_count = int(suite.attrib["errors"]) + int(suite.attrib["failures"])
+        skipped_count = int(suite.attrib["skipped"])
+        cases = tuple(suite)
+        if (
+            any(child.tag != "testcase" for child in cases)
+            or len(cases) != int(suite.attrib["tests"])
+        ):
+            raise ValueError("blocked JUnit testcase count does not reconcile")
+        blocked: list[dict[str, str]] = []
+        observed_failed = 0
+        observed_skipped = 0
+        for case in cases:
+            if set(case.attrib) != {"classname", "name", "time"}:
+                raise ValueError("blocked JUnit testcase attribute shape is open")
+            children = tuple(case)
+            if not children or children[0].tag != "properties" or children[0].attrib:
+                raise ValueError("blocked JUnit testcase properties are malformed")
+            properties = tuple(children[0])
+            if len(properties) != 1:
+                raise ValueError("blocked JUnit testcase does not bind one node id")
+            item = properties[0]
+            nodeid = item.attrib.get("value")
+            if (
+                item.tag != "property"
+                or set(item.attrib) != {"name", "value"}
+                or item.attrib["name"] != "phase5e_nodeid"
+                or not isinstance(nodeid, str)
+                or not nodeid.startswith("tests/")
+                or "::" not in nodeid
+                or len(nodeid) > 512
+                or any(ord(character) < 32 for character in nodeid)
+                or tuple(item)
+            ):
+                raise ValueError("blocked JUnit testcase node id is malformed")
+            outcomes = children[1:]
+            if len(outcomes) > 1:
+                raise ValueError("blocked JUnit testcase has multiple outcomes")
+            if not outcomes:
+                continue
+            outcome = outcomes[0]
+            if (
+                outcome.tag not in {"failure", "error", "skipped"}
+                or not set(outcome.attrib).issubset({"message", "type"})
+                or tuple(outcome)
+            ):
+                raise ValueError("blocked JUnit testcase outcome shape is open")
+            status = "skipped" if outcome.tag == "skipped" else "failed"
+            if status == "skipped":
+                observed_skipped += 1
+            else:
+                observed_failed += 1
+            blocked.append({"nodeid": nodeid, "status": status})
+        if (
+            observed_failed != failed_count
+            or observed_skipped != skipped_count
+            or len({item["nodeid"] for item in blocked}) != len(blocked)
+        ):
+            raise ValueError("blocked JUnit outcomes do not reconcile")
+        diagnostics.append(
+            {
+                "runtime_id": runtime_id,
+                "failed_tests": failed_count,
+                "skipped_tests": skipped_count,
+                "blocked_test_nodeids": sorted(
+                    blocked, key=lambda item: (item["nodeid"], item["status"])
+                ),
+            }
+        )
+    return tuple(diagnostics)
+
+
 def _canonical_utc(value: object, *, label: str) -> datetime:
     if not isinstance(value, str) or not value.endswith("Z"):
         raise ValueError(f"{label} is not canonical UTC")
@@ -594,10 +704,23 @@ def aggregate(
 
 
 def _write_emergency_manifest(
-    *, output: Path, reviewed_commit: str, ci_run_ids: tuple[str, ...], error: Exception
+    *,
+    output: Path,
+    reviewed_commit: str,
+    ci_run_ids: tuple[str, ...],
+    error: Exception,
+    runtime_roots: dict[str, Path],
 ) -> None:
     """Persist a sanitized P0 marker when private aggregation cannot complete."""
 
+    error_code = "protected_runtime_aggregation_failed"
+    runtime_diagnostics: tuple[dict[str, Any], ...] = ()
+    if isinstance(error, ValueError) and str(error) == "JUnit contains a failure or skip":
+        error_code = "protected_runtime_junit_blocked"
+        try:
+            runtime_diagnostics = _blocked_junit_diagnostics(runtime_roots)
+        except (OSError, ValueError, ET.ParseError):
+            error_code = "protected_runtime_junit_diagnostics_failed"
     payload = {
         "schema_version": "1.0.0",
         "status": "blocked",
@@ -605,10 +728,11 @@ def _write_emergency_manifest(
         "reviewed_commit": reviewed_commit if _GIT_OID.fullmatch(reviewed_commit) else None,
         "ci_run_ids": list(ci_run_ids),
         "finding_counts": {"P0": 1, "P1": 0, "P2": 0, "P3": 0},
-        "error_code": "protected_runtime_aggregation_failed",
+        "error_code": error_code,
         "error_fingerprint": hashlib.sha256(
             f"{type(error).__name__}:{error}".encode("utf-8", errors="replace")
         ).hexdigest(),
+        "runtime_diagnostics": list(runtime_diagnostics),
     }
     raw = (json.dumps(payload, allow_nan=False, indent=2, sort_keys=True) + "\n").encode()
     _write_exclusive(output, raw)
@@ -646,6 +770,7 @@ def main() -> int:
                 reviewed_commit=args.reviewed_commit,
                 ci_run_ids=ci_run_ids,
                 error=exc,
+                runtime_roots=roots,
             )
         except OSError:
             pass
