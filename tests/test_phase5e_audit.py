@@ -921,6 +921,9 @@ def test_phase5e_ci_permissions_and_isolation_are_enforced() -> None:
     git_shim = (ROOT / "scripts/phase5e_kernel_git_shim.sh").read_text(
         encoding="utf-8"
     )
+    successor_tests = (ROOT / "tests/test_phase5e_successor_gate.py").read_text(
+        encoding="utf-8"
+    )
     assert (
         'chmod -R a-w "$control_repo" "$candidate_repo" "$kernel_interface" "$venv"'
         in launcher
@@ -941,6 +944,8 @@ def test_phase5e_ci_permissions_and_isolation_are_enforced() -> None:
         in candidate_executor
     )
     assert 'exec /usr/bin/git -c safe.directory=/work "$@"' in git_shim
+    assert 'for copied_path in (repository, *repository.rglob("*"))' in successor_tests
+    assert "stat.S_IWUSR" in successor_tests
     assert "/audit/control" not in candidate_executor
     assert "run_phase5e_audit.py" in launcher
     for protected_oracle in (
