@@ -1536,14 +1536,21 @@ def _api_paginated_collection(
     collection_key: str,
     per_page: int,
     identity_key: str | None = None,
+    expected_metadata: dict[str, object] | None = None,
 ) -> tuple[dict[str, Any], ...]:
     items: list[dict[str, Any]] = []
     seen_identities: set[int] = set()
     expected_total: int | None = None
+    metadata = expected_metadata or {}
+    expected_keys = {"total_count", collection_key, *metadata}
     separator = "&" if "?" in url else "?"
     for page in range(1, 101):
         payload = _api_json(f"{url}{separator}per_page={per_page}&page={page}", token)
-        if not isinstance(payload, dict) or set(payload) != {"total_count", collection_key}:
+        if (
+            not isinstance(payload, dict)
+            or set(payload) != expected_keys
+            or any(payload.get(key) != value for key, value in metadata.items())
+        ):
             raise SystemExit(f"GitHub {collection_key} page has an open or malformed shape")
         total_count = payload.get("total_count")
         batch = payload.get(collection_key)
@@ -1691,6 +1698,9 @@ def _verify_single_repository_app_authority(
         collection_key="repositories",
         per_page=100,
         identity_key="id",
+        expected_metadata={
+            "repository_selection": expected_repository_selection,
+        },
     )
     if len(repositories) != 1:
         raise SystemExit(f"{label} App must be installed on exactly one repository")
