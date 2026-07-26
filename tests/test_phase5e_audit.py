@@ -872,7 +872,10 @@ def test_phase5e2b12a_repository_wide_changed_path_boundary_is_closed() -> None:
     }
     assert (
         PUBLIC_CANONICAL_MIGRATION_OPTIONAL_CHANGED_PATHS
-        == {"docs/public-phase5e2b12a-revalidation.json"}
+        == {
+            "docs/public-phase5e2b12a-revalidation.json",
+            "scripts/phase5e_pid1_reaper.py",
+        }
     )
     assert (
         "scripts/phase5e_kernel_git_shim.sh"
