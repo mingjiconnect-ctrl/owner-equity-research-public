@@ -1575,12 +1575,14 @@ def test_acceptance_workflow_is_base_owned_read_only_and_immutably_pinned() -> N
     assert text.count("skip-token-revoke: true") == 5
     assert text.count("--hard-revoke-current-installation-token") == 5
     assert "https://api.github.com/installation/token" not in text
-    assert "repositories:" not in text
+    assert text.count("repositories: owner-equity-research-public") == 4
+    assert text.count("repositories: owner-valuation-kernel") == 1
     assert "source-artifact-audience-preflight:" not in text
     assert "kernel-release-interface:" not in text
 
     external_job = job_block("external-gate-author-authority")
     assert external_job.count("actions/create-github-app-token@") == 1
+    assert "repositories: owner-equity-research-public" in external_job
     assert "permission-contents: read" in external_job
     assert "permission-pull-requests: read" in external_job
     assert "permission-contents: write" not in external_job
@@ -1625,7 +1627,7 @@ def test_acceptance_workflow_is_base_owned_read_only_and_immutably_pinned() -> N
         "id: audit-kernel-reader-authority-token",
         1,
     )[1].split("- name: Reverify exact kernel-reader authority", 1)[0]
-    assert "repositories:" not in audit_full_token
+    assert "repositories: owner-valuation-kernel" in audit_full_token
     assert "phase5e-kernel-interface-${{ github.run_id }}" not in text
     assert "Download bounded kernel interface" not in text
     assert "Build the bounded kernel interface in the consuming audit job" in text
@@ -1636,10 +1638,17 @@ def test_acceptance_workflow_is_base_owned_read_only_and_immutably_pinned() -> N
     assert "environment: phase5e-private-kernel-readonly" in text
     assert "PHASE5E_CONTROLLER_PRIVATE_KEY" in text
     assert "PHASE5E_CONTROLLER_APP_ID" in text
-    assert "permission-statuses: write" in text
-    assert text.count("permission-environments: read") == 3
-    assert text.count("permission-secrets: read") == 3
-    assert text.count("permission-variables: read") == 3
+    controller_token_blocks = [
+        part.split("skip-token-revoke: true", 1)[0]
+        for part in text.split("id: controller-token")[1:]
+    ]
+    merged_controller_block = text.split(
+        "id: merged-controller-authority-token", 1
+    )[1].split("skip-token-revoke: true", 1)[0]
+    assert len(controller_token_blocks) == 2
+    for token_block in (*controller_token_blocks, merged_controller_block):
+        assert "repositories: owner-equity-research-public" in token_block
+        assert "permission-" not in token_block
     assert "--verify-remote-governance-only" in text
     assert "phase5e/controller-structure" in text
     assert "phase5e/controller-readonly-audit" in text
@@ -1672,8 +1681,7 @@ def test_acceptance_workflow_is_base_owned_read_only_and_immutably_pinned() -> N
 
     merged_job = job_block("merged-main-acceptance-evidence")
     assert merged_job.count("actions/create-github-app-token@") == 1
-    assert "permission-statuses: read" in merged_job
-    assert "permission-statuses: write" not in merged_job
+    assert "repositories: owner-equity-research-public" in merged_job
     assert merged_job.index(
         "Reverify controller global scope before merged-main replay"
     ) < merged_job.index(
