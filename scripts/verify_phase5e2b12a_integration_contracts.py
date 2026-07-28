@@ -308,6 +308,8 @@ def main() -> int:
     )
     if _public_mode():
         expected_changed_paths = set(PUBLIC_CANONICAL_MIGRATION_CHANGED_PATHS)
+        if accepted:
+            expected_changed_paths.add(ACCEPTANCE_CLOSEOUT)
         permitted_changed_paths = (
             expected_changed_paths | PUBLIC_CANONICAL_MIGRATION_OPTIONAL_CHANGED_PATHS
         )
