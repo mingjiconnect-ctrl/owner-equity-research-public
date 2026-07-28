@@ -560,13 +560,19 @@ CLOSEOUT_PATH = "docs/phase5e2b12a-acceptance-closeout.json"
 STATUS_PATH = "docs/phase-status.json"
 PUBLIC_REVALIDATION_PATH = "docs/public-phase5e2b12a-revalidation.json"
 PUBLIC_REVALIDATION_BRANCH = "fix/phase5e2b12a-r2-coverage-claim-parity"
-PUBLIC_REVALIDATION_PAYLOAD = {
+PUBLIC_REVALIDATION_LEGACY_PAYLOAD = {
     "kind": "public_canonical_audit_revalidation",
     "phase": "Phase 5E-2B.1-2A",
     "public_repository": "mingjiconnect-ctrl/owner-equity-research-public",
     "reason_code": "public-controller-bootstrap-revalidation",
     "release_tag": None,
     "schema_version": "1.0.0",
+}
+PUBLIC_REVALIDATION_PAYLOAD = {
+    **PUBLIC_REVALIDATION_LEGACY_PAYLOAD,
+    "generation": 2,
+    "prior_reason_code": "public-controller-bootstrap-revalidation",
+    "reason_code": "pull-request-target-run-metadata-revalidation",
 }
 MUTABLE_GOVERNANCE_PATHS = frozenset(
     {
@@ -3892,14 +3898,23 @@ def verify_non_acceptance_pr(
         ):
             raise SystemExit("pending 2A base governance state is malformed")
         if head_ref == PUBLIC_REVALIDATION_BRANCH:
+            base_marker = (
+                _read_json(repository, base, PUBLIC_REVALIDATION_PATH)
+                if _path_exists(repository, base, PUBLIC_REVALIDATION_PATH)
+                else None
+            )
+            expected_marker_change = (
+                (("A", PUBLIC_REVALIDATION_PATH),)
+                if base_marker is None
+                else (("M", PUBLIC_REVALIDATION_PATH),)
+            )
             if (
                 not require_remote
                 or token is None
                 or controller_app_id is None
-                or _path_exists(repository, base, PUBLIC_REVALIDATION_PATH)
+                or base_marker not in (None, PUBLIC_REVALIDATION_LEGACY_PAYLOAD)
                 or _commit_parents(repository, head) != (base,)
-                or _diff_entries(repository, base, head)
-                != (("A", PUBLIC_REVALIDATION_PATH),)
+                or _diff_entries(repository, base, head) != expected_marker_change
                 or _mode(repository, head, PUBLIC_REVALIDATION_PATH) != "100644"
                 or _read_json(repository, head, PUBLIC_REVALIDATION_PATH)
                 != PUBLIC_REVALIDATION_PAYLOAD

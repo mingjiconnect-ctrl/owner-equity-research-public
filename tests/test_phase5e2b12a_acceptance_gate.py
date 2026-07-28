@@ -1903,6 +1903,45 @@ def test_pending_acceptance_rejects_every_non_acceptance_pr(
         controller_app_id=98765,
     )
 
+    refresh_scope = tmp_path / "revalidation-refresh"
+    refresh_scope.mkdir()
+    repository, base, head_ref = _ordinary_repository(
+        refresh_scope,
+        head_ref=acceptance_gate.PUBLIC_REVALIDATION_BRANCH,
+    )
+    marker = repository / acceptance_gate.PUBLIC_REVALIDATION_PATH
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(
+        json.dumps(
+            acceptance_gate.PUBLIC_REVALIDATION_LEGACY_PAYLOAD,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    base = _commit(repository, "legacy public audit revalidation")
+    marker.write_text(
+        json.dumps(
+            acceptance_gate.PUBLIC_REVALIDATION_PAYLOAD,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    head = _commit(repository, "refresh public audit revalidation")
+    verify_non_acceptance_pr(
+        repository=repository,
+        base=base,
+        head=head,
+        event=_event(base=base, head=head, head_ref=head_ref),
+        repository_slug=REPOSITORY_SLUG,
+        token="controller-token",
+        require_remote=True,
+        controller_app_id=98765,
+    )
+
 
 @pytest.mark.parametrize("protected_path", sorted(PENDING_ACCEPTANCE_TRUST_ROOT))
 def test_non_acceptance_pr_cannot_change_the_frozen_trust_root(
