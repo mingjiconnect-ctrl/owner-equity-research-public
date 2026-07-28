@@ -1215,8 +1215,8 @@ def _remote_evidence(  # noqa: F811
         if url.endswith("/actions/runs/1001"):
             payload: dict[str, Any] = {
                 "id": 1001,
-                "head_sha": root_commit,
-                "head_branch": "main",
+                "head_sha": implementation_head,
+                "head_branch": implementation_ref,
                 "event": "pull_request_target",
                 "conclusion": "success",
                 "name": "phase5e2b12a-base-owned-acceptance-gate",
@@ -1224,7 +1224,7 @@ def _remote_evidence(  # noqa: F811
                 "workflow_id": 456,
                 "repository": {"full_name": REPOSITORY_SLUG},
                 "head_repository": {"full_name": REPOSITORY_SLUG},
-                "pull_requests": [association],
+                "pull_requests": [],
             }
             if run_mutation:
                 payload[run_mutation[0]] = run_mutation[1]
@@ -3316,16 +3316,8 @@ def test_merged_main_replays_acceptance_pr_gate_and_main_ci_provenance(
                 "merged": True,
                 "merged_at": "2026-07-16T01:00:00Z",
                 "merge_commit_sha": merged_main,
-                "base": {
-                    "sha": implementation_merge,
-                    "ref": "main",
-                    "repo": {"full_name": REPOSITORY_SLUG},
-                },
-                "head": {
-                    "sha": acceptance_head,
-                    "ref": "feature/phase5e2b12a-acceptance-closeout",
-                    "repo": {"full_name": REPOSITORY_SLUG},
-                },
+                "base": successful_association["base"],
+                "head": successful_association["head"],
             }
         if url.endswith("/actions/runs/2000"):
             return {
@@ -3344,8 +3336,8 @@ def test_merged_main_replays_acceptance_pr_gate_and_main_ci_provenance(
         if url.endswith("/actions/runs/1999"):
             return {
                 "id": 1999,
-                "head_sha": implementation_merge,
-                "head_branch": "main",
+                "head_sha": acceptance_head,
+                "head_branch": "feature/phase5e2b12a-acceptance-closeout",
                 "event": "pull_request_target",
                 "conclusion": "success",
                 "name": "phase5e2b12a-base-owned-acceptance-gate",
@@ -3353,7 +3345,7 @@ def test_merged_main_replays_acceptance_pr_gate_and_main_ci_provenance(
                 "workflow_id": 456,
                 "repository": {"full_name": REPOSITORY_SLUG},
                 "head_repository": {"full_name": REPOSITORY_SLUG},
-                "pull_requests": [successful_association],
+                "pull_requests": [],
             }
         if url.endswith("/actions/workflows/456"):
             return {
@@ -3373,22 +3365,22 @@ def test_merged_main_replays_acceptance_pr_gate_and_main_ci_provenance(
             workflow_runs = [
                 {
                     "id": 1999,
-                    "head_sha": implementation_merge,
+                    "head_sha": acceptance_head,
                     "conclusion": "success",
                     "name": "phase5e2b12a-base-owned-acceptance-gate",
                     "path": ".github/workflows/phase5e2b12a-acceptance-gate.yml",
-                    "pull_requests": [successful_association],
+                    "pull_requests": [],
                 }
             ]
             if association_attack is not None:
                 workflow_runs.append(
                     {
                         "id": 2001,
-                        "head_sha": implementation_merge,
+                        "head_sha": acceptance_head,
                         "conclusion": "failure",
                         "name": "phase5e2b12a-base-owned-acceptance-gate",
                         "path": ".github/workflows/phase5e2b12a-acceptance-gate.yml",
-                        "pull_requests": [acceptance_association],
+                        "pull_requests": [],
                     }
                 )
             return {
@@ -3422,7 +3414,7 @@ def test_merged_main_replays_acceptance_pr_gate_and_main_ci_provenance(
             controller_app_id=98765,
         )
     else:
-        with pytest.raises(SystemExit, match="workflow.*run|pagination"):
+        with pytest.raises(SystemExit, match="identity|workflow.*run|pagination"):
             acceptance_gate.verify_merged_main_acceptance(
                 repository=repository,
                 merged_main=merged_main,

@@ -2541,6 +2541,11 @@ def _verify_run(
     run_pull_requests = run.get("pull_requests")
     if expected_pull_request_number is None:
         run_association_matches = run_pull_requests in (None, [])
+    elif expected_event == "pull_request_target" and run_pull_requests in (None, []):
+        # GitHub's pull_request_target run payload can omit pull_requests even though the
+        # triggering pull request remains available through the Pull Request API.  In that
+        # documented runtime shape, the exact PR API identity above is the association proof.
+        run_association_matches = pull_request_identity_matches
     else:
         run_association_matches = (
             expected_pull_request_base is not None
@@ -2762,7 +2767,7 @@ def _verify_merged_main_2a_acceptance(
             f"https://api.github.com/repos/{repository_slug}/actions/workflows/"
             "phase5e2b12a-acceptance-gate.yml/runs"
             "?event=pull_request_target&status=completed"
-            f"&head_sha={implementation_merge}"
+            f"&head_sha={acceptance_head}"
         ),
         key="workflow_runs",
         token=token,
@@ -2771,7 +2776,7 @@ def _verify_merged_main_2a_acceptance(
     matching = [
         run
         for run in runs
-        if run.get("head_sha") == implementation_merge
+        if run.get("head_sha") == acceptance_head
         and run.get("name") == "phase5e2b12a-base-owned-acceptance-gate"
         and run.get("path") == ".github/workflows/phase5e2b12a-acceptance-gate.yml"
     ]
@@ -2783,9 +2788,9 @@ def _verify_merged_main_2a_acceptance(
         repository_slug=repository_slug,
         token=token,
         run_id=str(matching[0]["id"]),
-        expected_head=implementation_merge,
+        expected_head=acceptance_head,
         expected_event="pull_request_target",
-        expected_head_branch="main",
+        expected_head_branch="feature/phase5e2b12a-acceptance-closeout",
         expected_pull_request_number=acceptance_number,
         expected_pull_request_head=acceptance_head,
         expected_pull_request_head_ref="feature/phase5e2b12a-acceptance-closeout",
@@ -2885,7 +2890,7 @@ def _verify_merged_main_2b_acceptance(
             f"https://api.github.com/repos/{repository_slug}/actions/workflows/"
             "phase5e2b12a-acceptance-gate.yml/runs"
             "?event=pull_request_target&status=completed"
-            f"&head_sha={implementation_merge}"
+            f"&head_sha={acceptance_head}"
         ),
         key="workflow_runs",
         token=token,
@@ -2893,7 +2898,7 @@ def _verify_merged_main_2b_acceptance(
     matching = [
         run
         for run in runs
-        if run.get("head_sha") == implementation_merge
+        if run.get("head_sha") == acceptance_head
         and run.get("name") == "phase5e2b12a-base-owned-acceptance-gate"
         and run.get("path") == ".github/workflows/phase5e2b12a-acceptance-gate.yml"
     ]
@@ -2903,9 +2908,9 @@ def _verify_merged_main_2b_acceptance(
         repository_slug=repository_slug,
         token=token,
         run_id=str(matching[0]["id"]),
-        expected_head=implementation_merge,
+        expected_head=acceptance_head,
         expected_event="pull_request_target",
-        expected_head_branch="main",
+        expected_head_branch=acceptance_branch,
         expected_pull_request_number=acceptance_number,
         expected_pull_request_head=acceptance_head,
         expected_pull_request_head_ref=acceptance_branch,
@@ -3018,7 +3023,7 @@ def _verify_merged_main_generic_acceptance(
             f"https://api.github.com/repos/{repository_slug}/actions/workflows/"
             "phase5e2b12a-acceptance-gate.yml/runs"
             "?event=pull_request_target&status=completed"
-            f"&head_sha={implementation_merge}"
+            f"&head_sha={acceptance_head}"
         ),
         key="workflow_runs",
         token=token,
@@ -3026,7 +3031,7 @@ def _verify_merged_main_generic_acceptance(
     matching = [
         run
         for run in runs
-        if run.get("head_sha") == implementation_merge
+        if run.get("head_sha") == acceptance_head
         and run.get("name") == "phase5e2b12a-base-owned-acceptance-gate"
         and run.get("path") == ".github/workflows/phase5e2b12a-acceptance-gate.yml"
         and run.get("conclusion") == "success"
@@ -3039,9 +3044,9 @@ def _verify_merged_main_generic_acceptance(
         repository_slug=repository_slug,
         token=token,
         run_id=str(matching[0]["id"]),
-        expected_head=implementation_merge,
+        expected_head=acceptance_head,
         expected_event="pull_request_target",
-        expected_head_branch="main",
+        expected_head_branch=acceptance_branch,
         expected_pull_request_number=int(closeout["acceptance_pull_request"]),
         expected_pull_request_head=acceptance_head,
         expected_pull_request_head_ref=acceptance_branch,
@@ -3471,9 +3476,9 @@ def _verify_remote_evidence(
         repository_slug=repository_slug,
         token=token,
         run_id=str(closeout["pr_ci_run_id"]),
-        expected_head=implementation_base,
+        expected_head=implementation_head,
         expected_event="pull_request_target",
-        expected_head_branch="main",
+        expected_head_branch=str(pull_request["head"]["ref"]),
         expected_pull_request_number=int(closeout["implementation_pull_request"]),
         expected_pull_request_head=implementation_head,
         expected_pull_request_head_ref=str(pull_request["head"]["ref"]),
