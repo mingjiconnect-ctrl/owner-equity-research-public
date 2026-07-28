@@ -3131,6 +3131,7 @@ def test_hard_revoke_requires_delete_204_then_same_token_get_401(
     accepted: bool,
 ) -> None:
     calls: list[tuple[str, str]] = []
+    sleeps: list[float] = []
 
     class Response:
         def __init__(self, status: int) -> None:
@@ -3143,10 +3144,20 @@ def test_hard_revoke_requires_delete_204_then_same_token_get_401(
             return None
 
     class Opener:
+        probe_calls = 0
+
         def open(self, request: Any, timeout: int) -> Any:
             assert timeout == 30
             calls.append((request.get_method(), request.headers["Authorization"]))
-            status = delete_status if request.get_method() == "DELETE" else probe_status
+            if request.get_method() == "DELETE":
+                status = delete_status
+            else:
+                self.probe_calls += 1
+                status = (
+                    200
+                    if accepted and probe_status == 401 and self.probe_calls == 1
+                    else probe_status
+                )
             if status >= 300:
                 raise urllib.error.HTTPError(
                     request.full_url,
@@ -3158,6 +3169,7 @@ def test_hard_revoke_requires_delete_204_then_same_token_get_401(
             return Response(status)
 
     monkeypatch.setattr(urllib.request, "build_opener", lambda *args: Opener())
+    monkeypatch.setattr(acceptance_gate.time, "sleep", sleeps.append)
     if accepted:
         acceptance_gate._hard_revoke_installation_token("secret-token")
     else:
@@ -3165,8 +3177,22 @@ def test_hard_revoke_requires_delete_204_then_same_token_get_401(
             acceptance_gate._hard_revoke_installation_token("secret-token")
     expected_calls = [("DELETE", "Bearer secret-token")]
     if delete_status == 204:
-        expected_calls.append(("GET", "Bearer secret-token"))
+        if accepted:
+            probe_count = 2
+        elif probe_status == 200:
+            probe_count = len(
+                acceptance_gate._INSTALLATION_TOKEN_REVOCATION_PROBE_DELAYS_SECONDS
+            )
+        else:
+            probe_count = 1
+        expected_calls.extend([("GET", "Bearer secret-token")] * probe_count)
     assert calls == expected_calls
+    if accepted:
+        assert sleeps == [1.0]
+    elif delete_status == 204 and probe_status == 200:
+        assert sleeps == [1.0, 1.0, 2.0, 4.0, 4.0]
+    else:
+        assert sleeps == []
 
 
 def test_controller_status_must_bind_the_exact_head_sha(

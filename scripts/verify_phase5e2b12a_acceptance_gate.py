@@ -17,6 +17,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -1419,8 +1420,11 @@ class _NoCredentialRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+_INSTALLATION_TOKEN_REVOCATION_PROBE_DELAYS_SECONDS = (0.0, 1.0, 1.0, 2.0, 4.0, 4.0)
+
+
 def _hard_revoke_installation_token(token: str) -> None:
-    """Revoke one App installation token and prove the same token is unusable."""
+    """Revoke one App installation token and prove the same token becomes unusable."""
 
     endpoint = "https://api.github.com/installation/token"
     headers = {
@@ -1443,13 +1447,20 @@ def _hard_revoke_installation_token(token: str) -> None:
         headers=headers,
         method="GET",
     )
-    try:
-        opener.open(probe, timeout=30)
-    except urllib.error.HTTPError as exc:
-        if exc.code == 401:
-            return
-        raise SystemExit("revoked installation token did not fail with HTTP 401") from exc
-    raise SystemExit("revoked installation token remained usable")
+    for delay_seconds in _INSTALLATION_TOKEN_REVOCATION_PROBE_DELAYS_SECONDS:
+        if delay_seconds:
+            time.sleep(delay_seconds)
+        try:
+            with opener.open(probe, timeout=30) as response:
+                if response.status != 200:
+                    raise SystemExit(
+                        "revoked installation token probe returned an unexpected success status"
+                    )
+        except urllib.error.HTTPError as exc:
+            if exc.code == 401:
+                return
+            raise SystemExit("revoked installation token did not fail with HTTP 401") from exc
+    raise SystemExit("revoked installation token remained usable after bounded propagation probes")
 
 
 def _api_bytes(url: str, token: str) -> bytes:
