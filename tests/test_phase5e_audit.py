@@ -128,12 +128,6 @@ def test_control_oracle_launcher_and_runner_have_one_exact_fixed_inventory() -> 
         "scripts/public_bootstrap.py",
     } <= staged
     assert "scripts/verify_phase5e_candidate_import_surface.py" not in staged
-
-
-def test_control_oracle_root_is_traversable_but_remains_root_owned_and_read_only() -> None:
-    launcher = (ROOT / "scripts/launch_phase5e_readonly_audit.sh").read_text(
-        encoding="utf-8"
-    )
     assert 'install -d -m 0700 "$runtime/final"' in launcher
     assert 'install -d -m 0755 "$runtime/oracle"' in launcher
     assert 'install -d -m 0700 "$runtime/final" "$runtime/oracle"' not in launcher
