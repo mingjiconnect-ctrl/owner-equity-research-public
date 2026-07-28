@@ -45,7 +45,8 @@ if [[ -e "$runtime" ]]; then
   exit 2
 fi
 install -d -m 0700 "$runtime"
-install -d -m 0700 "$runtime/final" "$runtime/oracle"
+install -d -m 0700 "$runtime/final"
+install -d -m 0755 "$runtime/oracle"
 install -d -m 0755 -o 0 -g 0 "$runtime/candidate-scratch"
 install -d -m 0750 -o 65534 -g 65534 \
   "$runtime/candidate-scratch/home" \

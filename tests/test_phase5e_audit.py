@@ -130,6 +130,19 @@ def test_control_oracle_launcher_and_runner_have_one_exact_fixed_inventory() -> 
     assert "scripts/verify_phase5e_candidate_import_surface.py" not in staged
 
 
+def test_control_oracle_root_is_traversable_but_remains_root_owned_and_read_only() -> None:
+    launcher = (ROOT / "scripts/launch_phase5e_readonly_audit.sh").read_text(
+        encoding="utf-8"
+    )
+    assert 'install -d -m 0700 "$runtime/final"' in launcher
+    assert 'install -d -m 0755 "$runtime/oracle"' in launcher
+    assert 'install -d -m 0700 "$runtime/final" "$runtime/oracle"' not in launcher
+    assert 'chown -R root:root "$runtime/final" "$runtime/oracle"' in launcher
+    assert 'mount -o remount,ro,bind "$root/oracle"' in (
+        ROOT / "scripts/phase5e_candidate_exec.sh"
+    ).read_text(encoding="utf-8")
+
+
 def test_dynamic_successor_behavior_never_starts_after_structural_failure(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
