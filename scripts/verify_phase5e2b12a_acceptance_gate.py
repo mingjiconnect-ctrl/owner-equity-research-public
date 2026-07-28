@@ -561,7 +561,7 @@ CLOSEOUT_PATH = "docs/phase5e2b12a-acceptance-closeout.json"
 STATUS_PATH = "docs/phase-status.json"
 PUBLIC_REVALIDATION_PATH = "docs/public-phase5e2b12a-revalidation.json"
 PUBLIC_REVALIDATION_BRANCH = "fix/phase5e2b12a-r2-coverage-claim-parity"
-PUBLIC_REVALIDATION_LEGACY_PAYLOAD = {
+PUBLIC_REVALIDATION_ORIGINAL_PAYLOAD = {
     "kind": "public_canonical_audit_revalidation",
     "phase": "Phase 5E-2B.1-2A",
     "public_repository": "mingjiconnect-ctrl/owner-equity-research-public",
@@ -569,11 +569,17 @@ PUBLIC_REVALIDATION_LEGACY_PAYLOAD = {
     "release_tag": None,
     "schema_version": "1.0.0",
 }
-PUBLIC_REVALIDATION_PAYLOAD = {
-    **PUBLIC_REVALIDATION_LEGACY_PAYLOAD,
+PUBLIC_REVALIDATION_LEGACY_PAYLOAD = {
+    **PUBLIC_REVALIDATION_ORIGINAL_PAYLOAD,
     "generation": 2,
     "prior_reason_code": "public-controller-bootstrap-revalidation",
     "reason_code": "pull-request-target-run-metadata-revalidation",
+}
+PUBLIC_REVALIDATION_PAYLOAD = {
+    **PUBLIC_REVALIDATION_LEGACY_PAYLOAD,
+    "generation": 3,
+    "prior_reason_code": "pull-request-target-run-metadata-revalidation",
+    "reason_code": "acceptance-first-parent-topology-revalidation",
 }
 MUTABLE_GOVERNANCE_PATHS = frozenset(
     {
