@@ -736,6 +736,7 @@ def main() -> int:
                 "-C",
                 str(ROOT),
                 "log",
+                "--first-parent",
                 "--diff-filter=A",
                 "--format=%H",
                 "--",
