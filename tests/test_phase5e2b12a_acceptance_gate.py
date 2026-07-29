@@ -1963,6 +1963,45 @@ def test_pending_acceptance_rejects_every_non_acceptance_pr(
         controller_app_id=98765,
     )
 
+    generation8_bootstrap_scope = tmp_path / "revalidation-generation-8-bootstrap"
+    generation8_bootstrap_scope.mkdir()
+    repository, base, head_ref = _ordinary_repository(
+        generation8_bootstrap_scope,
+        head_ref=acceptance_gate.PUBLIC_REVALIDATION_BRANCH,
+    )
+    marker = repository / acceptance_gate.PUBLIC_REVALIDATION_PATH
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(
+        json.dumps(
+            generation6_payload,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    base = _commit(repository, "generation-6 bootstrap base")
+    marker.write_text(
+        json.dumps(
+            acceptance_gate.PUBLIC_REVALIDATION_PAYLOAD,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    head = _commit(repository, "generation-8 protected-controller bootstrap")
+    verify_non_acceptance_pr(
+        repository=repository,
+        base=base,
+        head=head,
+        event=_event(base=base, head=head, head_ref=head_ref),
+        repository_slug=REPOSITORY_SLUG,
+        token="controller-token",
+        require_remote=True,
+        controller_app_id=98765,
+    )
+
     generation7_payload = getattr(
         acceptance_gate,
         "PUBLIC_REVALIDATION_GENERATION7_PAYLOAD",

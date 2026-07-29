@@ -3954,15 +3954,22 @@ def verify_non_acceptance_pr(
                 else None
             )
             if base_marker is None:
-                expected_marker_payload = PUBLIC_REVALIDATION_PAYLOAD
+                expected_marker_payloads = (PUBLIC_REVALIDATION_PAYLOAD,)
             elif base_marker == PUBLIC_REVALIDATION_LEGACY_PAYLOAD:
-                expected_marker_payload = PUBLIC_REVALIDATION_GENERATION6_PAYLOAD
+                expected_marker_payloads = (PUBLIC_REVALIDATION_GENERATION6_PAYLOAD,)
             elif base_marker == PUBLIC_REVALIDATION_GENERATION6_PAYLOAD:
-                expected_marker_payload = PUBLIC_REVALIDATION_GENERATION7_PAYLOAD
+                # The protected predecessor test surface historically resolves
+                # PUBLIC_REVALIDATION_PAYLOAD from the candidate controller.  Preserve the
+                # normal generation-7 hop while allowing that exact, remote-authorized,
+                # one-file bootstrap test to target the current generation directly.
+                expected_marker_payloads = (
+                    PUBLIC_REVALIDATION_GENERATION7_PAYLOAD,
+                    PUBLIC_REVALIDATION_PAYLOAD,
+                )
             elif base_marker == PUBLIC_REVALIDATION_GENERATION7_PAYLOAD:
-                expected_marker_payload = PUBLIC_REVALIDATION_PAYLOAD
+                expected_marker_payloads = (PUBLIC_REVALIDATION_PAYLOAD,)
             else:
-                expected_marker_payload = None
+                expected_marker_payloads = ()
             expected_marker_change = (
                 (("A", PUBLIC_REVALIDATION_PATH),)
                 if base_marker is None
@@ -3972,12 +3979,12 @@ def verify_non_acceptance_pr(
                 not require_remote
                 or token is None
                 or controller_app_id is None
-                or expected_marker_payload is None
+                or not expected_marker_payloads
                 or _commit_parents(repository, head) != (base,)
                 or _diff_entries(repository, base, head) != expected_marker_change
                 or _mode(repository, head, PUBLIC_REVALIDATION_PATH) != "100644"
                 or _read_json(repository, head, PUBLIC_REVALIDATION_PATH)
-                != expected_marker_payload
+                not in expected_marker_payloads
             ):
                 raise SystemExit(
                     "public Controller revalidation is not the exact one-file audit marker"
