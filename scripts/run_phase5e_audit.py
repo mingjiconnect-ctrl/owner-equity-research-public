@@ -103,6 +103,7 @@ _PROFILE_RESOLUTION_FAILURE_PROFILE = AuditProfile(
 _JUNIT_FAILURE_TAGS = frozenset({"failure", "error", "skipped"})
 _NONNEGATIVE_DECIMAL = re.compile(r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)?\Z")
 PHASE5E2B12A_ACCEPTANCE_CLOSEOUT_PATH = "docs/phase5e2b12a-acceptance-closeout.json"
+PHASE_STATUS_PATH = "docs/phase-status.json"
 PHASE5E2B12A_OPTIONAL_CHANGED_PATHS = {
     "docs/public-phase5e2b12a-revalidation.json",
 }
@@ -767,6 +768,26 @@ def _phase5e2b12a_changed_path_violations(
     if accepted:
         expected_paths.add(PHASE5E2B12A_ACCEPTANCE_CLOSEOUT_PATH)
         permitted_paths.add(PHASE5E2B12A_ACCEPTANCE_CLOSEOUT_PATH)
+    return (
+        tuple(sorted(changed_paths - permitted_paths)),
+        tuple(sorted(expected_paths - changed_paths)),
+    )
+
+
+def _phase5e2b12a_public_changed_path_violations(
+    changed_paths: set[str],
+    *,
+    accepted: bool = False,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    expected_paths = set(PUBLIC_CANONICAL_MIGRATION_CHANGED_PATHS)
+    permitted_paths = expected_paths | PUBLIC_CANONICAL_MIGRATION_OPTIONAL_CHANGED_PATHS
+    if accepted:
+        acceptance_paths = {
+            PHASE_STATUS_PATH,
+            PHASE5E2B12A_ACCEPTANCE_CLOSEOUT_PATH,
+        }
+        expected_paths.update(acceptance_paths)
+        permitted_paths.update(acceptance_paths)
     return (
         tuple(sorted(changed_paths - permitted_paths)),
         tuple(sorted(expected_paths - changed_paths)),
@@ -1718,19 +1739,11 @@ def main() -> int:
             and (repository / PHASE5E2B12A_ACCEPTANCE_CLOSEOUT_PATH).is_file()
         )
         if public_mode:
-            expected_public_paths = set(PUBLIC_CANONICAL_MIGRATION_CHANGED_PATHS)
-            permitted_public_paths = (
-                expected_public_paths
-                | PUBLIC_CANONICAL_MIGRATION_OPTIONAL_CHANGED_PATHS
-            )
-            if phase_accepted:
-                expected_public_paths.add(PHASE5E2B12A_ACCEPTANCE_CLOSEOUT_PATH)
-                permitted_public_paths.add(PHASE5E2B12A_ACCEPTANCE_CLOSEOUT_PATH)
-            unexpected_phase_paths = tuple(
-                sorted(phase_changed_files - permitted_public_paths)
-            )
-            missing_phase_paths = tuple(
-                sorted(expected_public_paths - phase_changed_files)
+            unexpected_phase_paths, missing_phase_paths = (
+                _phase5e2b12a_public_changed_path_violations(
+                    phase_changed_files,
+                    accepted=phase_accepted,
+                )
             )
         else:
             unexpected_phase_paths, missing_phase_paths = (

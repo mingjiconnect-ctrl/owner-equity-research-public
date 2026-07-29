@@ -504,6 +504,85 @@ def _tree(commit: str) -> str:
     ).strip()
 
 
+def _verify_phase5e2b12a_acceptance_topology(
+    acceptance_closeout: Path,
+) -> None:
+    relative_closeout = str(acceptance_closeout.relative_to(ROOT))
+    introducing = subprocess.check_output(
+        [
+            "git",
+            "-C",
+            str(ROOT),
+            "log",
+            "--full-history",
+            "--no-merges",
+            "--diff-filter=A",
+            "--format=%H",
+            "--",
+            relative_closeout,
+        ],
+        text=True,
+    ).splitlines()
+    if len(introducing) != 1:
+        raise SystemExit("2A acceptance closeout introduction is ambiguous")
+    introduction = introducing[0]
+    introduction_parents = subprocess.check_output(
+        ["git", "-C", str(ROOT), "show", "-s", "--format=%P", introduction],
+        text=True,
+    ).split()
+    if len(introduction_parents) != 1:
+        raise SystemExit("2A acceptance closeout must be introduced by one direct commit")
+    introduction_parent = introduction_parents[0]
+    changed_entries = subprocess.check_output(
+        [
+            "git",
+            "-C",
+            str(ROOT),
+            "diff-tree",
+            "--no-commit-id",
+            "--name-status",
+            "--no-renames",
+            "-r",
+            introduction_parent,
+            introduction,
+        ],
+        text=True,
+    ).splitlines()
+    expected_entries = {
+        "A\tdocs/phase5e2b12a-acceptance-closeout.json",
+        "M\tdocs/phase-status.json",
+    }
+    if set(changed_entries) != expected_entries or len(changed_entries) != len(
+        expected_entries
+    ):
+        raise SystemExit("2A acceptance closeout commit is not the exact two-file patch")
+
+    head = subprocess.check_output(
+        ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
+        text=True,
+    ).strip()
+    if head == introduction:
+        return
+
+    acceptance_merges: list[tuple[str, list[str]]] = []
+    first_parent_history = subprocess.check_output(
+        ["git", "-C", str(ROOT), "rev-list", "--first-parent", "--parents", "HEAD"],
+        text=True,
+    ).splitlines()
+    for entry in first_parent_history:
+        commit, *parents = entry.split()
+        if len(parents) == 2 and parents[1] == introduction:
+            acceptance_merges.append((commit, parents))
+    if len(acceptance_merges) != 1:
+        raise SystemExit("accepted Phase 5E-2B.1-2A PR merge is missing or ambiguous")
+    acceptance_merge, merge_parents = acceptance_merges[0]
+    if (
+        merge_parents[0] != introduction_parent
+        or _tree(acceptance_merge) != _tree(introduction)
+    ):
+        raise SystemExit("accepted Phase 5E-2B.1-2A merge topology is invalid")
+
+
 def _verify_recorded_closeout_tree(closeout: dict[str, object]) -> None:
     head = str(closeout["substantive_head_commit"])
     merge = str(closeout["substantive_merge_commit"])
@@ -730,29 +809,7 @@ def main() -> int:
     if state != expected:
         raise SystemExit("phase-status.json does not match Phase 5E-2B.1-2A boundary")
     if stage != "2a_pending":
-        introducing = subprocess.check_output(
-            [
-                "git",
-                "-C",
-                str(ROOT),
-                "log",
-                "--first-parent",
-                "--diff-filter=A",
-                "--format=%H",
-                "--",
-                str(acceptance_closeout.relative_to(ROOT)),
-            ],
-            text=True,
-        ).splitlines()
-        if len(introducing) != 1:
-            raise SystemExit("2A acceptance closeout introduction is ambiguous")
-        acceptance_merge = introducing[0]
-        parents = subprocess.check_output(
-            ["git", "-C", str(ROOT), "show", "-s", "--format=%P", acceptance_merge],
-            text=True,
-        ).split()
-        if len(parents) != 2 or _tree(acceptance_merge) != _tree(parents[1]):
-            raise SystemExit("accepted Phase 5E-2B.1-2A merge topology is invalid")
+        _verify_phase5e2b12a_acceptance_topology(acceptance_closeout)
     for closeout in (
         *state["prior_closeouts"],
         state["closeout"]["policy_closeout"]["historical_phase5e2b_closeout"],
