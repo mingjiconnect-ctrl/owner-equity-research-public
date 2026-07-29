@@ -611,6 +611,14 @@ PUBLIC_REVALIDATION_PAYLOAD = {
     "prior_reason_code": "public-audit-inventory-trust-root-revalidation",
     "reason_code": "public-acceptance-audit-inventory-parity-revalidation",
 }
+POST_IMPLEMENTATION_CONTROL_REVALIDATION_PATHS = frozenset(
+    {
+        PUBLIC_REVALIDATION_PATH,
+        "scripts/phase5e2b12a-acceptance-trust.json",
+        "scripts/verify_phase5e2b12a_acceptance_gate.py",
+        "tests/test_phase5e2b12a_acceptance_gate.py",
+    }
+)
 MUTABLE_GOVERNANCE_PATHS = frozenset(
     {
         STATUS_PATH,
@@ -2744,7 +2752,7 @@ def _verify_acceptance_pull_request(
     repository_slug: str,
     token: str,
     pull_request_number: int,
-    implementation_merge: str,
+    acceptance_base: str,
     acceptance_head: str,
     acceptance_merge: str,
     expected_head_ref: str,
@@ -2758,7 +2766,7 @@ def _verify_acceptance_pull_request(
         or pull_request.get("merged") is not True
         or pull_request.get("merged_at") is None
         or pull_request.get("merge_commit_sha") != acceptance_merge
-        or pull_request.get("base", {}).get("sha") != implementation_merge
+        or pull_request.get("base", {}).get("sha") != acceptance_base
         or pull_request.get("base", {}).get("ref") != "main"
         or pull_request.get("base", {}).get("repo", {}).get("full_name") != repository_slug
         or pull_request.get("head", {}).get("sha") != acceptance_head
@@ -2781,7 +2789,7 @@ def _verify_merged_main_2a_acceptance(
     parents = _commit_parents(repository, merged_main)
     if len(parents) != 2:
         raise SystemExit("accepted merged main is not a two-parent pull-request merge")
-    implementation_merge, acceptance_head = parents
+    acceptance_base, acceptance_head = parents
     if _tree(repository, merged_main) != _tree(repository, acceptance_head):
         raise SystemExit("accepted merged main tree differs from the acceptance pull-request head")
     status = _read_json(repository, merged_main, STATUS_PATH)
@@ -2791,18 +2799,21 @@ def _verify_merged_main_2a_acceptance(
     ):
         return False
     closeout = _read_json(repository, merged_main, CLOSEOUT_PATH)
+    implementation_merge = closeout.get("implementation_merge_commit")
+    if not _git_oid(implementation_merge):
+        raise SystemExit("accepted closeout lacks a valid implementation merge")
     _verify_acceptance_pull_request(
         repository_slug=repository_slug,
         token=token,
         pull_request_number=int(closeout["acceptance_pull_request"]),
-        implementation_merge=implementation_merge,
+        acceptance_base=acceptance_base,
         acceptance_head=acceptance_head,
         acceptance_merge=merged_main,
         expected_head_ref="feature/phase5e2b12a-acceptance-closeout",
     )
     verify_acceptance(
         repository=repository,
-        base=implementation_merge,
+        base=acceptance_base,
         head=acceptance_head,
         event=None,
         repository_slug=repository_slug,
@@ -2850,7 +2861,7 @@ def _verify_merged_main_2a_acceptance(
         expected_pull_request_number=acceptance_number,
         expected_pull_request_head=acceptance_head,
         expected_pull_request_head_ref="feature/phase5e2b12a-acceptance-closeout",
-        expected_pull_request_base=implementation_merge,
+        expected_pull_request_base=acceptance_base,
         expected_workflow_name="phase5e2b12a-base-owned-acceptance-gate",
         expected_workflow_file=".github/workflows/phase5e2b12a-acceptance-gate.yml",
     )
@@ -2890,7 +2901,7 @@ def _verify_merged_main_2b_acceptance(
         repository_slug=repository_slug,
         token=token,
         pull_request_number=acceptance_number,
-        implementation_merge=implementation_merge,
+        acceptance_base=implementation_merge,
         acceptance_head=acceptance_head,
         acceptance_merge=merged_main,
         expected_head_ref=acceptance_branch,
@@ -3027,7 +3038,7 @@ def _verify_merged_main_generic_acceptance(
         repository_slug=repository_slug,
         token=token,
         pull_request_number=int(closeout["acceptance_pull_request"]),
-        implementation_merge=implementation_merge,
+        acceptance_base=implementation_merge,
         acceptance_head=acceptance_head,
         acceptance_merge=merged_main,
         expected_head_ref=acceptance_branch,
@@ -3754,6 +3765,102 @@ def _verify_phase5e_successor_remote_evidence(
         )
 
 
+def _verify_post_implementation_control_revalidation(
+    *,
+    repository: Path,
+    implementation_merge: str,
+    acceptance_base: str,
+) -> None:
+    """Allow only the audited control-plane merges needed to unblock acceptance."""
+
+    if implementation_merge == acceptance_base:
+        return
+    ancestor = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repository),
+            "merge-base",
+            "--is-ancestor",
+            implementation_merge,
+            acceptance_base,
+        ],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    if ancestor.returncode != 0:
+        raise SystemExit("acceptance base does not descend from the recorded implementation")
+    changed_paths = {
+        path
+        for _, path in _diff_entries(repository, implementation_merge, acceptance_base)
+    }
+    if not changed_paths or not changed_paths.issubset(
+        POST_IMPLEMENTATION_CONTROL_REVALIDATION_PATHS
+    ):
+        unexpected = sorted(
+            changed_paths - POST_IMPLEMENTATION_CONTROL_REVALIDATION_PATHS
+        )
+        raise SystemExit(
+            "post-implementation history changes non-control paths: "
+            f"{unexpected or sorted(changed_paths)}"
+        )
+    if _read_json(repository, implementation_merge, STATUS_PATH) != _read_json(
+        repository, acceptance_base, STATUS_PATH
+    ):
+        raise SystemExit("post-implementation control history changed phase authority")
+    if _path_exists(repository, acceptance_base, CLOSEOUT_PATH):
+        raise SystemExit("acceptance closeout already exists on the acceptance base")
+    if (
+        not _path_exists(repository, acceptance_base, PUBLIC_REVALIDATION_PATH)
+        or _read_json(repository, acceptance_base, PUBLIC_REVALIDATION_PATH)
+        != PUBLIC_REVALIDATION_PAYLOAD
+    ):
+        raise SystemExit("acceptance base lacks the current public revalidation marker")
+
+    commits = str(
+        _git(
+            repository,
+            "rev-list",
+            "--first-parent",
+            "--reverse",
+            f"{implementation_merge}..{acceptance_base}",
+        )
+    ).splitlines()
+    if not commits or commits[-1] != acceptance_base:
+        raise SystemExit("post-implementation first-parent history is incomplete")
+    previous = implementation_merge
+    for commit in commits:
+        parents = _commit_parents(repository, commit)
+        if len(parents) != 2 or parents[0] != previous:
+            raise SystemExit(
+                "post-implementation control history contains a non-PR or nonlinear commit"
+            )
+        if _tree(repository, commit) != _tree(repository, parents[1]):
+            raise SystemExit(
+                "post-implementation control merge tree differs from its pull-request head"
+            )
+        entries = _diff_entries(repository, previous, commit)
+        commit_paths = {path for _, path in entries}
+        if not commit_paths or not commit_paths.issubset(
+            POST_IMPLEMENTATION_CONTROL_REVALIDATION_PATHS
+        ):
+            unexpected = sorted(
+                commit_paths - POST_IMPLEMENTATION_CONTROL_REVALIDATION_PATHS
+            )
+            raise SystemExit(
+                "post-implementation merge changes non-control paths: "
+                f"{unexpected or sorted(commit_paths)}"
+            )
+        for status, path in entries:
+            if status not in {"A", "M"} or _mode(repository, commit, path) != "100644":
+                raise SystemExit(
+                    "post-implementation control history changes file lifecycle or mode: "
+                    f"{status} {path}"
+                )
+        previous = commit
+
+
 def verify_acceptance(
     *,
     repository: Path,
@@ -3777,15 +3884,24 @@ def verify_acceptance(
     ):
         raise SystemExit("acceptance base is not the exact pending 2A governance state")
     if str(_git(repository, "merge-base", base, head)) != base:
-        raise SystemExit("acceptance head is not based directly on the implementation merge")
+        raise SystemExit("acceptance head is not based directly on the acceptance base")
     if _commit_parents(repository, head) != (base,):
         raise SystemExit("acceptance head must be one direct non-merge commit over the base")
-    parents = _commit_parents(repository, base)
+    closeout = _read_json(repository, head, CLOSEOUT_PATH)
+    implementation_merge = closeout.get("implementation_merge_commit")
+    if not _git_oid(implementation_merge):
+        raise SystemExit("acceptance evidence lacks a valid implementation merge")
+    parents = _commit_parents(repository, implementation_merge)
     if len(parents) != 2:
-        raise SystemExit("implementation base is not a two-parent pull-request merge")
+        raise SystemExit("recorded implementation is not a two-parent pull-request merge")
     implementation_head = parents[1]
-    if _tree(repository, base) != _tree(repository, implementation_head):
+    if _tree(repository, implementation_merge) != _tree(repository, implementation_head):
         raise SystemExit("implementation merge tree differs from its pull-request head")
+    _verify_post_implementation_control_revalidation(
+        repository=repository,
+        implementation_merge=implementation_merge,
+        acceptance_base=base,
+    )
     entries = _diff_entries(repository, base, head)
     if {path: status for status, path in entries} != {
         STATUS_PATH: "M",
@@ -3806,13 +3922,12 @@ def verify_acceptance(
     if _mode(repository, head, CLOSEOUT_PATH) != "100644":
         raise SystemExit("acceptance evidence is not a regular file")
 
-    closeout = _read_json(repository, head, CLOSEOUT_PATH)
-    expected_tree = _tree(repository, base)
+    expected_tree = _tree(repository, implementation_merge)
     if (
         set(closeout) != EXPECTED_CLOSEOUT_KEYS
         or closeout.get("schema_version") != "1.0.0"
         or closeout.get("phase") != "Phase 5E-2B.1-2A"
-        or closeout.get("implementation_merge_commit") != base
+        or closeout.get("implementation_merge_commit") != implementation_merge
         or closeout.get("implementation_head_commit") != implementation_head
         or closeout.get("implementation_tree_sha") != expected_tree
         or type(closeout.get("implementation_pull_request")) is not int
@@ -3898,7 +4013,7 @@ def verify_acceptance(
             repository=repository,
             repository_slug=repository_slug,
             token=token,
-            implementation_merge=base,
+            implementation_merge=implementation_merge,
             implementation_head=implementation_head,
             closeout=closeout,
             controller_app_id=controller_app_id,

@@ -63,7 +63,12 @@ def _commit(repository: Path, message: str) -> str:
     return _git(repository, "rev-parse", "HEAD")
 
 
-def _repository(tmp_path: Path) -> tuple[Path, str, str, str]:
+def _repository(
+    tmp_path: Path,
+    *,
+    interstitial_control_plane: bool = False,
+    interstitial_production_attack: bool = False,
+) -> tuple[Path, str, str, str]:
     """Create a merged implementation plus an uncommitted two-file acceptance tree."""
 
     repository = tmp_path / "repo"
@@ -128,6 +133,77 @@ def _repository(tmp_path: Path) -> tuple[Path, str, str, str]:
     )
     implementation_merge = _git(repository, "rev-parse", "HEAD")
     assert _git(repository, "rev-parse", f"{implementation_merge}^2") == implementation_head
+    if interstitial_control_plane:
+        subprocess.run(
+            ["git", "-C", str(repository), "checkout", "-b", "controller-repair"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
+        controller_path = (
+            repository / "scripts/verify_phase5e2b12a_acceptance_gate.py"
+        )
+        controller_path.write_text(
+            controller_path.read_text(encoding="utf-8") + "controller repair\n",
+            encoding="utf-8",
+        )
+        if interstitial_production_attack:
+            (repository / "src/frozen.py").write_text("VALUE = 99\n", encoding="utf-8")
+        _commit(repository, "controller repair")
+        subprocess.run(
+            ["git", "-C", str(repository), "checkout", "main"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repository),
+                "merge",
+                "--no-ff",
+                "controller-repair",
+                "-m",
+                "merge controller repair",
+            ],
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
+        subprocess.run(
+            ["git", "-C", str(repository), "checkout", "-b", "public-revalidation"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
+        marker = repository / acceptance_gate.PUBLIC_REVALIDATION_PATH
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text(
+            json.dumps(
+                acceptance_gate.PUBLIC_REVALIDATION_PAYLOAD,
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        _commit(repository, "public revalidation")
+        subprocess.run(
+            ["git", "-C", str(repository), "checkout", "main"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repository),
+                "merge",
+                "--no-ff",
+                "public-revalidation",
+                "-m",
+                "merge public revalidation",
+            ],
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
     subprocess.run(
         ["git", "-C", str(repository), "checkout", "-b", "acceptance"],
         check=True,
@@ -1349,7 +1425,12 @@ def _remote_evidence(  # noqa: F811
 
 
 def test_base_owned_acceptance_gate_accepts_governance_only_diff(tmp_path: Path) -> None:
-    repository, _, _, base = _repository(tmp_path)
+    repository, _, _, implementation_merge = _repository(
+        tmp_path,
+        interstitial_control_plane=True,
+    )
+    base = _git(repository, "rev-parse", "HEAD")
+    assert base != implementation_merge
     head = _commit(repository, "acceptance")
     verify_acceptance(
         repository=repository,
@@ -1435,15 +1516,24 @@ def test_base_owned_acceptance_gate_rejects_frozen_path_or_mode_change(
     tmp_path: Path,
     attack: str,
 ) -> None:
-    repository, _, _, base = _repository(tmp_path)
     if attack == "production":
-        (repository / "src/frozen.py").write_text("VALUE = 3\n", encoding="utf-8")
+        repository, _, _, implementation_merge = _repository(
+            tmp_path,
+            interstitial_control_plane=True,
+            interstitial_production_attack=True,
+        )
+        base = _git(repository, "rev-parse", "HEAD")
+        assert base != implementation_merge
     else:
+        repository, _, _, base = _repository(tmp_path)
         (repository / "docs/phase-status.json").chmod(0o755)
     head = _commit(repository, f"attack {attack}")
     with pytest.raises(
         SystemExit,
-        match="frozen paths|file type, mode|modify status and add one new closeout",
+        match=(
+            "frozen paths|file type, mode|modify status and add one new closeout|"
+            "non-control paths"
+        ),
     ):
         verify_acceptance(
             repository=repository,
@@ -3433,7 +3523,10 @@ def test_merged_main_replays_acceptance_pr_gate_and_main_ci_provenance(
     monkeypatch: pytest.MonkeyPatch,
     association_attack: str | None,
 ) -> None:
-    repository, root_commit, implementation_head, implementation_merge = _repository(tmp_path)
+    repository, root_commit, implementation_head, implementation_merge = _repository(
+        tmp_path,
+        interstitial_control_plane=True,
+    )
     acceptance_head = _remote_evidence(
         repository=repository,
         root_commit=root_commit,
@@ -3441,6 +3534,7 @@ def test_merged_main_replays_acceptance_pr_gate_and_main_ci_provenance(
         implementation_merge=implementation_merge,
         monkeypatch=monkeypatch,
     )
+    acceptance_base = _git(repository, "rev-parse", f"{acceptance_head}^")
     prior_api = acceptance_gate._api_json
     prior_list = acceptance_gate._api_list
     subprocess.run(
@@ -3471,7 +3565,7 @@ def test_merged_main_replays_acceptance_pr_gate_and_main_ci_provenance(
             "repo": {"full_name": REPOSITORY_SLUG},
         },
         "base": {
-            "sha": implementation_merge,
+            "sha": acceptance_base,
             "ref": "main",
             "repo": {"full_name": REPOSITORY_SLUG},
         },
