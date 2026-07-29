@@ -1916,14 +1916,14 @@ def test_pending_acceptance_rejects_every_non_acceptance_pr(
     marker.parent.mkdir(parents=True, exist_ok=True)
     marker.write_text(
         json.dumps(
-            acceptance_gate.PUBLIC_REVALIDATION_LEGACY_PAYLOAD,
+            acceptance_gate.PUBLIC_REVALIDATION_GENERATION6_PAYLOAD,
             indent=2,
             sort_keys=True,
         )
         + "\n",
         encoding="utf-8",
     )
-    base = _commit(repository, "legacy public audit revalidation")
+    base = _commit(repository, "generation-6 public audit revalidation")
     marker.write_text(
         json.dumps(
             acceptance_gate.PUBLIC_REVALIDATION_PAYLOAD,
