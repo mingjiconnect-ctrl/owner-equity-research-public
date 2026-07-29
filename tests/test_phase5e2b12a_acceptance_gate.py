@@ -68,6 +68,7 @@ def _repository(
     *,
     interstitial_control_plane: bool = False,
     interstitial_production_attack: bool = False,
+    interstitial_pinned_path_attack: bool = False,
 ) -> tuple[Path, str, str, str]:
     """Create a merged implementation plus an uncommitted two-file acceptance tree."""
 
@@ -148,6 +149,12 @@ def _repository(
         )
         if interstitial_production_attack:
             (repository / "src/frozen.py").write_text("VALUE = 99\n", encoding="utf-8")
+        if interstitial_pinned_path_attack:
+            pinned_path = repository / "scripts/run_phase5e_audit.py"
+            pinned_path.write_text(
+                pinned_path.read_text(encoding="utf-8") + "unpinned repair\n",
+                encoding="utf-8",
+            )
         _commit(repository, "controller repair")
         subprocess.run(
             ["git", "-C", str(repository), "checkout", "main"],
@@ -1425,6 +1432,11 @@ def _remote_evidence(  # noqa: F811
 
 
 def test_base_owned_acceptance_gate_accepts_governance_only_diff(tmp_path: Path) -> None:
+    acceptance_gate._verify_post_implementation_control_revalidation(
+        repository=ROOT,
+        implementation_merge="de5d37c251346c1c2a5ab3b9a0784fa08f1afa69",
+        acceptance_base="7e1804446e1c58416294d3fb81388cc790655e96",
+    )
     repository, _, _, implementation_merge = _repository(
         tmp_path,
         interstitial_control_plane=True,
@@ -1441,6 +1453,25 @@ def test_base_owned_acceptance_gate_accepts_governance_only_diff(tmp_path: Path)
         token=None,
         require_remote=False,
     )
+    attack_scope = tmp_path / "unpinned-pinned-path"
+    attack_scope.mkdir()
+    attacked, _, _, _ = _repository(
+        attack_scope,
+        interstitial_control_plane=True,
+        interstitial_pinned_path_attack=True,
+    )
+    attacked_base = _git(attacked, "rev-parse", "HEAD")
+    attacked_head = _commit(attacked, "acceptance after unpinned repair")
+    with pytest.raises(SystemExit, match="non-control paths"):
+        verify_acceptance(
+            repository=attacked,
+            base=attacked_base,
+            head=attacked_head,
+            event=_event(base=attacked_base, head=attacked_head),
+            repository_slug=REPOSITORY_SLUG,
+            token=None,
+            require_remote=False,
+        )
 
 
 @pytest.mark.parametrize(
