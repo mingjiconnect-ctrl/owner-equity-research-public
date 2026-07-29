@@ -223,10 +223,13 @@ def _controller_status_fixture(
     app_slug: str = "phase5e-controller",
 ) -> list[dict[str, Any]]:
     target = f"https://github.com/{REPOSITORY_SLUG}/actions/runs/{workflow_run_id}"
+    status_url = (
+        f"https://api.github.com/repos/{REPOSITORY_SLUG}/statuses/{head_sha}"
+    )
     statuses = [
         {
             "id": index,
-            "sha": head_sha,
+            "url": status_url,
             "context": context,
             "state": "success",
             "target_url": target,
@@ -240,7 +243,7 @@ def _controller_status_fixture(
     statuses.append(
         {
             "id": start_id + len(statuses),
-            "sha": head_sha,
+            "url": status_url,
             "context": "phase5e/actions-status-token-revoked",
             "state": "success",
             "target_url": target,
@@ -3244,7 +3247,9 @@ def test_actions_revocation_status_is_latest_exact_and_actions_owned(
     elif attack in {"pending", "failure"}:
         revocation["state"] = attack
     elif attack == "wrong_head":
-        revocation["sha"] = "f" * 40
+        revocation["url"] = (
+            f"https://api.github.com/repos/{REPOSITORY_SLUG}/statuses/{'f' * 40}"
+        )
     elif attack == "wrong_target":
         revocation["target_url"] = (
             f"https://github.com/{REPOSITORY_SLUG}/actions/runs/11"

@@ -581,17 +581,23 @@ PUBLIC_REVALIDATION_GENERATION3_PAYLOAD = {
     "prior_reason_code": "pull-request-target-run-metadata-revalidation",
     "reason_code": "acceptance-first-parent-topology-revalidation",
 }
-PUBLIC_REVALIDATION_LEGACY_PAYLOAD = {
+PUBLIC_REVALIDATION_GENERATION4_PAYLOAD = {
     **PUBLIC_REVALIDATION_GENERATION3_PAYLOAD,
     "generation": 4,
     "prior_reason_code": "acceptance-first-parent-topology-revalidation",
     "reason_code": "public-acceptance-path-registration-revalidation",
 }
-PUBLIC_REVALIDATION_PAYLOAD = {
-    **PUBLIC_REVALIDATION_LEGACY_PAYLOAD,
+PUBLIC_REVALIDATION_LEGACY_PAYLOAD = {
+    **PUBLIC_REVALIDATION_GENERATION4_PAYLOAD,
     "generation": 5,
     "prior_reason_code": "public-acceptance-path-registration-revalidation",
     "reason_code": "public-acceptance-status-registration-revalidation",
+}
+PUBLIC_REVALIDATION_PAYLOAD = {
+    **PUBLIC_REVALIDATION_LEGACY_PAYLOAD,
+    "generation": 6,
+    "prior_reason_code": "public-acceptance-status-registration-revalidation",
+    "reason_code": "public-commit-status-url-identity-revalidation",
 }
 MUTABLE_GOVERNANCE_PATHS = frozenset(
     {
@@ -2648,6 +2654,9 @@ def _verify_controller_statuses(
         f"https://api.github.com/repos/{repository_slug}/commits/{head_sha}/statuses",
         token,
     )
+    expected_status_url = (
+        f"https://api.github.com/repos/{repository_slug}/statuses/{head_sha}"
+    )
     status_ids = [item.get("id") for item in statuses]
     if (
         any(type(item_id) is not int or item_id <= 0 for item_id in status_ids)
@@ -2663,7 +2672,7 @@ def _verify_controller_statuses(
             raise SystemExit(f"protected controller status is missing: {context}")
         latest = max(matching, key=lambda item: item["id"])
         if (
-            latest.get("sha") != head_sha
+            latest.get("url") != expected_status_url
             or latest.get("state") != "success"
             or latest.get("target_url") != expected_target
             or latest.get("creator", {}).get("login") != f"{app_slug}[bot]"
@@ -2678,7 +2687,7 @@ def _verify_controller_statuses(
         raise SystemExit("Actions-owned controller-token revocation status is missing")
     latest_revocation = max(revocations, key=lambda item: item["id"])
     if (
-        latest_revocation.get("sha") != head_sha
+        latest_revocation.get("url") != expected_status_url
         or latest_revocation.get("state") != "success"
         or latest_revocation.get("target_url") != expected_target
         or latest_revocation.get("creator", {}).get("login")
