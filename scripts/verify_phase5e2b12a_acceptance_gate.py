@@ -599,11 +599,17 @@ PUBLIC_REVALIDATION_GENERATION6_PAYLOAD = {
     "prior_reason_code": "public-acceptance-status-registration-revalidation",
     "reason_code": "public-commit-status-url-identity-revalidation",
 }
-PUBLIC_REVALIDATION_PAYLOAD = {
+PUBLIC_REVALIDATION_GENERATION7_PAYLOAD = {
     **PUBLIC_REVALIDATION_GENERATION6_PAYLOAD,
     "generation": 7,
     "prior_reason_code": "public-commit-status-url-identity-revalidation",
     "reason_code": "public-audit-inventory-trust-root-revalidation",
+}
+PUBLIC_REVALIDATION_PAYLOAD = {
+    **PUBLIC_REVALIDATION_GENERATION7_PAYLOAD,
+    "generation": 8,
+    "prior_reason_code": "public-audit-inventory-trust-root-revalidation",
+    "reason_code": "public-acceptance-audit-inventory-parity-revalidation",
 }
 MUTABLE_GOVERNANCE_PATHS = frozenset(
     {
@@ -3952,6 +3958,8 @@ def verify_non_acceptance_pr(
             elif base_marker == PUBLIC_REVALIDATION_LEGACY_PAYLOAD:
                 expected_marker_payload = PUBLIC_REVALIDATION_GENERATION6_PAYLOAD
             elif base_marker == PUBLIC_REVALIDATION_GENERATION6_PAYLOAD:
+                expected_marker_payload = PUBLIC_REVALIDATION_GENERATION7_PAYLOAD
+            elif base_marker == PUBLIC_REVALIDATION_GENERATION7_PAYLOAD:
                 expected_marker_payload = PUBLIC_REVALIDATION_PAYLOAD
             else:
                 expected_marker_payload = None
