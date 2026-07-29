@@ -1,10 +1,10 @@
 {
-  "generation": 5,
+  "generation": 6,
   "kind": "public_canonical_audit_revalidation",
   "phase": "Phase 5E-2B.1-2A",
-  "prior_reason_code": "public-acceptance-path-registration-revalidation",
+  "prior_reason_code": "public-acceptance-status-registration-revalidation",
   "public_repository": "mingjiconnect-ctrl/owner-equity-research-public",
-  "reason_code": "public-acceptance-status-registration-revalidation",
+  "reason_code": "public-commit-status-url-identity-revalidation",
   "release_tag": null,
   "schema_version": "1.0.0"
 }
