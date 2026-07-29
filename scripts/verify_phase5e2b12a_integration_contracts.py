@@ -52,6 +52,7 @@ EXPECTED_ADVERSARIAL_FIXTURE_SHA256 = (
 TYPE_MODULE = "src/owner_research/valuation_share_event_integration_types.py"
 POLICY = "src/owner_research/resources/current_share/canonical-event-integration-policy.json"
 TEST = "tests/test_phase5e2b12a_integration_contracts.py"
+STATUS_PATH = "docs/phase-status.json"
 ACCEPTANCE_CLOSEOUT = "docs/phase5e2b12a-acceptance-closeout.json"
 INTERNAL_TYPE_NAMES = {
     "CanonicalShareEventMemberBinding",
@@ -300,7 +301,7 @@ def main() -> int:
     ) | set(
         str(_git("ls-files", "--others", "--exclude-standard", text=True)).splitlines()
     )
-    phase_status = json.loads((ROOT / "docs/phase-status.json").read_text(encoding="utf-8"))
+    phase_status = json.loads((ROOT / STATUS_PATH).read_text(encoding="utf-8"))
     accepted = (
         phase_status.get("current_phase") == "Phase 5E-2B.1-2A"
         and phase_status.get("status") == "accepted_closed"
@@ -309,7 +310,7 @@ def main() -> int:
     if _public_mode():
         expected_changed_paths = set(PUBLIC_CANONICAL_MIGRATION_CHANGED_PATHS)
         if accepted:
-            expected_changed_paths.add(ACCEPTANCE_CLOSEOUT)
+            expected_changed_paths.update({STATUS_PATH, ACCEPTANCE_CLOSEOUT})
         permitted_changed_paths = (
             expected_changed_paths | PUBLIC_CANONICAL_MIGRATION_OPTIONAL_CHANGED_PATHS
         )

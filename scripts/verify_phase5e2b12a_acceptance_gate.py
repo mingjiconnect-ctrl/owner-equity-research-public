@@ -575,17 +575,23 @@ PUBLIC_REVALIDATION_GENERATION2_PAYLOAD = {
     "prior_reason_code": "public-controller-bootstrap-revalidation",
     "reason_code": "pull-request-target-run-metadata-revalidation",
 }
-PUBLIC_REVALIDATION_LEGACY_PAYLOAD = {
+PUBLIC_REVALIDATION_GENERATION3_PAYLOAD = {
     **PUBLIC_REVALIDATION_GENERATION2_PAYLOAD,
     "generation": 3,
     "prior_reason_code": "pull-request-target-run-metadata-revalidation",
     "reason_code": "acceptance-first-parent-topology-revalidation",
 }
-PUBLIC_REVALIDATION_PAYLOAD = {
-    **PUBLIC_REVALIDATION_LEGACY_PAYLOAD,
+PUBLIC_REVALIDATION_LEGACY_PAYLOAD = {
+    **PUBLIC_REVALIDATION_GENERATION3_PAYLOAD,
     "generation": 4,
     "prior_reason_code": "acceptance-first-parent-topology-revalidation",
     "reason_code": "public-acceptance-path-registration-revalidation",
+}
+PUBLIC_REVALIDATION_PAYLOAD = {
+    **PUBLIC_REVALIDATION_LEGACY_PAYLOAD,
+    "generation": 5,
+    "prior_reason_code": "public-acceptance-path-registration-revalidation",
+    "reason_code": "public-acceptance-status-registration-revalidation",
 }
 MUTABLE_GOVERNANCE_PATHS = frozenset(
     {

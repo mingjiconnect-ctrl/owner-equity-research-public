@@ -186,6 +186,7 @@ EXPECTED_TYPE_AST_SHA256 = {
     (3, 13): "a88f78bec3e0c076388b366c647deae23da0cc9fe2bd51fac35ecd7aba83e659",
     (3, 14): "a88f78bec3e0c076388b366c647deae23da0cc9fe2bd51fac35ecd7aba83e659",
 }
+STATUS_PATH = "docs/phase-status.json"
 ACCEPTANCE_CLOSEOUT = "docs/phase5e2b12a-acceptance-closeout.json"
 
 ADVERSARIAL_FIXTURE = ROOT / "tests/fixtures/phase5e2b12a/adversarial-cases.json"
@@ -528,15 +529,16 @@ def main() -> int:
             text=True,
         ).splitlines()
     )
-    phase_status = json.loads((ROOT / "docs/phase-status.json").read_text(encoding="utf-8"))
+    phase_status = json.loads((ROOT / STATUS_PATH).read_text(encoding="utf-8"))
     accepted = (
         phase_status.get("current_phase") == "Phase 5E-2B.1-2A"
         and phase_status.get("status") == "accepted_closed"
         and (ROOT / ACCEPTANCE_CLOSEOUT).is_file()
     )
-    if accepted and not public_mode:
-        expected_paths.add(ACCEPTANCE_CLOSEOUT)
-        permitted_paths.add(ACCEPTANCE_CLOSEOUT)
+    if accepted:
+        accepted_paths = {STATUS_PATH, ACCEPTANCE_CLOSEOUT}
+        expected_paths.update(accepted_paths)
+        permitted_paths.update(accepted_paths)
     required_boundary_paths = {
         ".github/workflows/ci.yml",
         ".github/workflows/phase5e2b12a-acceptance-gate.yml",
