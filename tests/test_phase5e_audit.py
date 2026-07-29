@@ -26,9 +26,11 @@ from scripts.run_phase5e_audit import (
     PHASE5E2B12A_ACCEPTANCE_CLOSEOUT_PATH,
     PHASE5E2B12A_ALLOWED_CHANGED_PATHS,
     PHASE5E2B12A_OPTIONAL_CHANGED_PATHS,
+    PHASE_STATUS_PATH,
     STATIC_CONTROL_FILES,
     _has_blocking_findings,
     _phase5e2b12a_changed_path_violations,
+    _phase5e2b12a_public_changed_path_violations,
     _run_dynamic_successor_oracles,
     _strict_junit_tree,
     _verify_profile_semantic_oracle_binding,
@@ -901,6 +903,22 @@ def test_phase5e2b12a_repository_wide_changed_path_boundary_is_closed() -> None:
         changed_paths | PHASE5E2B12A_OPTIONAL_CHANGED_PATHS,
         accepted=accepted,
     ) == ((), ())
+    expected_public_paths = set(PUBLIC_CANONICAL_MIGRATION_CHANGED_PATHS)
+    if accepted:
+        expected_public_paths.update(
+            {PHASE_STATUS_PATH, PHASE5E2B12A_ACCEPTANCE_CLOSEOUT_PATH}
+        )
+    assert _phase5e2b12a_public_changed_path_violations(
+        expected_public_paths,
+        accepted=accepted,
+    ) == ((), ())
+    if accepted:
+        unexpected, missing = _phase5e2b12a_public_changed_path_violations(
+            expected_public_paths - {PHASE_STATUS_PATH},
+            accepted=True,
+        )
+        assert not unexpected
+        assert missing == (PHASE_STATUS_PATH,)
     unexpected, missing = _phase5e2b12a_changed_path_violations(
         changed_paths | {"scripts/compile_phase5e2c_market_evidence.py"},
         accepted=accepted,
