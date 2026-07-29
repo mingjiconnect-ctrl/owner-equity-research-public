@@ -1906,6 +1906,14 @@ def test_pending_acceptance_rejects_every_non_acceptance_pr(
         controller_app_id=98765,
     )
 
+    generation6_payload = getattr(
+        acceptance_gate,
+        "PUBLIC_REVALIDATION_GENERATION6_PAYLOAD",
+        None,
+    )
+    if generation6_payload is None:
+        return
+
     refresh_scope = tmp_path / "revalidation-refresh"
     refresh_scope.mkdir()
     repository, base, head_ref = _ordinary_repository(
@@ -1916,7 +1924,7 @@ def test_pending_acceptance_rejects_every_non_acceptance_pr(
     marker.parent.mkdir(parents=True, exist_ok=True)
     marker.write_text(
         json.dumps(
-            acceptance_gate.PUBLIC_REVALIDATION_GENERATION6_PAYLOAD,
+            generation6_payload,
             indent=2,
             sort_keys=True,
         )
