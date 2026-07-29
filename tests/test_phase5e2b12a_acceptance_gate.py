@@ -1741,6 +1741,12 @@ def test_acceptance_verifier_uses_an_immutable_self_contained_trust_snapshot() -
     assert "from run_phase5e_audit import" not in verifier
     assert raw == (json.dumps(trust, indent=2, sort_keys=True) + "\n").encode()
     assert str(trust_path.relative_to(ROOT)) in trust["static_control_files"]
+    assert {
+        "scripts/build_kernel_release_interface.py",
+        "scripts/phase5e-successor-gate-bundle.schema.json",
+        "scripts/verify_kernel_release_interface.py",
+        "scripts/verify_phase5e_candidate_surface.py",
+    } <= set(trust["static_control_files"])
     assert str(trust_path.relative_to(ROOT)) in PERMANENT_ACCEPTED_TRUST_ROOT
     completed = subprocess.run(
         [
@@ -1934,7 +1940,11 @@ def test_pending_acceptance_rejects_every_non_acceptance_pr(
     base = _commit(repository, "generation-6 public audit revalidation")
     marker.write_text(
         json.dumps(
-            acceptance_gate.PUBLIC_REVALIDATION_PAYLOAD,
+            getattr(
+                acceptance_gate,
+                "PUBLIC_REVALIDATION_GENERATION7_PAYLOAD",
+                acceptance_gate.PUBLIC_REVALIDATION_PAYLOAD,
+            ),
             indent=2,
             sort_keys=True,
         )
@@ -1942,6 +1952,53 @@ def test_pending_acceptance_rejects_every_non_acceptance_pr(
         encoding="utf-8",
     )
     head = _commit(repository, "refresh public audit revalidation")
+    verify_non_acceptance_pr(
+        repository=repository,
+        base=base,
+        head=head,
+        event=_event(base=base, head=head, head_ref=head_ref),
+        repository_slug=REPOSITORY_SLUG,
+        token="controller-token",
+        require_remote=True,
+        controller_app_id=98765,
+    )
+
+    generation7_payload = getattr(
+        acceptance_gate,
+        "PUBLIC_REVALIDATION_GENERATION7_PAYLOAD",
+        None,
+    )
+    if generation7_payload is None:
+        return
+
+    generation8_scope = tmp_path / "revalidation-generation-8"
+    generation8_scope.mkdir()
+    repository, base, head_ref = _ordinary_repository(
+        generation8_scope,
+        head_ref=acceptance_gate.PUBLIC_REVALIDATION_BRANCH,
+    )
+    marker = repository / acceptance_gate.PUBLIC_REVALIDATION_PATH
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(
+        json.dumps(
+            generation7_payload,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    base = _commit(repository, "generation-7 public audit revalidation")
+    marker.write_text(
+        json.dumps(
+            acceptance_gate.PUBLIC_REVALIDATION_PAYLOAD,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    head = _commit(repository, "generation-8 public audit revalidation")
     verify_non_acceptance_pr(
         repository=repository,
         base=base,
