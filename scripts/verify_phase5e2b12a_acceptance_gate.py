@@ -619,6 +619,30 @@ POST_IMPLEMENTATION_CONTROL_REVALIDATION_PATHS = frozenset(
         "tests/test_phase5e2b12a_acceptance_gate.py",
     }
 )
+POST_IMPLEMENTATION_PINNED_REPAIRS = {
+    "7e1804446e1c58416294d3fb81388cc790655e96": {
+        "first_parent": "45e316bfb5513eb5cca3fd3cdd09da58da039e37",
+        "second_parent": "99fad8d40408c0a493df3ae7e1dcab1cee120ce4",
+        "tree": "707a785c4042e2549e482ea66e6785646a037cfd",
+        "files": {
+            "scripts/run_phase5e_audit.py": {
+                "status": "M",
+                "mode": "100644",
+                "blob": "8bf121c2fdf1c44f247214591b873f7035fe240c",
+            },
+            "scripts/verify_phase_state.py": {
+                "status": "M",
+                "mode": "100644",
+                "blob": "d746ea422b321a4569e466602aee7b12c27e9d76",
+            },
+            "tests/test_phase5e_audit.py": {
+                "status": "M",
+                "mode": "100644",
+                "blob": "6a1cbcc89165e2b0497b2d8ab9573b268c1417c7",
+            },
+        },
+    }
+}
 MUTABLE_GOVERNANCE_PATHS = frozenset(
     {
         STATUS_PATH,
@@ -3795,11 +3819,19 @@ def _verify_post_implementation_control_revalidation(
         path
         for _, path in _diff_entries(repository, implementation_merge, acceptance_base)
     }
+    pinned_repair_paths = {
+        path
+        for repair in POST_IMPLEMENTATION_PINNED_REPAIRS.values()
+        for path in repair["files"]
+    }
+    allowed_history_paths = (
+        POST_IMPLEMENTATION_CONTROL_REVALIDATION_PATHS | pinned_repair_paths
+    )
     if not changed_paths or not changed_paths.issubset(
-        POST_IMPLEMENTATION_CONTROL_REVALIDATION_PATHS
+        allowed_history_paths
     ):
         unexpected = sorted(
-            changed_paths - POST_IMPLEMENTATION_CONTROL_REVALIDATION_PATHS
+            changed_paths - allowed_history_paths
         )
         raise SystemExit(
             "post-implementation history changes non-control paths: "
@@ -3842,16 +3874,45 @@ def _verify_post_implementation_control_revalidation(
             )
         entries = _diff_entries(repository, previous, commit)
         commit_paths = {path for _, path in entries}
-        if not commit_paths or not commit_paths.issubset(
-            POST_IMPLEMENTATION_CONTROL_REVALIDATION_PATHS
-        ):
+        pinned_repair = POST_IMPLEMENTATION_PINNED_REPAIRS.get(commit)
+        allowed_commit_paths = (
+            set(pinned_repair["files"])
+            if pinned_repair is not None
+            else set(POST_IMPLEMENTATION_CONTROL_REVALIDATION_PATHS)
+        )
+        if not commit_paths or not commit_paths.issubset(allowed_commit_paths):
             unexpected = sorted(
-                commit_paths - POST_IMPLEMENTATION_CONTROL_REVALIDATION_PATHS
+                commit_paths - allowed_commit_paths
             )
             raise SystemExit(
                 "post-implementation merge changes non-control paths: "
                 f"{unexpected or sorted(commit_paths)}"
             )
+        if pinned_repair is not None:
+            if (
+                parents
+                != (
+                    pinned_repair["first_parent"],
+                    pinned_repair["second_parent"],
+                )
+                or _tree(repository, commit) != pinned_repair["tree"]
+                or commit_paths != set(pinned_repair["files"])
+            ):
+                raise SystemExit(
+                    "post-implementation pinned repair identity or tree drifted"
+                )
+            status_by_path = {path: status for status, path in entries}
+            for path, expected in pinned_repair["files"].items():
+                if (
+                    status_by_path.get(path) != expected["status"]
+                    or _mode(repository, commit, path) != expected["mode"]
+                    or _git(repository, "rev-parse", f"{commit}:{path}")
+                    != expected["blob"]
+                ):
+                    raise SystemExit(
+                        "post-implementation pinned repair file attestation drifted: "
+                        f"{path}"
+                    )
         for status, path in entries:
             if status not in {"A", "M"} or _mode(repository, commit, path) != "100644":
                 raise SystemExit(
