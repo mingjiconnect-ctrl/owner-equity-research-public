@@ -1130,7 +1130,11 @@ def test_phase5e2b11_acceptance_is_frozen_and_successor_is_current() -> None:
         check=True,
     )
     subprocess.run(
-        [sys.executable, "scripts/verify_phase5e2b12a_integration_contracts.py"],
+        [
+            sys.executable,
+            "scripts/verify_phase5e2b12a_integration_contracts.py",
+            "--frozen-contract-replay",
+        ],
         cwd=ROOT,
         check=True,
     )

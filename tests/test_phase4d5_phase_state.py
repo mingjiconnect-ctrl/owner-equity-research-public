@@ -27,6 +27,7 @@ from scripts.verify_phase_state import (
     PHASE5E2B11_IMPLEMENTATION,
     PHASE5E2B_CLOSEOUT,
     _expected_phase_state,
+    _resolve_successor_position,
 )
 
 ROOT = Path(__file__).parents[1]
@@ -35,7 +36,27 @@ ROOT = Path(__file__).parents[1]
 def test_current_phase_state_is_machine_readable_and_consistent() -> None:
     state = json.loads((ROOT / "docs" / "phase-status.json").read_text(encoding="utf-8"))
     is_accepted = (ROOT / "docs/phase5e2b12a-acceptance-closeout.json").is_file()
-    assert state == _expected_phase_state(accepted=is_accepted)
+    implementation_test = (
+        ROOT / "tests/test_phase5e2b12b_canonical_event_consumption.py"
+    ).is_file()
+    implementation_closeout = (
+        ROOT / "docs/phase5e2b12b-acceptance-closeout.json"
+    ).is_file()
+    stage_by_markers = {
+        (False, False, False): "2a_pending",
+        (True, False, False): "2a_accepted",
+        (True, True, False): "2b_pending",
+        (True, True, True): "2b_accepted",
+    }
+    stage = stage_by_markers[(is_accepted, implementation_test, implementation_closeout)]
+    successor_position = None
+    if stage == "2b_accepted":
+        successor_position = _resolve_successor_position("HEAD")
+        stage = str(successor_position["stage"])
+    assert state == _expected_phase_state(
+        stage=stage,
+        successor_position=successor_position,
+    )
     assert state["prior_closeouts"] == [
         PHASE5C0_CLOSEOUT,
         PHASE5C1_CLOSEOUT,
@@ -67,12 +88,12 @@ def test_current_phase_state_is_machine_readable_and_consistent() -> None:
     assert "conditional_authorized_next" not in state
     assert "acceptance_gate" not in state
     assert "Phase 5E-2B" not in state["prohibited"]
-    if is_accepted:
+    if stage == "2a_accepted":
         assert state["authorized_next"] == [
             "Phase 5E-2B.1-2B canonical-event roll-forward implementation"
         ]
         assert "Phase 5E-2B.1-2B" not in state["prohibited"]
-    else:
+    elif stage == "2a_pending":
         assert state["authorized_next"] == ["Phase 5E-2B.1-2A acceptance closeout"]
         assert "Phase 5E-2B.1-2B" in state["prohibited"]
     assert "Phase 5E-2B.1-2C" in state["prohibited"]
