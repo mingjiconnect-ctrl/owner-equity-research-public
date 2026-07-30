@@ -1,0 +1,7 @@
+{
+  "authority_sha256": "d631819db7f48263035306cbdb6996c1ef91ef7e1aa5c076dd10dfdac2ac7a5f",
+  "bootstrap_commit": "aa5e61d27f0d2881279be9a629490cdaf05eba3b",
+  "reason_code": "sealed-one-time-base-audit-profile-recovery",
+  "recovery_id": "phase5e2b12b-base-audit-profile-recovery-v1",
+  "schema_version": "1.0.0"
+}

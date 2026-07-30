@@ -1,0 +1,41 @@
+{
+  "finalized_predecessor_commit": "f6e8882a21bbb80235b64008120aea7238038d21",
+  "main_ci_run_id": 30510941638,
+  "misprofiled_audit": {
+    "artifact_digest": "sha256:1940b1f22f671e04ac52d997fa307a000a53fe52d008fd95add39c7c5bfb0c4f",
+    "artifact_id": 8747969933,
+    "artifact_size": 9139,
+    "finding_counts": {
+      "P0": 6,
+      "P1": 3,
+      "P2": 0,
+      "P3": 0
+    },
+    "manifest_sha256": "c74a7ce13d8d801e85a4674b1db191bd3a8bb9267306d8aa768a42132c6e7447",
+    "profile": "phase5e2b12b",
+    "report_sha256": "0cce8c3f3f17c785a5439d745b7d3abdd7b5c6a1d2e949cbd094ff032090b884",
+    "run_id": 30510955336,
+    "test_count": 1374,
+    "version": "2.3.2.3.4"
+  },
+  "reason_code": "control-plane-only-main-was-evaluated-by-successor-product-profile",
+  "recovery_id": "phase5e2b12b-base-audit-profile-recovery-v1",
+  "repair_branch": "fix/phase5e2b12b-r1-audit-test-parity",
+  "repair_files": {
+    "tests/test_phase4d5_phase_state.py": {
+      "blob": "fbe14aaece3094b35f278fcf9ca8a61441bf321c",
+      "mode": "100644",
+      "status": "M"
+    },
+    "tests/test_phase5e_audit.py": {
+      "blob": "83fd40361dc7fc7223ecf8ad5ad5a640165a2bc3",
+      "mode": "100644",
+      "status": "M"
+    }
+  },
+  "repair_head_commit": "680458f08e6cea0cfd9c4e119e2652e61c60c7a9",
+  "repair_merge_commit": "de3680bb926e09ede9f95e248fa77bcd67b19ffa",
+  "repair_pull_request": 67,
+  "repair_tree": "839bcacdaaf1ebbe001e3b0338e4789c331491bd",
+  "schema_version": "1.0.0"
+}
