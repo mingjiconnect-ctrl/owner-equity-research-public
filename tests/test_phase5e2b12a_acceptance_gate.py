@@ -1694,8 +1694,18 @@ def test_base_finalization_uses_only_validated_recovery_fallback(
     monkeypatch.setattr(acceptance_gate, "_api_paginated_items", lambda *args, **kwargs: [])
     monkeypatch.setattr(
         acceptance_gate,
+        "_verify_base_finalization_recovery",
+        lambda **kwargs: calls.append("finalization:" + str(kwargs["base"])) or False,
+    )
+    monkeypatch.setattr(
+        acceptance_gate,
+        "_verify_inventory_parity_base",
+        lambda **kwargs: calls.append("inventory:" + str(kwargs["base"])) or False,
+    )
+    monkeypatch.setattr(
+        acceptance_gate,
         "_verify_base_audit_recovery",
-        lambda **kwargs: calls.append(str(kwargs["base"])) or True,
+        lambda **kwargs: calls.append("legacy:" + str(kwargs["base"])) or True,
     )
     acceptance_gate._verify_base_merged_main_finalized(
         repository=ROOT,
@@ -1704,7 +1714,11 @@ def test_base_finalization_uses_only_validated_recovery_fallback(
         token="token",
         controller_app_id=98765,
     )
-    assert calls == ["d" * 40]
+    assert calls == [
+        "finalization:" + "d" * 40,
+        "inventory:" + "d" * 40,
+        "legacy:" + "d" * 40,
+    ]
 
 
 @pytest.mark.parametrize(

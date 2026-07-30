@@ -1,0 +1,7 @@
+{
+  "authority_sha256": "1b37be635599e8147bab0dba1f3a758b442e0418de89a40e6e7b4addafde83c4",
+  "bootstrap_commit": "adfd26abc193134666b3d351bd9eefe2f834c9f7",
+  "reason_code": "sealed-inventory-parity-base-finalization",
+  "recovery_id": "phase5e2b12b-base-finalization-topology-recovery-v1",
+  "schema_version": "1.0.0"
+}

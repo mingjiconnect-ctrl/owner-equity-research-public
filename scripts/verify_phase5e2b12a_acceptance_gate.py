@@ -644,6 +644,21 @@ INVENTORY_PARITY_BOOTSTRAP_PATHS = {
     "tests/test_phase5e2b12b_acceptance_gate.py": "M",
     "tests/test_phase5e_audit.py": "M",
 }
+BASE_FINALIZATION_AUTHORITY_PATH = (
+    "scripts/phase5e-base-finalization-topology-recovery-v1.json"
+)
+BASE_FINALIZATION_SEAL_PATH = (
+    "scripts/phase5e-base-finalization-topology-recovery-seal-v1.json"
+)
+BASE_FINALIZATION_BRANCH = "fix/phase5e2b12b-r4-base-finalization-topology"
+BASE_FINALIZATION_PREDECESSOR = "c0bd606102653e4291e1f8e57a12f3a8a4cdbada"
+BASE_FINALIZATION_BOOTSTRAP_PATHS = {
+    BASE_FINALIZATION_AUTHORITY_PATH: "A",
+    "scripts/run_phase5e_audit.py": "M",
+    "scripts/verify_all.py": "M",
+    "scripts/verify_phase5e2b12a_acceptance_gate.py": "M",
+    "tests/test_phase5e2b12a_acceptance_gate.py": "M",
+}
 POST_IMPLEMENTATION_PINNED_REPAIRS = {
     "7e1804446e1c58416294d3fb81388cc790655e96": {
         "first_parent": "45e316bfb5513eb5cca3fd3cdd09da58da039e37",
@@ -3503,6 +3518,200 @@ def _inventory_parity_context(
     }
 
 
+def _base_finalization_context(
+    repository: Path,
+    base: str,
+) -> dict[str, Any] | None:
+    """Validate the sealed correction that makes inventory parity a finalized base."""
+
+    if not _path_exists(repository, base, BASE_FINALIZATION_SEAL_PATH):
+        return None
+    seal = _read_json(repository, base, BASE_FINALIZATION_SEAL_PATH)
+    if (
+        set(seal)
+        != {
+            "authority_sha256",
+            "bootstrap_commit",
+            "reason_code",
+            "recovery_id",
+            "schema_version",
+        }
+        or seal.get("schema_version") != "1.0.0"
+        or seal.get("recovery_id")
+        != "phase5e2b12b-base-finalization-topology-recovery-v1"
+        or seal.get("reason_code") != "sealed-inventory-parity-base-finalization"
+        or not _git_oid(seal.get("bootstrap_commit"))
+        or not _sha256(seal.get("authority_sha256"))
+    ):
+        raise SystemExit("base-finalization recovery seal is malformed")
+    authority = _read_json(repository, base, BASE_FINALIZATION_AUTHORITY_PATH)
+    if (
+        set(authority)
+        != {
+            "failed_controller_run_id",
+            "predecessor_merge_commit",
+            "reason_code",
+            "recovery_id",
+            "schema_version",
+        }
+        or authority.get("schema_version") != "1.0.0"
+        or authority.get("recovery_id") != seal["recovery_id"]
+        or authority.get("reason_code")
+        != "inventory-parity-base-fell-through-to-obsolete-recovery-topology"
+        or authority.get("predecessor_merge_commit") != BASE_FINALIZATION_PREDECESSOR
+        or authority.get("failed_controller_run_id") != 30521503381
+    ):
+        raise SystemExit("base-finalization recovery authority is malformed")
+    bootstrap = str(seal["bootstrap_commit"])
+    authority_raw = _git(
+        repository,
+        "show",
+        f"{bootstrap}:{BASE_FINALIZATION_AUTHORITY_PATH}",
+        text=False,
+    )
+    if (
+        not isinstance(authority_raw, bytes)
+        or hashlib.sha256(authority_raw).hexdigest() != seal["authority_sha256"]
+        or _read_json(repository, bootstrap, BASE_FINALIZATION_AUTHORITY_PATH)
+        != authority
+    ):
+        raise SystemExit("base-finalization recovery authority hash drifted")
+    parents = _commit_parents(repository, base)
+    if len(parents) == 1:
+        branch_head = base
+        if parents != (bootstrap,):
+            raise SystemExit("base-finalization recovery candidate topology drifted")
+    elif len(parents) == 2:
+        branch_head = parents[1]
+        if (
+            parents[0] != BASE_FINALIZATION_PREDECESSOR
+            or _tree(repository, base) != _tree(repository, branch_head)
+            or _commit_parents(repository, branch_head) != (bootstrap,)
+        ):
+            raise SystemExit("base-finalization recovery merged topology drifted")
+    else:
+        raise SystemExit("base-finalization recovery topology drifted")
+    if _commit_parents(repository, bootstrap) != (BASE_FINALIZATION_PREDECESSOR,):
+        raise SystemExit("base-finalization recovery bootstrap topology drifted")
+    bootstrap_entries = {
+        path: status
+        for status, path in _diff_entries(
+            repository,
+            BASE_FINALIZATION_PREDECESSOR,
+            bootstrap,
+        )
+    }
+    seal_entries = {
+        path: status for status, path in _diff_entries(repository, bootstrap, branch_head)
+    }
+    if (
+        bootstrap_entries != BASE_FINALIZATION_BOOTSTRAP_PATHS
+        or seal_entries != {BASE_FINALIZATION_SEAL_PATH: "A"}
+        or _read_json(repository, BASE_FINALIZATION_PREDECESSOR, STATUS_PATH)
+        != _read_json(repository, base, STATUS_PATH)
+    ):
+        raise SystemExit("base-finalization recovery changed unauthorized bytes or phase state")
+    for commit, entries in ((bootstrap, bootstrap_entries), (branch_head, seal_entries)):
+        if any(_mode(repository, commit, path) != "100644" for path in entries):
+            raise SystemExit("base-finalization recovery contains a non-regular control file")
+    return {
+        "authority": authority,
+        "branch_head": branch_head,
+        "bootstrap_commit": bootstrap,
+        "topology": "candidate" if len(parents) == 1 else "merged",
+    }
+
+
+def _verify_inventory_parity_base(
+    *,
+    repository: Path,
+    base: str,
+    repository_slug: str,
+    token: str,
+    controller_app_id: int,
+) -> bool:
+    context = _inventory_parity_context(repository, base)
+    if context is None:
+        return False
+    _verify_base_merged_main_finalized(
+        repository=repository,
+        base=INVENTORY_PARITY_PREDECESSOR,
+        repository_slug=repository_slug,
+        token=token,
+        controller_app_id=controller_app_id,
+    )
+    return True
+
+
+def _verify_base_finalization_recovery(
+    *,
+    repository: Path,
+    base: str,
+    repository_slug: str,
+    token: str,
+    controller_app_id: int,
+) -> bool:
+    context = _base_finalization_context(repository, base)
+    if context is None:
+        return False
+    _verify_base_merged_main_finalized(
+        repository=repository,
+        base=BASE_FINALIZATION_PREDECESSOR,
+        repository_slug=repository_slug,
+        token=token,
+        controller_app_id=controller_app_id,
+    )
+    recovery_pull_requests = _api_list(
+        f"https://api.github.com/repos/{repository_slug}/commits/{base}/pulls",
+        token,
+    )
+    matching_recovery = [
+        item
+        for item in recovery_pull_requests
+        if isinstance(item, dict)
+        and item.get("state") == "closed"
+        and item.get("merged_at") is not None
+        and item.get("merge_commit_sha") == base
+        and item.get("head", {}).get("sha") == context["branch_head"]
+        and item.get("head", {}).get("ref") == BASE_FINALIZATION_BRANCH
+        and item.get("base", {}).get("sha") == BASE_FINALIZATION_PREDECESSOR
+        and item.get("base", {}).get("ref") == "main"
+    ]
+    if len(matching_recovery) != 1:
+        raise SystemExit("base-finalization recovery pull request identity is ambiguous")
+    ci_runs = _api_paginated_items(
+        (
+            f"https://api.github.com/repos/{repository_slug}/actions/workflows/ci.yml/runs"
+            f"?event=push&status=completed&head_sha={base}"
+        ),
+        key="workflow_runs",
+        token=token,
+    )
+    successful = [
+        item
+        for item in ci_runs
+        if item.get("head_sha") == base
+        and item.get("head_branch") == "main"
+        and item.get("event") == "push"
+        and item.get("conclusion") == "success"
+        and item.get("name") == "owner-research-ci"
+        and item.get("path") == ".github/workflows/ci.yml"
+        and type(item.get("id")) is int
+        and item["id"] > 0
+    ]
+    if len(successful) != 1:
+        raise SystemExit("base-finalization recovery lacks one successful main CI run")
+    _verify_run(
+        repository_slug=repository_slug,
+        token=token,
+        run_id=str(successful[0]["id"]),
+        expected_head=base,
+        expected_event="push",
+        expected_head_branch="main",
+    )
+    return True
+
+
 def _verify_misprofiled_repair_audit(
     *,
     repository: Path,
@@ -3778,6 +3987,22 @@ def _verify_base_merged_main_finalized(
         and run["id"] > 0
     ]
     if len(matching_gate_runs) != 1:
+        if _verify_base_finalization_recovery(
+            repository=repository,
+            base=base,
+            repository_slug=repository_slug,
+            token=token,
+            controller_app_id=controller_app_id,
+        ):
+            return
+        if _verify_inventory_parity_base(
+            repository=repository,
+            base=base,
+            repository_slug=repository_slug,
+            token=token,
+            controller_app_id=controller_app_id,
+        ):
+            return
         if _verify_base_audit_recovery(
             repository=repository,
             base=base,
@@ -4901,6 +5126,10 @@ def main() -> int:
         action="store_true",
     )
     parser.add_argument(
+        "--verify-base-finalization-topology-only",
+        action="store_true",
+    )
+    parser.add_argument(
         "--verify-external-gate-author-authority-only",
         action="store_true",
     )
@@ -4927,6 +5156,20 @@ def main() -> int:
             raise SystemExit("base-audit recovery seal is absent")
         print(
             "Phase 5E sealed base-audit recovery "
+            f"{context['topology']} topology passed"
+        )
+        return 0
+    if args.verify_base_finalization_topology_only:
+        if not args.base:
+            raise SystemExit("base-finalization topology verification requires --base")
+        context = _base_finalization_context(
+            args.repository.resolve(),
+            args.base,
+        )
+        if context is None:
+            raise SystemExit("base-finalization recovery seal is absent")
+        print(
+            "Phase 5E sealed base-finalization recovery "
             f"{context['topology']} topology passed"
         )
         return 0

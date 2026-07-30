@@ -91,6 +91,24 @@ def main() -> int:
         "Phase 5E-2B.1-2C",
     }:
         integration_command.append("--frozen-contract-replay")
+    elif (
+        ROOT / "scripts/phase5e-base-finalization-topology-recovery-seal-v1.json"
+    ).is_file():
+        parity_head = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=ROOT,
+            text=True,
+        ).strip()
+        run(
+            sys.executable,
+            "scripts/verify_phase5e2b12a_acceptance_gate.py",
+            "--repository",
+            str(ROOT),
+            "--base",
+            parity_head,
+            "--verify-base-finalization-topology-only",
+        )
+        integration_command.append("--frozen-contract-replay")
     elif (ROOT / "scripts/phase5e-inventory-parity-recovery-seal-v1.json").is_file():
         parity_head = subprocess.check_output(
             ["git", "rev-parse", "HEAD"],

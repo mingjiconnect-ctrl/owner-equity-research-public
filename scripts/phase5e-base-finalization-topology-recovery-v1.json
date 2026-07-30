@@ -1,0 +1,7 @@
+{
+  "failed_controller_run_id": 30521503381,
+  "predecessor_merge_commit": "c0bd606102653e4291e1f8e57a12f3a8a4cdbada",
+  "reason_code": "inventory-parity-base-fell-through-to-obsolete-recovery-topology",
+  "recovery_id": "phase5e2b12b-base-finalization-topology-recovery-v1",
+  "schema_version": "1.0.0"
+}
