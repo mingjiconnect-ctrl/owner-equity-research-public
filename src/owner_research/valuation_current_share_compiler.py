@@ -40,6 +40,25 @@ from .valuation_security_identity import (
     SecurityIdentityCompilationResult,
     compile_security_identity,
 )
+from .valuation_share_event_grouping import (
+    ShareEventGroupingError,
+    group_governed_completed_share_events,
+)
+from .valuation_share_event_integration_types import (
+    CANONICAL_EVENT_DERIVATION,
+    CURRENT_SHARE_INTEGRATION_POLICY_ID,
+    CURRENT_SHARE_INTEGRATION_POLICY_VERSION,
+    CURRENT_SHARE_ROLLFORWARD_CHANNEL,
+    CURRENT_SHARE_ROLLFORWARD_DERIVATION,
+    CanonicalShareEventFactMaterialization,
+    CanonicalShareEventMemberBinding,
+    ShareEventNumericConsumption,
+    _canonical_event_source_locator,
+    _output_share_source_locator,
+    _primary_member_source_id,
+    _reserved_output_share_fact_id,
+    current_share_integration_code_sha256,
+)
 
 CURRENT_SHARE_COMPILATION_POLICY_ID = "quote-date-current-common-shares-compilation"
 CURRENT_SHARE_COMPILATION_POLICY_VERSION = "1.0.0"
@@ -126,6 +145,83 @@ class CurrentSharePathDecision:
 
 
 @dataclass(frozen=True, slots=True)
+class CanonicalShareEventNumericConsumption:
+    """Bind the frozen numeric-consumption record to its canonical magnitude."""
+
+    record: ShareEventNumericConsumption
+    canonical_share_magnitude: str
+
+    def __post_init__(self) -> None:
+        _decimal(self.canonical_share_magnitude, "canonical share-event magnitude")
+
+    @property
+    def group_id(self) -> str:
+        return self.record.group_id
+
+    @property
+    def canonical_event_fact_id(self) -> str:
+        return self.record.canonical_event_fact_id
+
+    @property
+    def sign(self) -> str:
+        return self.record.sign
+
+    @property
+    def consumption_fingerprint(self) -> str:
+        return self.record.consumption_fingerprint
+
+    def to_dict(self) -> dict[str, Any]:
+        return to_json_value(self)
+
+
+@dataclass(frozen=True, slots=True)
+class CanonicalRollforwardResult:
+    """Closed exactly-once arithmetic output for the separately governed 2B lineage."""
+
+    opening_share_fact_id: str
+    output_share_fact_id: str
+    materializations: tuple[CanonicalShareEventFactMaterialization, ...]
+    numeric_consumptions: tuple[CanonicalShareEventNumericConsumption, ...]
+    rollforward_fingerprint: str
+
+    def __post_init__(self) -> None:
+        materials = tuple(sorted(self.materializations, key=lambda item: item.group_id))
+        consumptions = tuple(
+            sorted(self.numeric_consumptions, key=lambda item: item.group_id)
+        )
+        material_groups = tuple(item.group_id for item in materials)
+        consumption_groups = tuple(item.group_id for item in consumptions)
+        if (
+            not self.opening_share_fact_id
+            or not self.output_share_fact_id
+            or not materials
+            or len(material_groups) != len(set(material_groups))
+            or material_groups != consumption_groups
+            or any(
+                material.canonical_event_fact_id
+                != consumption.canonical_event_fact_id
+                for material, consumption in zip(materials, consumptions, strict=True)
+            )
+        ):
+            raise ValueError("canonical roll-forward is not group-bound exactly once")
+        object.__setattr__(self, "materializations", materials)
+        object.__setattr__(self, "numeric_consumptions", consumptions)
+        if self.rollforward_fingerprint != self.expected_fingerprint():
+            raise ValueError("canonical roll-forward fingerprint mismatch")
+
+    def fingerprint_payload(self) -> dict[str, Any]:
+        payload = to_json_value(self)
+        payload.pop("rollforward_fingerprint")
+        return payload
+
+    def expected_fingerprint(self) -> str:
+        return canonical_sha256(self.fingerprint_payload())
+
+    def to_dict(self) -> dict[str, Any]:
+        return to_json_value(self)
+
+
+@dataclass(frozen=True, slots=True)
 class CurrentShareCompilationResult:
     policy_id: str
     policy_version: str
@@ -139,6 +235,7 @@ class CurrentShareCompilationResult:
     evidence_closure: CurrentShareEvidenceClosure | None
     path_decisions: tuple[CurrentSharePathDecision, ...]
     issue_codes: tuple[str, ...]
+    canonical_rollforward: CanonicalRollforwardResult | None = None
 
     def __post_init__(self) -> None:
         if (self.policy_id, self.policy_version) != (
@@ -171,9 +268,19 @@ class CurrentShareCompilationResult:
                 or self.output_fact.period["end"] != self.quote_date
             ):
                 raise ValueError("current-share compilation outputs are not identity-bound")
+            if self.canonical_rollforward is not None and (
+                self.output_fact.fact_id
+                != self.canonical_rollforward.output_share_fact_id
+            ):
+                raise ValueError("canonical roll-forward does not bind the promoted output")
         elif any(
             item is not None
-            for item in (self.output_fact, self.share_basis_decision, self.evidence_closure)
+            for item in (
+                self.output_fact,
+                self.share_basis_decision,
+                self.evidence_closure,
+                self.canonical_rollforward,
+            )
         ) or not issues:
             raise ValueError("non-eligible current-share compilation cannot promote evidence")
         object.__setattr__(self, "path_decisions", paths)
@@ -198,6 +305,7 @@ def _result(
     output_fact: Fact | None = None,
     decision: ShareBasisDecision | None = None,
     closure: CurrentShareEvidenceClosure | None = None,
+    canonical_rollforward: CanonicalRollforwardResult | None = None,
 ) -> CurrentShareCompilationResult:
     return CurrentShareCompilationResult(
         policy_id=CURRENT_SHARE_COMPILATION_POLICY_ID,
@@ -212,6 +320,7 @@ def _result(
         evidence_closure=closure,
         path_decisions=paths,
         issue_codes=issues,
+        canonical_rollforward=canonical_rollforward,
     )
 
 
@@ -367,6 +476,237 @@ def _overlay(graph: ContractGraph, fact: Fact) -> ContractGraph:
     return replace(graph, facts=facts)
 
 
+def _canonical_member_binding(
+    *,
+    graph: ContractGraph,
+    member: Any,
+    issuer_id: str,
+    security_id: str,
+    data_cutoff_date: str,
+) -> CanonicalShareEventMemberBinding:
+    facts = {item.fact_id: item for item in graph.facts}
+    documents = {item.document_id: item for item in graph.documents}
+    events = {item.event_id: item for item in graph.capital_allocation_events}
+    candidates = {
+        item.candidate_id: item
+        for item in graph.capital_allocation_event_candidates
+    }
+    decisions = {
+        item.decision_id: item
+        for item in graph.capital_allocation_event_review_decisions
+    }
+    fact = facts[member.fact_id]
+    source = documents[member.source_document_id]
+    event = events[member.capital_allocation_event_id]
+    bound_candidates = tuple(
+        sorted(
+            (candidates[identifier] for identifier in member.candidate_ids),
+            key=lambda item: item.candidate_id,
+        )
+    )
+    bound_decisions = tuple(
+        sorted(
+            (decisions[identifier] for identifier in member.review_decision_ids),
+            key=lambda item: item.decision_id,
+        )
+    )
+    payload = {
+        "issuer_id": issuer_id,
+        "security_id": security_id,
+        "data_cutoff_date": data_cutoff_date,
+        "member": member,
+        "fact": fact,
+        "source_document": source,
+        "capital_allocation_event": event,
+        "candidates": bound_candidates,
+        "review_decisions": bound_decisions,
+        "member_id": member.member_id,
+        "member_fingerprint": member.member_fingerprint,
+        "fact_id": fact.fact_id,
+        "fact_fingerprint": fact.fingerprint,
+        "source_document_id": source.document_id,
+        "source_document_fingerprint": source.fingerprint,
+        "capital_allocation_event_id": event.event_id,
+        "capital_allocation_event_fingerprint": event.fingerprint,
+        "candidate_bindings": tuple(
+            (item.candidate_id, item.fingerprint) for item in bound_candidates
+        ),
+        "review_decision_bindings": tuple(
+            (item.decision_id, item.fingerprint) for item in bound_decisions
+        ),
+    }
+    return CanonicalShareEventMemberBinding(
+        **payload,
+        binding_fingerprint=canonical_sha256(payload),
+    )
+
+
+def _canonical_rollforward(
+    *,
+    graph: ContractGraph,
+    opening: Fact,
+    security: SecurityIdentityCompilationResult,
+    issuer_id: str,
+    quote_date: str,
+    data_cutoff_date: str,
+) -> tuple[Fact, CanonicalRollforwardResult, tuple[Fact, ...]] | None:
+    security_decision = security.decision
+    if security_decision is None or opening.period["end"] is None:
+        raise ValueError("canonical roll-forward lacks its security or opening date")
+    grouping = group_governed_completed_share_events(
+        graph=graph,
+        issuer_id=issuer_id,
+        security_compilation_result=security,
+        opening_date=str(opening.period["end"]),
+        quote_date=quote_date,
+        data_cutoff_date=data_cutoff_date,
+    )
+    if grouping.status != "grouped":
+        raise ValueError("canonical share-event grouping is blocked")
+    if not grouping.groups:
+        return None
+
+    members_by_id = {item.member_id: item for item in grouping.members}
+    materializations: list[CanonicalShareEventFactMaterialization] = []
+    consumptions: list[CanonicalShareEventNumericConsumption] = []
+    canonical_facts: list[Fact] = []
+    value = _decimal(opening.value, "opening common shares")
+    integration_code_sha = current_share_integration_code_sha256()
+
+    for group in grouping.groups:
+        bindings = tuple(
+            _canonical_member_binding(
+                graph=graph,
+                member=members_by_id[identifier],
+                issuer_id=issuer_id,
+                security_id=security_decision.security_id,
+                data_cutoff_date=data_cutoff_date,
+            )
+            for identifier in group.member_ids
+        )
+        primary_source_id = _primary_member_source_id(bindings)
+        canonical_fact_id = str(group.canonical_event_fact_id)
+        canonical_fact = Fact(
+            schema_version="2.0.0",
+            fact_id=canonical_fact_id,
+            issuer_id=issuer_id,
+            concept=group.identity.event_concept,
+            value_type="number",
+            value=int(group.identity.canonical_share_magnitude),
+            unit="shares",
+            currency=None,
+            period={
+                "start": None,
+                "end": group.identity.legal_effective_date,
+            },
+            source_document_id=primary_source_id,
+            source_locator=_canonical_event_source_locator(canonical_fact_id),
+            derivation=CANONICAL_EVENT_DERIVATION,
+            parent_fact_ids=tuple(sorted(item.fact_id for item in bindings)),
+            confidence="high",
+        )
+        material_payload = {
+            "policy_id": CURRENT_SHARE_INTEGRATION_POLICY_ID,
+            "policy_version": CURRENT_SHARE_INTEGRATION_POLICY_VERSION,
+            "materialization_code_sha256": integration_code_sha,
+            "issuer_id": issuer_id,
+            "security_id": security_decision.security_id,
+            "opening_date": str(opening.period["end"]),
+            "quote_date": quote_date,
+            "data_cutoff_date": data_cutoff_date,
+            "grouping_result": grouping,
+            "group": group,
+            "canonical_event_fact": canonical_fact,
+            "grouping_result_fingerprint": grouping.grouping_fingerprint,
+            "group_id": group.group_id,
+            "group_fingerprint": group.group_fingerprint,
+            "identity_fingerprint": group.identity.identity_fingerprint,
+            "canonical_event_fact_id": canonical_fact.fact_id,
+            "canonical_event_fact_fingerprint": canonical_fact.fingerprint,
+            "event_concept": group.identity.event_concept,
+            "legal_effective_date": group.identity.legal_effective_date,
+            "canonical_share_magnitude": group.identity.canonical_share_magnitude,
+            "primary_source_document_id": primary_source_id,
+            "members": bindings,
+        }
+        materialization = CanonicalShareEventFactMaterialization(
+            **material_payload,
+            materialization_fingerprint=canonical_sha256(material_payload),
+        )
+        consumption_payload = {
+            "group_id": group.group_id,
+            "group_fingerprint": group.group_fingerprint,
+            "identity_fingerprint": group.identity.identity_fingerprint,
+            "canonical_event_fact_id": canonical_fact.fact_id,
+            "canonical_event_fact_fingerprint": canonical_fact.fingerprint,
+            "event_concept": group.identity.event_concept,
+            "sign": format(
+                COMPLETED_SHARE_EVENT_SIGNS[group.identity.event_concept],
+                "f",
+            ),
+            "channel": CURRENT_SHARE_ROLLFORWARD_CHANNEL,
+            "window_start": str(opening.period["end"]),
+            "window_end": quote_date,
+        }
+        frozen_consumption = ShareEventNumericConsumption(
+            **consumption_payload,
+            consumption_fingerprint=canonical_sha256(consumption_payload),
+        )
+        consumption = CanonicalShareEventNumericConsumption(
+            record=frozen_consumption,
+            canonical_share_magnitude=group.identity.canonical_share_magnitude,
+        )
+        value += (
+            COMPLETED_SHARE_EVENT_SIGNS[group.identity.event_concept]
+            * _decimal(
+                group.identity.canonical_share_magnitude,
+                "canonical share-event magnitude",
+            )
+        )
+        materializations.append(materialization)
+        consumptions.append(consumption)
+        canonical_facts.append(canonical_fact)
+
+    if value <= 0:
+        raise ValueError("canonical roll-forward produces non-positive shares")
+    output_fact_id = _reserved_output_share_fact_id(
+        issuer_id=issuer_id,
+        security_id=security_decision.security_id,
+        quote_date=quote_date,
+        opening_share_fact_id=opening.fact_id,
+        grouping_result_fingerprint=grouping.grouping_fingerprint,
+    )
+    output = Fact(
+        schema_version="2.0.0",
+        fact_id=output_fact_id,
+        issuer_id=issuer_id,
+        concept="common_shares_outstanding",
+        value_type="number",
+        value=int(value),
+        unit="shares",
+        currency=None,
+        period={"start": None, "end": quote_date},
+        source_document_id=opening.source_document_id,
+        source_locator=_output_share_source_locator(output_fact_id),
+        derivation=CURRENT_SHARE_ROLLFORWARD_DERIVATION,
+        parent_fact_ids=tuple(
+            sorted((opening.fact_id, *(item.fact_id for item in canonical_facts)))
+        ),
+        confidence="high",
+    )
+    rollforward_payload = {
+        "opening_share_fact_id": opening.fact_id,
+        "output_share_fact_id": output.fact_id,
+        "materializations": tuple(materializations),
+        "numeric_consumptions": tuple(consumptions),
+    }
+    rollforward = CanonicalRollforwardResult(
+        **rollforward_payload,
+        rollforward_fingerprint=canonical_sha256(rollforward_payload),
+    )
+    return output, rollforward, tuple(canonical_facts)
+
+
 def compile_quote_date_current_common_shares(
     *,
     price_blind_artifact_directory: Path,
@@ -479,6 +819,8 @@ def compile_quote_date_current_common_shares(
     authority_ids = _authoritative_ids(graph)
     path_outputs: list[tuple[str, Fact, Decimal]] = []
     path_decisions: list[CurrentSharePathDecision] = []
+    canonical_rollforward: CanonicalRollforwardResult | None = None
+    canonical_event_facts: tuple[Fact, ...] = ()
 
     direct_values: dict[str, Decimal] = {}
     direct_candidates: list[Fact] = []
@@ -681,11 +1023,27 @@ def compile_quote_date_current_common_shares(
             )
         )
     elif opening is not None and event_facts:
-        duplicate_event_keys = [
-            (item.concept, item.period["end"], item.source_document_id, item.source_locator)
-            for item in event_facts
-        ]
-        if len(duplicate_event_keys) != len(set(duplicate_event_keys)):
+        try:
+            reviewed_event_fact_ids = {
+                str(binding["fact_id"])
+                for event in graph.capital_allocation_events
+                for binding in event.fact_bindings
+            }
+            canonical = (
+                _canonical_rollforward(
+                    graph=graph,
+                    opening=opening,
+                    security=replayed_security,
+                    issuer_id=security.issuer_id,
+                    quote_date=quote_date,
+                    data_cutoff_date=str(artifact["data_cutoff_date"]),
+                )
+                if reviewed_event_fact_ids.intersection(
+                    item.fact_id for item in event_facts
+                )
+                else None
+            )
+        except (KeyError, ShareEventGroupingError, ValueError):
             path_decisions.append(
                 _path_decision(
                     "completed_event_rollforward",
@@ -695,39 +1053,67 @@ def compile_quote_date_current_common_shares(
                 )
             )
         else:
-            try:
-                value = _decimal(opening.value, "opening common shares") + sum(
-                    (
-                        COMPLETED_SHARE_EVENT_SIGNS[item.concept]
-                        * _decimal(item.value, "completed share event")
-                        for item in event_facts
-                    ),
-                    Decimal("0"),
+            if canonical is None:
+                legacy_semantic_keys = tuple(
+                    (item.concept, str(item.period["end"])) for item in event_facts
                 )
-                output = _derived_fact(
-                    issuer_id=security.issuer_id,
-                    quote_date=quote_date,
-                    value=value,
-                    derivation="completed-event-rollforward/1.0.0",
-                    parents=(opening, *event_facts),
-                    documents=documents,
-                )
+                if len(legacy_semantic_keys) != len(set(legacy_semantic_keys)):
+                    path_decisions.append(
+                        _path_decision(
+                            "completed_event_rollforward",
+                            (opening, *event_facts),
+                            status="blocked",
+                            issue="current_share_evidence_ambiguous",
+                        )
+                    )
+                else:
+                    try:
+                        value = _decimal(opening.value, "opening common shares") + sum(
+                            (
+                                COMPLETED_SHARE_EVENT_SIGNS[item.concept]
+                                * _decimal(item.value, "completed share event")
+                                for item in event_facts
+                            ),
+                            Decimal("0"),
+                        )
+                        output = _derived_fact(
+                            issuer_id=security.issuer_id,
+                            quote_date=quote_date,
+                            value=value,
+                            derivation="completed-event-rollforward/1.0.0",
+                            parents=(opening, *event_facts),
+                            documents=documents,
+                        )
+                        path_outputs.append(
+                            ("completed_event_rollforward", output, value)
+                        )
+                        path_decisions.append(
+                            _path_decision(
+                                "completed_event_rollforward",
+                                (opening, *event_facts),
+                                status="eligible",
+                                value=value,
+                            )
+                        )
+                    except ValueError:
+                        path_decisions.append(
+                            _path_decision(
+                                "completed_event_rollforward",
+                                (opening, *event_facts),
+                                status="blocked",
+                                issue="current_share_lineage_invalid",
+                            )
+                        )
+            else:
+                output, canonical_rollforward, canonical_event_facts = canonical
+                value = _decimal(output.value, "canonical current shares")
                 path_outputs.append(("completed_event_rollforward", output, value))
                 path_decisions.append(
                     _path_decision(
                         "completed_event_rollforward",
-                        (opening, *event_facts),
+                        (opening, *canonical_event_facts),
                         status="eligible",
                         value=value,
-                    )
-                )
-            except ValueError:
-                path_decisions.append(
-                    _path_decision(
-                        "completed_event_rollforward",
-                        (opening, *event_facts),
-                        status="blocked",
-                        issue="current_share_lineage_invalid",
                     )
                 )
     else:
@@ -771,6 +1157,16 @@ def compile_quote_date_current_common_shares(
     selected_kind, selected_fact, _ = min(
         path_outputs, key=lambda item: precedence[item[0]]
     )
+    selected_canonical_rollforward = (
+        canonical_rollforward
+        if selected_kind == "completed_event_rollforward"
+        else None
+    )
+    selected_canonical_event_facts = (
+        canonical_event_facts
+        if selected_canonical_rollforward is not None
+        else ()
+    )
     selected_paths = tuple(
         replace(item, status="selected") if item.path_kind == selected_kind else item
         for item in path_decisions
@@ -795,7 +1191,9 @@ def compile_quote_date_current_common_shares(
         reason_codes=(),
     )
     try:
-        replay_graph = _overlay(graph, selected_fact)
+        replay_graph = graph
+        for derived_fact in (*selected_canonical_event_facts, selected_fact):
+            replay_graph = _overlay(replay_graph, derived_fact)
         closure = derive_current_share_evidence_closure(
             graph=replay_graph,
             share_fact=selected_fact,
@@ -839,6 +1237,7 @@ def compile_quote_date_current_common_shares(
         output_fact=selected_fact,
         decision=decision,
         closure=closure,
+        canonical_rollforward=selected_canonical_rollforward,
     )
 
 
