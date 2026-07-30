@@ -1,0 +1,7 @@
+{
+  "authority_sha256": "27e7b0c4fd6ad46cabf952c79ede6c171359595fb86d4b760a6fe6cad69974d0",
+  "bootstrap_commit": "219fa0c429edaa8fe6606867e6be87af77c993be",
+  "reason_code": "sealed-current-control-product-inventory-parity",
+  "recovery_id": "phase5e2b12b-inventory-parity-recovery-v1",
+  "schema_version": "1.0.0"
+}
