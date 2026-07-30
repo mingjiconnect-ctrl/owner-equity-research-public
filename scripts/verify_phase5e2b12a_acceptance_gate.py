@@ -628,6 +628,22 @@ BASE_AUDIT_RECOVERY_BOOTSTRAP_PATHS = {
     "scripts/verify_phase5e2b12a_acceptance_gate.py": "M",
     "tests/test_phase5e2b12a_acceptance_gate.py": "M",
 }
+INVENTORY_PARITY_AUTHORITY_PATH = "scripts/phase5e-inventory-parity-recovery-v1.json"
+INVENTORY_PARITY_SEAL_PATH = "scripts/phase5e-inventory-parity-recovery-seal-v1.json"
+INVENTORY_PARITY_PREDECESSOR = "1d5e8d19b573cd8c7151e29541efdd0b48a3e6a6"
+INVENTORY_PARITY_BOOTSTRAP_PATHS = {
+    INVENTORY_PARITY_AUTHORITY_PATH: "A",
+    "scripts/phase5e2b12a-acceptance-trust.json": "M",
+    "scripts/phase5e2b12b-acceptance-trust.json": "M",
+    "scripts/phase5e_audit_profiles.py": "M",
+    "scripts/run_phase5e_audit.py": "M",
+    "scripts/verify_all.py": "M",
+    "scripts/verify_phase5e2b12a_acceptance_gate.py": "M",
+    "scripts/verify_phase5e2b12b_acceptance_gate.py": "M",
+    "tests/test_phase5e2b12a_acceptance_gate.py": "M",
+    "tests/test_phase5e2b12b_acceptance_gate.py": "M",
+    "tests/test_phase5e_audit.py": "M",
+}
 POST_IMPLEMENTATION_PINNED_REPAIRS = {
     "7e1804446e1c58416294d3fb81388cc790655e96": {
         "first_parent": "45e316bfb5513eb5cca3fd3cdd09da58da039e37",
@@ -3369,6 +3385,124 @@ def _base_audit_recovery_context(
     }
 
 
+def _inventory_parity_context(
+    repository: Path,
+    base: str,
+) -> dict[str, Any] | None:
+    """Validate the sealed current-control/product inventory parity correction."""
+
+    if not _path_exists(repository, base, INVENTORY_PARITY_SEAL_PATH):
+        return None
+    seal = _read_json(repository, base, INVENTORY_PARITY_SEAL_PATH)
+    if (
+        set(seal)
+        != {
+            "authority_sha256",
+            "bootstrap_commit",
+            "reason_code",
+            "recovery_id",
+            "schema_version",
+        }
+        or seal.get("schema_version") != "1.0.0"
+        or seal.get("recovery_id") != "phase5e2b12b-inventory-parity-recovery-v1"
+        or seal.get("reason_code") != "sealed-current-control-product-inventory-parity"
+        or not _git_oid(seal.get("bootstrap_commit"))
+        or not _sha256(seal.get("authority_sha256"))
+    ):
+        raise SystemExit("inventory-parity recovery seal is malformed")
+    authority = _read_json(repository, base, INVENTORY_PARITY_AUTHORITY_PATH)
+    if (
+        set(authority)
+        != {
+            "current_control_nodeid_sha256",
+            "current_control_test_count",
+            "historical_closeout_nodeid_sha256",
+            "historical_closeout_test_count",
+            "predecessor_merge_commit",
+            "product_added_test_count",
+            "product_candidate_nodeid_sha256",
+            "product_candidate_test_count",
+            "reason_code",
+            "recovery_id",
+            "schema_version",
+        }
+        or authority.get("schema_version") != "1.0.0"
+        or authority.get("recovery_id") != seal["recovery_id"]
+        or authority.get("reason_code")
+        != "separate-historical-current-control-and-product-test-inventories"
+        or authority.get("predecessor_merge_commit") != INVENTORY_PARITY_PREDECESSOR
+        or authority.get("historical_closeout_test_count") != 1374
+        or authority.get("historical_closeout_nodeid_sha256")
+        != "eab85a4981f3fdcfe841c5e730af10f3e2b50ce41c617f3f9204b17a7ba4a79b"
+        or authority.get("current_control_test_count") != 1379
+        or authority.get("current_control_nodeid_sha256")
+        != "aa6b9e7f0edfdc744df7271043d9efd18ba6066f71a4ff754a50ca114b7155c8"
+        or authority.get("product_added_test_count") != 12
+        or authority.get("product_candidate_test_count") != 1391
+        or authority.get("product_candidate_nodeid_sha256")
+        != "07679b6b518c0c779ced9b30e8ed5c5f323733a03b8812c79d66470b1c0cb306"
+    ):
+        raise SystemExit("inventory-parity recovery authority is malformed")
+    bootstrap = str(seal["bootstrap_commit"])
+    authority_raw = _git(
+        repository,
+        "show",
+        f"{bootstrap}:{INVENTORY_PARITY_AUTHORITY_PATH}",
+        text=False,
+    )
+    if (
+        not isinstance(authority_raw, bytes)
+        or hashlib.sha256(authority_raw).hexdigest() != seal["authority_sha256"]
+        or _read_json(repository, bootstrap, INVENTORY_PARITY_AUTHORITY_PATH)
+        != authority
+    ):
+        raise SystemExit("inventory-parity recovery authority hash drifted")
+    parents = _commit_parents(repository, base)
+    if len(parents) == 1:
+        branch_head = base
+        if parents != (bootstrap,):
+            raise SystemExit("inventory-parity recovery candidate topology drifted")
+    elif len(parents) == 2:
+        branch_head = parents[1]
+        if (
+            parents[0] != INVENTORY_PARITY_PREDECESSOR
+            or _tree(repository, base) != _tree(repository, branch_head)
+            or _commit_parents(repository, branch_head) != (bootstrap,)
+        ):
+            raise SystemExit("inventory-parity recovery merged topology drifted")
+    else:
+        raise SystemExit("inventory-parity recovery topology drifted")
+    if _commit_parents(repository, bootstrap) != (INVENTORY_PARITY_PREDECESSOR,):
+        raise SystemExit("inventory-parity recovery bootstrap topology drifted")
+    bootstrap_entries = {
+        path: status
+        for status, path in _diff_entries(
+            repository,
+            INVENTORY_PARITY_PREDECESSOR,
+            bootstrap,
+        )
+    }
+    seal_entries = {
+        path: status for status, path in _diff_entries(repository, bootstrap, branch_head)
+    }
+    if (
+        bootstrap_entries != INVENTORY_PARITY_BOOTSTRAP_PATHS
+        or seal_entries != {INVENTORY_PARITY_SEAL_PATH: "A"}
+        or _read_json(repository, INVENTORY_PARITY_PREDECESSOR, STATUS_PATH)
+        != _read_json(repository, base, STATUS_PATH)
+    ):
+        raise SystemExit("inventory-parity recovery changed unauthorized bytes or phase state")
+    for commit, entries in ((bootstrap, bootstrap_entries), (branch_head, seal_entries)):
+        if any(_mode(repository, commit, path) != "100644" for path in entries):
+            raise SystemExit("inventory-parity recovery contains a non-regular control file")
+    return {
+        "authority": authority,
+        "branch_head": branch_head,
+        "bootstrap_commit": bootstrap,
+        "topology": "candidate" if len(parents) == 1 else "merged",
+    }
+
+
 def _verify_misprofiled_repair_audit(
     *,
     repository: Path,
@@ -4763,6 +4897,10 @@ def main() -> int:
         action="store_true",
     )
     parser.add_argument(
+        "--verify-inventory-parity-topology-only",
+        action="store_true",
+    )
+    parser.add_argument(
         "--verify-external-gate-author-authority-only",
         action="store_true",
     )
@@ -4789,6 +4927,20 @@ def main() -> int:
             raise SystemExit("base-audit recovery seal is absent")
         print(
             "Phase 5E sealed base-audit recovery "
+            f"{context['topology']} topology passed"
+        )
+        return 0
+    if args.verify_inventory_parity_topology_only:
+        if not args.base:
+            raise SystemExit("inventory-parity topology verification requires --base")
+        context = _inventory_parity_context(
+            args.repository.resolve(),
+            args.base,
+        )
+        if context is None:
+            raise SystemExit("inventory-parity recovery seal is absent")
+        print(
+            "Phase 5E sealed inventory-parity recovery "
             f"{context['topology']} topology passed"
         )
         return 0

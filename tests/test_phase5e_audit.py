@@ -13,6 +13,7 @@ from types import SimpleNamespace
 import pytest
 import yaml
 
+from scripts import phase5e_audit_profiles as audit_profiles
 from scripts import run_phase5e_audit as audit_runner
 from scripts import verify_phase5e2b12a_acceptance_gate as acceptance_gate_2a
 from scripts import verify_phase5e2b12a_semantic_oracle as semantic_oracle_2a
@@ -111,6 +112,24 @@ def test_candidate_import_surface_accepts_only_the_expected_project_roots(
 
 
 def test_control_oracle_launcher_and_runner_have_one_exact_fixed_inventory() -> None:
+    current = audit_profiles.audit_profile(
+        audit_profiles.PHASE5E2B12A_RECOVERY_AUDIT_PROFILE
+    )
+    product = audit_profiles.audit_profile(
+        audit_profiles.PHASE5E2B12B_AUDIT_PROFILE
+    )
+    assert current.expected_test_count == current.predecessor_test_count == 1379
+    assert (
+        current.predecessor_nodeid_sha256
+        == "aa6b9e7f0edfdc744df7271043d9efd18ba6066f71a4ff754a50ca114b7155c8"
+    )
+    assert product.predecessor_test_count == 1379
+    assert product.expected_test_count == 1391
+    assert audit_profiles.PHASE5E_SUCCESSOR_PREDECESSOR_TEST_COUNT == 1391
+    assert (
+        audit_profiles.PHASE5E_SUCCESSOR_PREDECESSOR_NODEID_SHA256
+        == "07679b6b518c0c779ced9b30e8ed5c5f323733a03b8812c79d66470b1c0cb306"
+    )
     launcher = (ROOT / "scripts/launch_phase5e_readonly_audit.sh").read_text(
         encoding="utf-8"
     )

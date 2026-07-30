@@ -18,12 +18,17 @@ from typing import Any
 
 AUDIT_TOOL = "owner-research-phase5e-readonly"
 PHASE5E2B12A_AUDIT_PROFILE = "phase5e2b12a"
+PHASE5E2B12A_RECOVERY_AUDIT_PROFILE = "phase5e2b12a-current-control"
 PHASE5E2B12B_AUDIT_PROFILE = "phase5e2b12b"
 PHASE5E_SUCCESSOR_BOOTSTRAP_AUDIT_PROFILE = "phase5e-successor-gate-bootstrap"
 PHASE5E2B12C_AUDIT_PROFILE = "phase5e-2b12c"
 PHASE5E2B12A_TEST_COUNT = 1374
 PHASE5E2B12A_NODEID_SHA256 = (
     "eab85a4981f3fdcfe841c5e730af10f3e2b50ce41c617f3f9204b17a7ba4a79b"
+)
+PHASE5E2B12A_CURRENT_TEST_COUNT = 1379
+PHASE5E2B12A_CURRENT_NODEID_SHA256 = (
+    "aa6b9e7f0edfdc744df7271043d9efd18ba6066f71a4ff754a50ca114b7155c8"
 )
 PHASE5E2B12B_ADDED_TEST_NODEIDS = (
     "tests/test_phase5e2b12b_canonical_event_consumption.py::"
@@ -51,9 +56,9 @@ PHASE5E2B12B_ADDED_TEST_NODEIDS = (
     "tests/test_phase5e2b12b_canonical_event_consumption.py::"
     "test_canonical_event_fact_preserves_all_member_lineage",
 )
-PHASE5E_SUCCESSOR_PREDECESSOR_TEST_COUNT = 1327
+PHASE5E_SUCCESSOR_PREDECESSOR_TEST_COUNT = 1391
 PHASE5E_SUCCESSOR_PREDECESSOR_NODEID_SHA256 = (
-    "1712ac9325cfbe65a147369193fc7a1241e7f808a8a5c7f5b0f690ea625aadc6"
+    "07679b6b518c0c779ced9b30e8ed5c5f323733a03b8812c79d66470b1c0cb306"
 )
 PHASE5E2B12C_ADDED_TEST_NODEIDS = (
     "tests/test_phase5e2b12c_coverage_claim_closure.py::"
@@ -172,6 +177,18 @@ AUDIT_PROFILES = {
         expected_added_test_nodeids=(),
         profile_kind="legacy_2a",
     ),
+    PHASE5E2B12A_RECOVERY_AUDIT_PROFILE: AuditProfile(
+        profile_id=PHASE5E2B12A_RECOVERY_AUDIT_PROFILE,
+        phase="Phase 5E-2B.1-2A current protected control",
+        audit_version="2.3.2.3.3.2",
+        expected_check_ids=_COMMON_CHECK_IDS | _PHASE5E2B12A_CHECK_IDS,
+        semantic_oracle_path="scripts/verify_phase5e2b12a_semantic_oracle.py",
+        expected_test_count=PHASE5E2B12A_CURRENT_TEST_COUNT,
+        predecessor_test_count=PHASE5E2B12A_CURRENT_TEST_COUNT,
+        predecessor_nodeid_sha256=PHASE5E2B12A_CURRENT_NODEID_SHA256,
+        expected_added_test_nodeids=(),
+        profile_kind="legacy_2a_recovery",
+    ),
     PHASE5E2B12B_AUDIT_PROFILE: AuditProfile(
         profile_id=PHASE5E2B12B_AUDIT_PROFILE,
         phase="Phase 5E-2B.1-2B",
@@ -179,10 +196,10 @@ AUDIT_PROFILES = {
         expected_check_ids=_COMMON_CHECK_IDS | _PHASE5E2B12B_CHECK_IDS,
         semantic_oracle_path="scripts/verify_phase5e2b12b_semantic_oracle.py",
         expected_test_count=(
-            PHASE5E2B12A_TEST_COUNT + len(PHASE5E2B12B_ADDED_TEST_NODEIDS)
+            PHASE5E2B12A_CURRENT_TEST_COUNT + len(PHASE5E2B12B_ADDED_TEST_NODEIDS)
         ),
-        predecessor_test_count=PHASE5E2B12A_TEST_COUNT,
-        predecessor_nodeid_sha256=PHASE5E2B12A_NODEID_SHA256,
+        predecessor_test_count=PHASE5E2B12A_CURRENT_TEST_COUNT,
+        predecessor_nodeid_sha256=PHASE5E2B12A_CURRENT_NODEID_SHA256,
         expected_added_test_nodeids=PHASE5E2B12B_ADDED_TEST_NODEIDS,
         profile_kind="legacy_2b",
     ),
@@ -631,6 +648,16 @@ def resolve_controller_audit_profile(
     """Resolve legacy or recursive controller audit authority for one protected ref."""
 
     status = _git_json(repository, ref, "docs/phase-status.json")
+    if (
+        status.get("current_phase") == "Phase 5E-2B.1-2A"
+        and status.get("status") == "accepted_closed"
+        and not _git_path_exists(
+            repository,
+            ref,
+            "tests/test_phase5e2b12b_canonical_event_consumption.py",
+        )
+    ):
+        return audit_profile(PHASE5E2B12A_RECOVERY_AUDIT_PROFILE)
     if has_2a_closeout is None:
         has_2a_closeout = _git_path_exists(
             repository,
@@ -722,6 +749,9 @@ __all__ = (
     "AUDIT_TOOL",
     "AuditProfile",
     "PHASE5E2B12A_AUDIT_PROFILE",
+    "PHASE5E2B12A_RECOVERY_AUDIT_PROFILE",
+    "PHASE5E2B12A_CURRENT_NODEID_SHA256",
+    "PHASE5E2B12A_CURRENT_TEST_COUNT",
     "PHASE5E2B12A_NODEID_SHA256",
     "PHASE5E2B12A_TEST_COUNT",
     "PHASE5E2B12B_AUDIT_PROFILE",
