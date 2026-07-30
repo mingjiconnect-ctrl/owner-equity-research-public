@@ -1,0 +1,8 @@
+{
+  "failed_product_audit_run_id": 30526034219,
+  "failed_product_head_commit": "801bf77db259cdc3888a1042bb8fbf5d079255d7",
+  "predecessor_merge_commit": "d03269a837e50d1cdb739782699be734082255d6",
+  "reason_code": "public-bootstrap-snapshot-replayed-once-per-private-closeout",
+  "recovery_id": "phase5e2b12b-phase-state-performance-recovery-v1",
+  "schema_version": "1.0.0"
+}

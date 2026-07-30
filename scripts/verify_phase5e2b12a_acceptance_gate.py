@@ -659,6 +659,26 @@ BASE_FINALIZATION_BOOTSTRAP_PATHS = {
     "scripts/verify_phase5e2b12a_acceptance_gate.py": "M",
     "tests/test_phase5e2b12a_acceptance_gate.py": "M",
 }
+PHASE_STATE_PERFORMANCE_AUTHORITY_PATH = (
+    "scripts/phase5e-phase-state-performance-recovery-v1.json"
+)
+PHASE_STATE_PERFORMANCE_SEAL_PATH = (
+    "scripts/phase5e-phase-state-performance-recovery-seal-v1.json"
+)
+PHASE_STATE_PERFORMANCE_BRANCH = (
+    "fix/phase5e2b12b-r5-phase-state-performance"
+)
+PHASE_STATE_PERFORMANCE_PREDECESSOR = (
+    "d03269a837e50d1cdb739782699be734082255d6"
+)
+PHASE_STATE_PERFORMANCE_BOOTSTRAP_PATHS = {
+    PHASE_STATE_PERFORMANCE_AUTHORITY_PATH: "A",
+    "scripts/run_phase5e_audit.py": "M",
+    "scripts/verify_all.py": "M",
+    "scripts/verify_phase5e2b12a_acceptance_gate.py": "M",
+    "scripts/verify_phase_state.py": "M",
+    "tests/test_phase5e2b12a_acceptance_gate.py": "M",
+}
 POST_IMPLEMENTATION_PINNED_REPAIRS = {
     "7e1804446e1c58416294d3fb81388cc790655e96": {
         "first_parent": "45e316bfb5513eb5cca3fd3cdd09da58da039e37",
@@ -3622,6 +3642,142 @@ def _base_finalization_context(
     }
 
 
+def _phase_state_performance_context(
+    repository: Path,
+    base: str,
+) -> dict[str, Any] | None:
+    """Validate the sealed correction that removes repeated bootstrap replay."""
+
+    if not _path_exists(repository, base, PHASE_STATE_PERFORMANCE_SEAL_PATH):
+        return None
+    seal = _read_json(repository, base, PHASE_STATE_PERFORMANCE_SEAL_PATH)
+    if (
+        set(seal)
+        != {
+            "authority_sha256",
+            "bootstrap_commit",
+            "reason_code",
+            "recovery_id",
+            "schema_version",
+        }
+        or seal.get("schema_version") != "1.0.0"
+        or seal.get("recovery_id")
+        != "phase5e2b12b-phase-state-performance-recovery-v1"
+        or seal.get("reason_code")
+        != "sealed-single-process-public-bootstrap-proof"
+        or not _git_oid(seal.get("bootstrap_commit"))
+        or not _sha256(seal.get("authority_sha256"))
+    ):
+        raise SystemExit("phase-state performance recovery seal is malformed")
+    authority = _read_json(
+        repository,
+        base,
+        PHASE_STATE_PERFORMANCE_AUTHORITY_PATH,
+    )
+    if (
+        set(authority)
+        != {
+            "failed_product_audit_run_id",
+            "failed_product_head_commit",
+            "predecessor_merge_commit",
+            "reason_code",
+            "recovery_id",
+            "schema_version",
+        }
+        or authority.get("schema_version") != "1.0.0"
+        or authority.get("recovery_id") != seal["recovery_id"]
+        or authority.get("reason_code")
+        != "public-bootstrap-snapshot-replayed-once-per-private-closeout"
+        or authority.get("predecessor_merge_commit")
+        != PHASE_STATE_PERFORMANCE_PREDECESSOR
+        or authority.get("failed_product_audit_run_id") != 30526034219
+        or authority.get("failed_product_head_commit")
+        != "801bf77db259cdc3888a1042bb8fbf5d079255d7"
+    ):
+        raise SystemExit("phase-state performance recovery authority is malformed")
+    bootstrap = str(seal["bootstrap_commit"])
+    authority_raw = _git(
+        repository,
+        "show",
+        f"{bootstrap}:{PHASE_STATE_PERFORMANCE_AUTHORITY_PATH}",
+        text=False,
+    )
+    if (
+        not isinstance(authority_raw, bytes)
+        or hashlib.sha256(authority_raw).hexdigest()
+        != seal["authority_sha256"]
+        or _read_json(
+            repository,
+            bootstrap,
+            PHASE_STATE_PERFORMANCE_AUTHORITY_PATH,
+        )
+        != authority
+    ):
+        raise SystemExit("phase-state performance recovery authority hash drifted")
+    parents = _commit_parents(repository, base)
+    if len(parents) == 1:
+        branch_head = base
+        if parents != (bootstrap,):
+            raise SystemExit(
+                "phase-state performance recovery candidate topology drifted"
+            )
+    elif len(parents) == 2:
+        branch_head = parents[1]
+        if (
+            parents[0] != PHASE_STATE_PERFORMANCE_PREDECESSOR
+            or _tree(repository, base) != _tree(repository, branch_head)
+            or _commit_parents(repository, branch_head) != (bootstrap,)
+        ):
+            raise SystemExit(
+                "phase-state performance recovery merged topology drifted"
+            )
+    else:
+        raise SystemExit("phase-state performance recovery topology drifted")
+    if _commit_parents(repository, bootstrap) != (
+        PHASE_STATE_PERFORMANCE_PREDECESSOR,
+    ):
+        raise SystemExit("phase-state performance recovery bootstrap topology drifted")
+    bootstrap_entries = {
+        path: status
+        for status, path in _diff_entries(
+            repository,
+            PHASE_STATE_PERFORMANCE_PREDECESSOR,
+            bootstrap,
+        )
+    }
+    seal_entries = {
+        path: status
+        for status, path in _diff_entries(repository, bootstrap, branch_head)
+    }
+    if (
+        bootstrap_entries != PHASE_STATE_PERFORMANCE_BOOTSTRAP_PATHS
+        or seal_entries != {PHASE_STATE_PERFORMANCE_SEAL_PATH: "A"}
+        or _read_json(
+            repository,
+            PHASE_STATE_PERFORMANCE_PREDECESSOR,
+            STATUS_PATH,
+        )
+        != _read_json(repository, base, STATUS_PATH)
+    ):
+        raise SystemExit(
+            "phase-state performance recovery changed unauthorized bytes or phase state"
+        )
+    for commit, entries in (
+        (bootstrap, bootstrap_entries),
+        (branch_head, seal_entries),
+    ):
+        if any(_mode(repository, commit, path) != "100644" for path in entries):
+            raise SystemExit(
+                "phase-state performance recovery contains a non-regular control file"
+            )
+    return {
+        "authority": authority,
+        "branch_head": branch_head,
+        "bootstrap_commit": bootstrap,
+        "topology": "candidate" if len(parents) == 1 else "merged",
+    }
+
+
 def _verify_inventory_parity_base(
     *,
     repository: Path,
@@ -3701,6 +3857,81 @@ def _verify_base_finalization_recovery(
     ]
     if len(successful) != 1:
         raise SystemExit("base-finalization recovery lacks one successful main CI run")
+    _verify_run(
+        repository_slug=repository_slug,
+        token=token,
+        run_id=str(successful[0]["id"]),
+        expected_head=base,
+        expected_event="push",
+        expected_head_branch="main",
+    )
+    return True
+
+
+def _verify_phase_state_performance_recovery(
+    *,
+    repository: Path,
+    base: str,
+    repository_slug: str,
+    token: str,
+    controller_app_id: int,
+) -> bool:
+    context = _phase_state_performance_context(repository, base)
+    if context is None:
+        return False
+    _verify_base_merged_main_finalized(
+        repository=repository,
+        base=PHASE_STATE_PERFORMANCE_PREDECESSOR,
+        repository_slug=repository_slug,
+        token=token,
+        controller_app_id=controller_app_id,
+    )
+    recovery_pull_requests = _api_list(
+        f"https://api.github.com/repos/{repository_slug}/commits/{base}/pulls",
+        token,
+    )
+    matching_recovery = [
+        item
+        for item in recovery_pull_requests
+        if isinstance(item, dict)
+        and item.get("state") == "closed"
+        and item.get("merged_at") is not None
+        and item.get("merge_commit_sha") == base
+        and item.get("head", {}).get("sha") == context["branch_head"]
+        and item.get("head", {}).get("ref")
+        == PHASE_STATE_PERFORMANCE_BRANCH
+        and item.get("base", {}).get("sha")
+        == PHASE_STATE_PERFORMANCE_PREDECESSOR
+        and item.get("base", {}).get("ref") == "main"
+    ]
+    if len(matching_recovery) != 1:
+        raise SystemExit(
+            "phase-state performance recovery pull request identity is ambiguous"
+        )
+    ci_runs = _api_paginated_items(
+        (
+            f"https://api.github.com/repos/{repository_slug}/actions/workflows/ci.yml/runs"
+            f"?event=push&status=completed&head_sha={base}"
+        ),
+        key="workflow_runs",
+        token=token,
+    )
+    successful = [
+        item
+        for item in ci_runs
+        if item.get("head_sha") == base
+        and item.get("head_branch") == "main"
+        and item.get("event") == "push"
+        and item.get("conclusion") == "success"
+        and item.get("name") == "owner-research-ci"
+        and item.get("path") == ".github/workflows/ci.yml"
+        and type(item.get("id")) is int
+        and item["id"] > 0
+    ]
+    if len(successful) != 1:
+        raise SystemExit(
+            "phase-state performance recovery lacks one successful main CI run"
+        )
     _verify_run(
         repository_slug=repository_slug,
         token=token,
@@ -3987,6 +4218,14 @@ def _verify_base_merged_main_finalized(
         and run["id"] > 0
     ]
     if len(matching_gate_runs) != 1:
+        if _verify_phase_state_performance_recovery(
+            repository=repository,
+            base=base,
+            repository_slug=repository_slug,
+            token=token,
+            controller_app_id=controller_app_id,
+        ):
+            return
         if _verify_base_finalization_recovery(
             repository=repository,
             base=base,
@@ -5130,6 +5369,10 @@ def main() -> int:
         action="store_true",
     )
     parser.add_argument(
+        "--verify-phase-state-performance-topology-only",
+        action="store_true",
+    )
+    parser.add_argument(
         "--verify-external-gate-author-authority-only",
         action="store_true",
     )
@@ -5170,6 +5413,22 @@ def main() -> int:
             raise SystemExit("base-finalization recovery seal is absent")
         print(
             "Phase 5E sealed base-finalization recovery "
+            f"{context['topology']} topology passed"
+        )
+        return 0
+    if args.verify_phase_state_performance_topology_only:
+        if not args.base:
+            raise SystemExit(
+                "phase-state performance topology verification requires --base"
+            )
+        context = _phase_state_performance_context(
+            args.repository.resolve(),
+            args.base,
+        )
+        if context is None:
+            raise SystemExit("phase-state performance recovery seal is absent")
+        print(
+            "Phase 5E sealed phase-state performance recovery "
             f"{context['topology']} topology passed"
         )
         return 0
