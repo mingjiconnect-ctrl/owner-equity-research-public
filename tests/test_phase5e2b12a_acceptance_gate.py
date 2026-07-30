@@ -1651,6 +1651,12 @@ def test_sealed_base_audit_recovery_has_exact_two_commit_topology(
     )
     assert _git(repository, "rev-parse", f"{base}^2^") == context["bootstrap_commit"]
     assert context["topology"] == "merged"
+    assert acceptance_gate.INVENTORY_PARITY_PREDECESSOR == (
+        "1d5e8d19b573cd8c7151e29541efdd0b48a3e6a6"
+    )
+    assert acceptance_gate.INVENTORY_PARITY_BOOTSTRAP_PATHS[
+        "scripts/phase5e_audit_profiles.py"
+    ] == "M"
 
 
 def test_sealed_base_audit_recovery_candidate_head_is_validated(

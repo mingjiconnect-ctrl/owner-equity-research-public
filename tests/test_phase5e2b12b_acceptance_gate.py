@@ -221,6 +221,7 @@ def _acceptance_candidate(
 
 
 def test_trust_diff_contract_is_narrow() -> None:
+    assert EXPECTED_TEST_COUNT == 1391
     assert IMPLEMENTATION_DIFF == {
         STATUS_PATH: "M",
         "src/owner_research/valuation_current_share_compiler.py": "M",

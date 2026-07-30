@@ -279,14 +279,14 @@
   ],
   "successor_gate_files": {
     "scripts/phase5e-successor-gate-bundle.schema.json": "d47ac606d34fa78e0269e45189898797d504bc1f9e2061e69015d977a96726c3",
-    "scripts/phase5e2b12b-acceptance-trust.json": "cc0670434bd6c061c2594742e9daad58723d42437f5723f6af34369dc5498cb0",
-    "scripts/verify_phase5e2b12b_acceptance_gate.py": "b3548f3d7f998ea53e0a1a9dcc1fc0946e12f41488a21dda1477a14de552e8be",
+    "scripts/phase5e2b12b-acceptance-trust.json": "15389cdb9e49b0b178489cd946e029b7ea8dca4fde73d6fbd041d0e7379d7bbf",
+    "scripts/verify_phase5e2b12b_acceptance_gate.py": "bde6791a305b47127c4244e1ccaf14090f67159e385ca8bd723344e94bc2b70a",
     "scripts/verify_phase5e2b12b_semantic_oracle.py": "291208c1f2e9012c800a10d6b121f8a8ee58f13532264af5cb6036ab1d430141",
     "scripts/verify_phase5e2b12c_semantic_oracle.py": "e55690d7905c3b3b407f1fe7955f39e878a3c74e731157c7a4f9155b54281a95",
     "scripts/verify_phase5e2c0_semantic_oracle.py": "4c9001ec5ff8fa3f457f77b3fef1aea229c55b72322e4ed55ffa72feb034fa0c",
     "scripts/verify_phase5e_successor_gate.py": "864aaebe1f073819f4264d2a3e014b8d383f74399a0befecd6f82ce6308c6922",
     "scripts/verify_phase5e_successor_gate_oracle.py": "a65d176d942cb6c2e4ad0564cfd3489f602207642cfb3279b70366e9d78a7ecc",
-    "tests/test_phase5e2b12b_acceptance_gate.py": "e530c54effdc9f78d000135522e62a6751a5381223ca6acb09e7090953aa5611",
+    "tests/test_phase5e2b12b_acceptance_gate.py": "63081a429f911844063ad2867c861faaf478633406ce828450a9e39aaea25cd0",
     "tests/test_phase5e_successor_gate.py": "cb77b1068b5759ae025910352742624e57d02170b053b7a779039d0cce3b9598"
   }
 }

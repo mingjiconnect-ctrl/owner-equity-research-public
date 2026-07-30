@@ -1,0 +1,13 @@
+{
+  "current_control_nodeid_sha256": "aa6b9e7f0edfdc744df7271043d9efd18ba6066f71a4ff754a50ca114b7155c8",
+  "current_control_test_count": 1379,
+  "historical_closeout_nodeid_sha256": "eab85a4981f3fdcfe841c5e730af10f3e2b50ce41c617f3f9204b17a7ba4a79b",
+  "historical_closeout_test_count": 1374,
+  "predecessor_merge_commit": "1d5e8d19b573cd8c7151e29541efdd0b48a3e6a6",
+  "product_added_test_count": 12,
+  "product_candidate_nodeid_sha256": "07679b6b518c0c779ced9b30e8ed5c5f323733a03b8812c79d66470b1c0cb306",
+  "product_candidate_test_count": 1391,
+  "reason_code": "separate-historical-current-control-and-product-test-inventories",
+  "recovery_id": "phase5e2b12b-inventory-parity-recovery-v1",
+  "schema_version": "1.0.0"
+}

@@ -1719,7 +1719,32 @@ def main() -> int:
         ).splitlines()
     )
     phase_status = json.loads((repository / "docs/phase-status.json").read_text())
-    if profile.profile_kind == "legacy_2a":
+    if profile.profile_kind == "legacy_2a_recovery":
+        parity_topology = _run_direct(
+            [
+                sys.executable,
+                str(
+                    controller_root
+                    / "scripts/verify_phase5e2b12a_acceptance_gate.py"
+                ),
+                "--repository",
+                str(repository),
+                "--base",
+                research_before["head"],
+                "--verify-inventory-parity-topology-only",
+            ],
+            cwd=repository,
+            environment={"PATH": os.environ.get("PATH", "")},
+        )
+        unexpected_phase_paths = (
+            [] if parity_topology.returncode == 0 else ["inventory-parity-topology"]
+        )
+        missing_phase_paths: list[str] = []
+        changed_path_check_id = "phase5e2b12a-repository-wide-changed-path-boundary"
+        changed_path_summary = (
+            "Current protected 2A control differs from its sealed inventory-parity boundary."
+        )
+    elif profile.profile_kind == "legacy_2a":
         phase_comparison_commit = (
             research_comparison_commit if public_mode else PHASE5E2B11_BASELINE
         )
@@ -2109,7 +2134,8 @@ def main() -> int:
             evidence=frozen_predecessor.stdout,
             priority="P0",
         )
-        if profile.profile_kind == "legacy_2a":
+        if profile.profile_kind in {"legacy_2a", "legacy_2a_recovery"}:
+            frozen_replay = profile.profile_kind == "legacy_2a_recovery"
             integration_contracts = _run(
                 [
                     sys.executable,
@@ -2117,6 +2143,7 @@ def main() -> int:
                         repository
                         / "scripts/verify_phase5e2b12a_integration_contracts.py"
                     ),
+                    *(["--frozen-contract-replay"] if frozen_replay else []),
                 ],
                 cwd=repository,
                 environment=environment,
@@ -2144,6 +2171,7 @@ def main() -> int:
                             / "scripts/verify_phase5e2b12a_semantic_oracle.py"
                         )
                     ),
+                    *(["--frozen-contract-replay"] if frozen_replay else []),
                 ],
                 cwd=repository,
                 environment=environment,
@@ -2456,10 +2484,10 @@ def main() -> int:
                 cwd=repository,
                 environment=environment,
             )
-            if profile.profile_kind == "legacy_2a"
+            if profile.profile_kind in {"legacy_2a", "legacy_2a_recovery"}
             else subprocess.CompletedProcess([], 0, "", None)
         )
-        if profile.profile_kind == "legacy_2a":
+        if profile.profile_kind in {"legacy_2a", "legacy_2a_recovery"}:
             _record(
                 checks,
                 findings,
