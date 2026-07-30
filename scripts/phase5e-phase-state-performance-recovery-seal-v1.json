@@ -1,0 +1,7 @@
+{
+  "authority_sha256": "69ab9d83f4837c81ea832f00e3e505eeefaabb8dc2fe6727a5a1a79fcf78cae0",
+  "bootstrap_commit": "5730a2f3334a37b32de0f8ec5e50eb096c3e4b6a",
+  "reason_code": "sealed-single-process-public-bootstrap-proof",
+  "recovery_id": "phase5e2b12b-phase-state-performance-recovery-v1",
+  "schema_version": "1.0.0"
+}
