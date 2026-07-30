@@ -63,6 +63,171 @@ def _commit(repository: Path, message: str) -> str:
     return _git(repository, "rev-parse", "HEAD")
 
 
+def _base_audit_recovery_repository(
+    tmp_path: Path,
+    *,
+    add_bootstrap_path: bool = False,
+    change_phase_state: bool = False,
+) -> tuple[Path, str]:
+    repository = tmp_path / "base-audit-recovery"
+    repository.mkdir()
+    subprocess.run(["git", "-C", str(repository), "init", "-b", "main"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repository), "config", "user.email", "audit@example.com"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repository), "config", "user.name", "Audit Fixture"],
+        check=True,
+    )
+    for path, content in {
+        "docs/phase-status.json": json.dumps(
+            {
+                "authorized_next": ["Phase 5E-2B.1-2B canonical roll-forward implementation"],
+                "current_phase": "Phase 5E-2B.1-2A",
+                "prohibited": ["Phase 5E-2C"],
+                "release_tag": None,
+                "status": "accepted_closed",
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        "scripts/verify_phase5e2b12a_acceptance_gate.py": "controller-v1\n",
+        "scripts/verify_all.py": "verify-all-v1\n",
+        "tests/test_phase4d5_phase_state.py": "phase-state-v1\n",
+        "tests/test_phase5e_audit.py": "audit-v1\n",
+        "tests/test_phase5e2b12a_acceptance_gate.py": "gate-tests-v1\n",
+    }.items():
+        target = repository / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+    finalized = _commit(repository, "finalized predecessor")
+
+    subprocess.run(
+        ["git", "-C", str(repository), "checkout", "-b", "repair"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    for path in ("tests/test_phase4d5_phase_state.py", "tests/test_phase5e_audit.py"):
+        target = repository / path
+        target.write_text(target.read_text(encoding="utf-8") + "repair\n", encoding="utf-8")
+    repair_head = _commit(repository, "repair tests")
+    subprocess.run(
+        ["git", "-C", str(repository), "checkout", "main"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    subprocess.run(
+        ["git", "-C", str(repository), "merge", "--no-ff", "repair", "-m", "merge repair"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    repair_merge = _git(repository, "rev-parse", "HEAD")
+    repair_files = {
+        path: {
+            "blob": _git(repository, "rev-parse", f"{repair_merge}:{path}"),
+            "mode": "100644",
+            "status": "M",
+        }
+        for path in ("tests/test_phase4d5_phase_state.py", "tests/test_phase5e_audit.py")
+    }
+
+    subprocess.run(
+        ["git", "-C", str(repository), "checkout", "-b", "recovery"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    authority = {
+        "finalized_predecessor_commit": finalized,
+        "main_ci_run_id": 1,
+        "misprofiled_audit": {
+            "artifact_digest": "sha256:" + "a" * 64,
+            "artifact_id": 2,
+            "artifact_size": 3,
+            "finding_counts": {"P0": 6, "P1": 3, "P2": 0, "P3": 0},
+            "manifest_sha256": "b" * 64,
+            "profile": "phase5e2b12b",
+            "report_sha256": "c" * 64,
+            "run_id": 4,
+            "test_count": 1374,
+            "version": "2.3.2.3.4",
+        },
+        "reason_code": (
+            "control-plane-only-main-was-evaluated-by-successor-product-profile"
+        ),
+        "recovery_id": "phase5e2b12b-base-audit-profile-recovery-v1",
+        "repair_branch": "fix/phase5e2b12b-r1-audit-test-parity",
+        "repair_files": repair_files,
+        "repair_head_commit": repair_head,
+        "repair_merge_commit": repair_merge,
+        "repair_pull_request": 67,
+        "repair_tree": _git(repository, "rev-parse", f"{repair_merge}^{{tree}}"),
+        "schema_version": "1.0.0",
+    }
+    authority_path = repository / acceptance_gate.BASE_AUDIT_RECOVERY_AUTHORITY_PATH
+    authority_path.write_text(
+        json.dumps(authority, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    for path in (
+        "scripts/verify_all.py",
+        "scripts/verify_phase5e2b12a_acceptance_gate.py",
+        "tests/test_phase5e2b12a_acceptance_gate.py",
+    ):
+        target = repository / path
+        target.write_text(target.read_text(encoding="utf-8") + "recovery\n", encoding="utf-8")
+    if add_bootstrap_path:
+        (repository / "unexpected.txt").write_text("unexpected\n", encoding="utf-8")
+    if change_phase_state:
+        status_path = repository / "docs/phase-status.json"
+        status = json.loads(status_path.read_text(encoding="utf-8"))
+        status["status"] = "forged"
+        status_path.write_text(
+            json.dumps(status, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    bootstrap = _commit(repository, "bootstrap recovery")
+    authority_sha = hashlib.sha256(authority_path.read_bytes()).hexdigest()
+    seal_path = repository / acceptance_gate.BASE_AUDIT_RECOVERY_SEAL_PATH
+    seal_path.write_text(
+        json.dumps(
+            {
+                "authority_sha256": authority_sha,
+                "bootstrap_commit": bootstrap,
+                "reason_code": "sealed-one-time-base-audit-profile-recovery",
+                "recovery_id": "phase5e2b12b-base-audit-profile-recovery-v1",
+                "schema_version": "1.0.0",
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    _commit(repository, "seal recovery")
+    subprocess.run(
+        ["git", "-C", str(repository), "checkout", "main"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repository),
+            "merge",
+            "--no-ff",
+            "recovery",
+            "-m",
+            "merge recovery",
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    return repository, _git(repository, "rev-parse", "HEAD")
+
+
 def _repository(
     tmp_path: Path,
     *,
@@ -1472,6 +1637,68 @@ def test_base_owned_acceptance_gate_accepts_governance_only_diff(tmp_path: Path)
             token=None,
             require_remote=False,
         )
+
+
+def test_sealed_base_audit_recovery_has_exact_two_commit_topology(
+    tmp_path: Path,
+) -> None:
+    repository, base = _base_audit_recovery_repository(tmp_path)
+    context = acceptance_gate._base_audit_recovery_context(repository, base)
+    assert context is not None
+    assert (
+        context["authority"]["reason_code"]
+        == "control-plane-only-main-was-evaluated-by-successor-product-profile"
+    )
+    assert _git(repository, "rev-parse", f"{base}^2^") == context["bootstrap_commit"]
+    assert context["topology"] == "merged"
+
+
+def test_sealed_base_audit_recovery_candidate_head_is_validated(
+    tmp_path: Path,
+) -> None:
+    repository, base = _base_audit_recovery_repository(tmp_path)
+    branch_head = _git(repository, "rev-parse", f"{base}^2")
+    context = acceptance_gate._base_audit_recovery_context(repository, branch_head)
+    assert context is not None
+    assert context["branch_head"] == branch_head
+    assert context["topology"] == "candidate"
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected"),
+    (
+        ({"add_bootstrap_path": True}, "unauthorized path"),
+        ({"change_phase_state": True}, "unauthorized path or phase state"),
+    ),
+)
+def test_sealed_base_audit_recovery_rejects_scope_or_state_drift(
+    tmp_path: Path,
+    mutation: dict[str, bool],
+    expected: str,
+) -> None:
+    repository, base = _base_audit_recovery_repository(tmp_path, **mutation)
+    with pytest.raises(SystemExit, match=expected):
+        acceptance_gate._base_audit_recovery_context(repository, base)
+
+
+def test_base_finalization_uses_only_validated_recovery_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(acceptance_gate, "_api_paginated_items", lambda *args, **kwargs: [])
+    monkeypatch.setattr(
+        acceptance_gate,
+        "_verify_base_audit_recovery",
+        lambda **kwargs: calls.append(str(kwargs["base"])) or True,
+    )
+    acceptance_gate._verify_base_merged_main_finalized(
+        repository=ROOT,
+        base="d" * 40,
+        repository_slug=REPOSITORY_SLUG,
+        token="token",
+        controller_app_id=98765,
+    )
+    assert calls == ["d" * 40]
 
 
 @pytest.mark.parametrize(

@@ -619,6 +619,15 @@ POST_IMPLEMENTATION_CONTROL_REVALIDATION_PATHS = frozenset(
         "tests/test_phase5e2b12a_acceptance_gate.py",
     }
 )
+BASE_AUDIT_RECOVERY_AUTHORITY_PATH = "scripts/phase5e-base-audit-recovery-v1.json"
+BASE_AUDIT_RECOVERY_SEAL_PATH = "scripts/phase5e-base-audit-recovery-seal-v1.json"
+BASE_AUDIT_RECOVERY_BRANCH = "fix/phase5e2b12b-r2-base-audit-recovery"
+BASE_AUDIT_RECOVERY_BOOTSTRAP_PATHS = {
+    BASE_AUDIT_RECOVERY_AUTHORITY_PATH: "A",
+    "scripts/verify_all.py": "M",
+    "scripts/verify_phase5e2b12a_acceptance_gate.py": "M",
+    "tests/test_phase5e2b12a_acceptance_gate.py": "M",
+}
 POST_IMPLEMENTATION_PINNED_REPAIRS = {
     "7e1804446e1c58416294d3fb81388cc790655e96": {
         "first_parent": "45e316bfb5513eb5cca3fd3cdd09da58da039e37",
@@ -3204,6 +3213,405 @@ def verify_merged_main_acceptance(
     )
 
 
+def _base_audit_recovery_context(
+    repository: Path,
+    base: str,
+) -> dict[str, Any] | None:
+    """Validate the one sealed recovery topology for the misprofiled control-only merge."""
+
+    if not _path_exists(repository, base, BASE_AUDIT_RECOVERY_SEAL_PATH):
+        return None
+    seal = _read_json(repository, base, BASE_AUDIT_RECOVERY_SEAL_PATH)
+    if (
+        set(seal)
+        != {
+            "authority_sha256",
+            "bootstrap_commit",
+            "reason_code",
+            "recovery_id",
+            "schema_version",
+        }
+        or seal.get("schema_version") != "1.0.0"
+        or seal.get("recovery_id") != "phase5e2b12b-base-audit-profile-recovery-v1"
+        or seal.get("reason_code") != "sealed-one-time-base-audit-profile-recovery"
+        or not _git_oid(seal.get("bootstrap_commit"))
+        or not _sha256(seal.get("authority_sha256"))
+    ):
+        raise SystemExit("base-audit recovery seal is malformed")
+    authority = _read_json(repository, base, BASE_AUDIT_RECOVERY_AUTHORITY_PATH)
+    if (
+        set(authority)
+        != {
+            "finalized_predecessor_commit",
+            "main_ci_run_id",
+            "misprofiled_audit",
+            "reason_code",
+            "recovery_id",
+            "repair_branch",
+            "repair_files",
+            "repair_head_commit",
+            "repair_merge_commit",
+            "repair_pull_request",
+            "repair_tree",
+            "schema_version",
+        }
+        or authority.get("schema_version") != "1.0.0"
+        or authority.get("recovery_id") != seal["recovery_id"]
+        or authority.get("reason_code")
+        != "control-plane-only-main-was-evaluated-by-successor-product-profile"
+        or not _git_oid(authority.get("finalized_predecessor_commit"))
+        or not _git_oid(authority.get("repair_head_commit"))
+        or not _git_oid(authority.get("repair_merge_commit"))
+        or not _git_oid(authority.get("repair_tree"))
+        or type(authority.get("repair_pull_request")) is not int
+        or authority["repair_pull_request"] <= 0
+        or type(authority.get("main_ci_run_id")) is not int
+        or authority["main_ci_run_id"] <= 0
+        or authority.get("repair_branch") != "fix/phase5e2b12b-r1-audit-test-parity"
+    ):
+        raise SystemExit("base-audit recovery authority is malformed")
+    authority_raw = _git(
+        repository,
+        "show",
+        f"{seal['bootstrap_commit']}:{BASE_AUDIT_RECOVERY_AUTHORITY_PATH}",
+        text=False,
+    )
+    if (
+        not isinstance(authority_raw, bytes)
+        or hashlib.sha256(authority_raw).hexdigest() != seal["authority_sha256"]
+        or _read_json(
+            repository,
+            seal["bootstrap_commit"],
+            BASE_AUDIT_RECOVERY_AUTHORITY_PATH,
+        )
+        != authority
+    ):
+        raise SystemExit("base-audit recovery authority hash drifted")
+
+    repair_merge = str(authority["repair_merge_commit"])
+    bootstrap = str(seal["bootstrap_commit"])
+    base_parents = _commit_parents(repository, base)
+    if len(base_parents) == 1:
+        branch_head = base
+        if base_parents != (bootstrap,):
+            raise SystemExit("base-audit recovery candidate topology drifted")
+    elif len(base_parents) == 2:
+        branch_head = base_parents[1]
+        if (
+            base_parents[0] != repair_merge
+            or _tree(repository, base) != _tree(repository, branch_head)
+            or _commit_parents(repository, branch_head) != (bootstrap,)
+        ):
+            raise SystemExit("base-audit recovery merged topology drifted")
+    else:
+        raise SystemExit("base-audit recovery topology drifted")
+    if _commit_parents(repository, bootstrap) != (repair_merge,):
+        raise SystemExit("base-audit recovery bootstrap topology drifted")
+    bootstrap_entries = {
+        path: status for status, path in _diff_entries(repository, repair_merge, bootstrap)
+    }
+    seal_entries = {
+        path: status for status, path in _diff_entries(repository, bootstrap, branch_head)
+    }
+    if (
+        bootstrap_entries != BASE_AUDIT_RECOVERY_BOOTSTRAP_PATHS
+        or seal_entries != {BASE_AUDIT_RECOVERY_SEAL_PATH: "A"}
+        or _read_json(repository, repair_merge, STATUS_PATH)
+        != _read_json(repository, base, STATUS_PATH)
+    ):
+        raise SystemExit("base-audit recovery changed an unauthorized path or phase state")
+    for commit, entries in (
+        (bootstrap, bootstrap_entries),
+        (branch_head, seal_entries),
+    ):
+        if any(_mode(repository, commit, path) != "100644" for path in entries):
+            raise SystemExit("base-audit recovery contains a non-regular control file")
+
+    repair_files = authority.get("repair_files")
+    repair_parents = _commit_parents(repository, repair_merge)
+    if (
+        not isinstance(repair_files, dict)
+        or not repair_files
+        or repair_parents
+        != (
+            authority["finalized_predecessor_commit"],
+            authority["repair_head_commit"],
+        )
+        or _tree(repository, repair_merge) != authority["repair_tree"]
+        or {path: status for status, path in _diff_entries(
+            repository,
+            str(authority["finalized_predecessor_commit"]),
+            repair_merge,
+        )}
+        != {
+            path: item.get("status")
+            for path, item in repair_files.items()
+            if isinstance(item, dict)
+        }
+    ):
+        raise SystemExit("recorded control-only repair identity drifted")
+    for path, expected in repair_files.items():
+        if (
+            not isinstance(expected, dict)
+            or set(expected) != {"blob", "mode", "status"}
+            or expected["status"] != "M"
+            or expected["mode"] != "100644"
+            or not _git_oid(expected["blob"])
+            or _mode(repository, repair_merge, path) != expected["mode"]
+            or _git(repository, "rev-parse", f"{repair_merge}:{path}") != expected["blob"]
+        ):
+            raise SystemExit(f"recorded control-only repair file drifted: {path}")
+    return {
+        "authority": authority,
+        "branch_head": branch_head,
+        "bootstrap_commit": bootstrap,
+        "topology": "candidate" if len(base_parents) == 1 else "merged",
+    }
+
+
+def _verify_misprofiled_repair_audit(
+    *,
+    repository: Path,
+    repository_slug: str,
+    token: str,
+    authority: dict[str, Any],
+) -> None:
+    """Prove the failed run had complete tests and only the pinned profile-mismatch manifest."""
+
+    expected = authority["misprofiled_audit"]
+    if (
+        not isinstance(expected, dict)
+        or set(expected)
+        != {
+            "artifact_digest",
+            "artifact_id",
+            "artifact_size",
+            "finding_counts",
+            "manifest_sha256",
+            "profile",
+            "report_sha256",
+            "run_id",
+            "test_count",
+            "version",
+        }
+        or expected.get("profile") != PHASE5E2B12B_AUDIT_PROFILE
+        or expected.get("version") != "2.3.2.3.4"
+        or type(expected.get("run_id")) is not int
+        or expected["run_id"] <= 0
+        or type(expected.get("artifact_id")) is not int
+        or expected["artifact_id"] <= 0
+        or type(expected.get("artifact_size")) is not int
+        or expected["artifact_size"] <= 0
+        or type(expected.get("test_count")) is not int
+        or expected["test_count"] <= 0
+        or not _sha256(expected.get("manifest_sha256"))
+        or not _sha256(expected.get("report_sha256"))
+        or not isinstance(expected.get("artifact_digest"), str)
+        or not re.fullmatch(r"sha256:[0-9a-f]{64}", expected["artifact_digest"])
+        or expected.get("finding_counts") != {"P0": 6, "P1": 3, "P2": 0, "P3": 0}
+    ):
+        raise SystemExit("misprofiled repair-audit authority is malformed")
+    run_id = str(expected["run_id"])
+    run = _api_json(
+        f"https://api.github.com/repos/{repository_slug}/actions/runs/{run_id}",
+        token,
+    )
+    if (
+        str(run.get("id")) != run_id
+        or run.get("head_sha") != authority["repair_merge_commit"]
+        or run.get("head_branch") != "main"
+        or run.get("event") != "workflow_run"
+        or run.get("status") != "completed"
+        or run.get("conclusion") != "failure"
+        or run.get("name") != "phase5e2b12a-base-owned-acceptance-gate"
+        or run.get("path") != ".github/workflows/phase5e2b12a-acceptance-gate.yml"
+        or run.get("repository", {}).get("full_name") != repository_slug
+        or run.get("head_repository", {}).get("full_name") != repository_slug
+    ):
+        raise SystemExit("misprofiled repair-audit run identity drifted")
+    artifacts = _api_paginated_items(
+        f"https://api.github.com/repos/{repository_slug}/actions/runs/{run_id}/artifacts",
+        key="artifacts",
+        token=token,
+    )
+    expected_name = f"phase5e-audit-{authority['repair_merge_commit']}"
+    matching = [
+        item
+        for item in artifacts
+        if item.get("id") == expected["artifact_id"] and item.get("name") == expected_name
+    ]
+    if (
+        len(matching) != 1
+        or matching[0].get("expired")
+        or matching[0].get("digest") != expected["artifact_digest"]
+        or matching[0].get("size_in_bytes") != expected["artifact_size"]
+    ):
+        raise SystemExit("misprofiled repair-audit artifact identity drifted")
+    archive = _api_bytes(str(matching[0]["archive_download_url"]), token)
+    if hashlib.sha256(archive).hexdigest() != expected["artifact_digest"].split(":", 1)[1]:
+        raise SystemExit("misprofiled repair-audit archive digest drifted")
+    with zipfile.ZipFile(io.BytesIO(archive)) as bundle:
+        infos = bundle.infolist()
+        if (
+            len(infos) != 1
+            or infos[0].filename != "phase5e-audit.json"
+            or infos[0].is_dir()
+            or infos[0].file_size > 4 * 1024 * 1024
+        ):
+            raise SystemExit("misprofiled repair-audit archive is not bounded")
+        report_raw = bundle.read(infos[0])
+    report = _load_canonical_evidence_json(report_raw, "misprofiled repair audit")
+    test_count = expected["test_count"]
+    test_counts = {
+        "collected_tests": test_count,
+        "failed_tests": 0,
+        "passed_tests": test_count,
+        "skipped_tests": 0,
+    }
+    runtimes = report.get("runtime_results")
+    if (
+        hashlib.sha256(report_raw).hexdigest() != expected["manifest_sha256"]
+        or report.get("report_sha256") != expected["report_sha256"]
+        or report.get("reviewed_commit") != authority["repair_merge_commit"]
+        or report.get("audit_profile") != expected["profile"]
+        or report.get("audit_version") != expected["version"]
+        or report.get("valuation_kernel_commit") != KERNEL_BASELINE
+        or report.get("test_counts") != test_counts
+        or report.get("finding_counts") != expected["finding_counts"]
+        or report.get("ci_run_ids") != [run_id]
+        or not isinstance(runtimes, list)
+        or len(runtimes) != 3
+        or tuple(item.get("runtime_id") for item in runtimes)
+        != ("cp311", "cp312", "cp313")
+        or any(item.get("test_counts") != test_counts for item in runtimes)
+        or tuple(item.get("finding_counts") for item in runtimes)
+        != (
+            {"P0": 2, "P1": 1, "P2": 0, "P3": 0},
+            {"P0": 2, "P1": 1, "P2": 0, "P3": 0},
+            {"P0": 2, "P1": 1, "P2": 0, "P3": 0},
+        )
+        or report.get("audit_trust", {}).get("controller_commit")
+        != authority["finalized_predecessor_commit"]
+        or report.get("audit_trust", {}).get("candidate_tree") != authority["repair_tree"]
+    ):
+        raise SystemExit("misprofiled repair-audit manifest drifted")
+    audited = report.get("audited_file_sha256")
+    if not isinstance(audited, dict):
+        raise SystemExit("misprofiled repair-audit file evidence is missing")
+    for path in authority["repair_files"]:
+        raw = _git(repository, "show", f"{authority['repair_merge_commit']}:{path}", text=False)
+        if (
+            not isinstance(raw, bytes)
+            or audited.get(path) != hashlib.sha256(raw).hexdigest()
+        ):
+            raise SystemExit(f"misprofiled repair-audit omitted repaired file: {path}")
+
+
+def _verify_base_audit_recovery(
+    *,
+    repository: Path,
+    base: str,
+    repository_slug: str,
+    token: str,
+    controller_app_id: int,
+) -> bool:
+    context = _base_audit_recovery_context(repository, base)
+    if context is None:
+        return False
+    authority = context["authority"]
+    _verify_base_merged_main_finalized(
+        repository=repository,
+        base=str(authority["finalized_predecessor_commit"]),
+        repository_slug=repository_slug,
+        token=token,
+        controller_app_id=controller_app_id,
+    )
+    pull_request = _api_json(
+        (
+            f"https://api.github.com/repos/{repository_slug}/pulls/"
+            f"{authority['repair_pull_request']}"
+        ),
+        token,
+    )
+    if (
+        not _pull_request_identity_matches(
+            pull_request,
+            number=int(authority["repair_pull_request"]),
+            head_sha=str(authority["repair_head_commit"]),
+            head_ref=str(authority["repair_branch"]),
+            base_sha=str(authority["finalized_predecessor_commit"]),
+        )
+        or pull_request.get("state") != "closed"
+        or not pull_request.get("merged")
+        or pull_request.get("merge_commit_sha") != authority["repair_merge_commit"]
+    ):
+        raise SystemExit("recorded control-only repair pull request drifted")
+    _verify_run(
+        repository_slug=repository_slug,
+        token=token,
+        run_id=str(authority["main_ci_run_id"]),
+        expected_head=str(authority["repair_merge_commit"]),
+        expected_event="push",
+        expected_head_branch="main",
+    )
+    _verify_misprofiled_repair_audit(
+        repository=repository,
+        repository_slug=repository_slug,
+        token=token,
+        authority=authority,
+    )
+
+    recovery_pull_requests = _api_list(
+        f"https://api.github.com/repos/{repository_slug}/commits/{base}/pulls",
+        token,
+    )
+    matching_recovery = [
+        item
+        for item in recovery_pull_requests
+        if isinstance(item, dict)
+        and item.get("state") == "closed"
+        and item.get("merged_at") is not None
+        and item.get("merge_commit_sha") == base
+        and item.get("head", {}).get("sha") == context["branch_head"]
+        and item.get("head", {}).get("ref") == BASE_AUDIT_RECOVERY_BRANCH
+        and item.get("base", {}).get("sha") == authority["repair_merge_commit"]
+        and item.get("base", {}).get("ref") == "main"
+    ]
+    if len(matching_recovery) != 1:
+        raise SystemExit("base-audit recovery pull request identity is ambiguous")
+    ci_runs = _api_paginated_items(
+        (
+            f"https://api.github.com/repos/{repository_slug}/actions/workflows/ci.yml/runs"
+            f"?event=push&status=completed&head_sha={base}"
+        ),
+        key="workflow_runs",
+        token=token,
+    )
+    successful = [
+        item
+        for item in ci_runs
+        if item.get("head_sha") == base
+        and item.get("head_branch") == "main"
+        and item.get("event") == "push"
+        and item.get("conclusion") == "success"
+        and item.get("name") == "owner-research-ci"
+        and item.get("path") == ".github/workflows/ci.yml"
+        and type(item.get("id")) is int
+        and item["id"] > 0
+    ]
+    if len(successful) != 1:
+        raise SystemExit("base-audit recovery lacks one successful main CI run")
+    _verify_run(
+        repository_slug=repository_slug,
+        token=token,
+        run_id=str(successful[0]["id"]),
+        expected_head=base,
+        expected_event="push",
+        expected_head_branch="main",
+    )
+    return True
+
+
 def _verify_base_merged_main_finalized(
     *,
     repository: Path,
@@ -3236,6 +3644,14 @@ def _verify_base_merged_main_finalized(
         and run["id"] > 0
     ]
     if len(matching_gate_runs) != 1:
+        if _verify_base_audit_recovery(
+            repository=repository,
+            base=base,
+            repository_slug=repository_slug,
+            token=token,
+            controller_app_id=controller_app_id,
+        ):
+            return
         raise SystemExit("accepted base lacks one completed merged-main controller audit")
     gate_run_id = str(matching_gate_runs[0]["id"])
     _verify_run(
@@ -4343,6 +4759,10 @@ def main() -> int:
     parser.add_argument("--verify-kernel-reader-authority-only", action="store_true")
     parser.add_argument("--verify-controller-authority-only", action="store_true")
     parser.add_argument(
+        "--verify-base-audit-recovery-topology-only",
+        action="store_true",
+    )
+    parser.add_argument(
         "--verify-external-gate-author-authority-only",
         action="store_true",
     )
@@ -4358,6 +4778,20 @@ def main() -> int:
     parser.add_argument("--triggering-ci-run-id")
     args = parser.parse_args()
     event = json.loads(args.event_json.read_text()) if args.event_json else None
+    if args.verify_base_audit_recovery_topology_only:
+        if not args.base:
+            raise SystemExit("base-audit recovery topology verification requires --base")
+        context = _base_audit_recovery_context(
+            args.repository.resolve(),
+            args.base,
+        )
+        if context is None:
+            raise SystemExit("base-audit recovery seal is absent")
+        print(
+            "Phase 5E sealed base-audit recovery "
+            f"{context['topology']} topology passed"
+        )
+        return 0
     if args.hard_revoke_current_installation_token:
         if not args.github_token:
             raise SystemExit("hard revocation requires the current installation token")

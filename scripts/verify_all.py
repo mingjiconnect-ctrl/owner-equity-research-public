@@ -91,6 +91,22 @@ def main() -> int:
         "Phase 5E-2B.1-2C",
     }:
         integration_command.append("--frozen-contract-replay")
+    elif (ROOT / "scripts/phase5e-base-audit-recovery-seal-v1.json").is_file():
+        recovery_head = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=ROOT,
+            text=True,
+        ).strip()
+        run(
+            sys.executable,
+            "scripts/verify_phase5e2b12a_acceptance_gate.py",
+            "--repository",
+            str(ROOT),
+            "--base",
+            recovery_head,
+            "--verify-base-audit-recovery-topology-only",
+        )
+        integration_command.append("--frozen-contract-replay")
     run(*integration_command)
     print("Owner research Phase 5E-2B.1-2A integration-contract verification passed")
     return 0
