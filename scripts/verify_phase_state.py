@@ -583,7 +583,11 @@ def _verify_phase5e2b12a_acceptance_topology(
         raise SystemExit("accepted Phase 5E-2B.1-2A merge topology is invalid")
 
 
-def _verify_recorded_closeout_tree(closeout: dict[str, object]) -> None:
+def _verify_recorded_closeout_tree(
+    closeout: dict[str, object],
+    *,
+    public_snapshot_verified: bool = False,
+) -> None:
     head = str(closeout["substantive_head_commit"])
     merge = str(closeout["substantive_merge_commit"])
     recorded_tree = str(closeout["substantive_tree_sha"])
@@ -596,7 +600,8 @@ def _verify_recorded_closeout_tree(closeout: dict[str, object]) -> None:
     # The clean public repository deliberately omits the private commit graph.
     # Its immutable root snapshot content-addresses the phase ledger that
     # contains these historical commit/tree records.
-    verify_public_bootstrap_snapshot(ROOT)
+    if not public_snapshot_verified:
+        verify_public_bootstrap_snapshot(ROOT)
     if not all(
         isinstance(value, str)
         and len(value) == 40
@@ -810,12 +815,25 @@ def main() -> int:
         raise SystemExit("phase-status.json does not match Phase 5E-2B.1-2A boundary")
     if stage != "2a_pending":
         _verify_phase5e2b12a_acceptance_topology(acceptance_closeout)
-    for closeout in (
+    recorded_closeouts = (
         *state["prior_closeouts"],
         state["closeout"]["policy_closeout"]["historical_phase5e2b_closeout"],
         state["closeout"]["implementation"],
-    ):
-        _verify_recorded_closeout_tree(closeout)
+    )
+    public_snapshot_required = any(
+        not (
+            commit_exists(str(closeout["substantive_head_commit"]), ROOT)
+            and commit_exists(str(closeout["substantive_merge_commit"]), ROOT)
+        )
+        for closeout in recorded_closeouts
+    )
+    if public_snapshot_required:
+        verify_public_bootstrap_snapshot(ROOT)
+    for closeout in recorded_closeouts:
+        _verify_recorded_closeout_tree(
+            closeout,
+            public_snapshot_verified=public_snapshot_required,
+        )
     files = {
         "AGENTS.md": ROOT / "AGENTS.md",
         "README.md": ROOT / "README.md",

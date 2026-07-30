@@ -1720,14 +1720,18 @@ def main() -> int:
     )
     phase_status = json.loads((repository / "docs/phase-status.json").read_text())
     if profile.profile_kind == "legacy_2a_recovery":
-        topology_option = (
-            "--verify-base-finalization-topology-only"
-            if (
-                repository
-                / "scripts/phase5e-base-finalization-topology-recovery-seal-v1.json"
-            ).is_file()
-            else "--verify-inventory-parity-topology-only"
-        )
+        if (
+            repository
+            / "scripts/phase5e-phase-state-performance-recovery-seal-v1.json"
+        ).is_file():
+            topology_option = "--verify-phase-state-performance-topology-only"
+        elif (
+            repository
+            / "scripts/phase5e-base-finalization-topology-recovery-seal-v1.json"
+        ).is_file():
+            topology_option = "--verify-base-finalization-topology-only"
+        else:
+            topology_option = "--verify-inventory-parity-topology-only"
         parity_topology = _run_direct(
             [
                 sys.executable,

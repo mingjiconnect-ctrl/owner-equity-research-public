@@ -15,6 +15,7 @@ from typing import Any
 import pytest
 
 import scripts.verify_phase5e2b12a_acceptance_gate as acceptance_gate
+import scripts.verify_phase_state as phase_state
 from scripts.run_phase5e_audit import EXPECTED_AUDIT_CHECK_IDS
 from scripts.verify_phase5e2b12a_acceptance_gate import (
     ACCEPTED_PROHIBITED,
@@ -1694,6 +1695,11 @@ def test_base_finalization_uses_only_validated_recovery_fallback(
     monkeypatch.setattr(acceptance_gate, "_api_paginated_items", lambda *args, **kwargs: [])
     monkeypatch.setattr(
         acceptance_gate,
+        "_verify_phase_state_performance_recovery",
+        lambda **kwargs: calls.append("performance:" + str(kwargs["base"])) or False,
+    )
+    monkeypatch.setattr(
+        acceptance_gate,
         "_verify_base_finalization_recovery",
         lambda **kwargs: calls.append("finalization:" + str(kwargs["base"])) or False,
     )
@@ -1715,10 +1721,28 @@ def test_base_finalization_uses_only_validated_recovery_fallback(
         controller_app_id=98765,
     )
     assert calls == [
+        "performance:" + "d" * 40,
         "finalization:" + "d" * 40,
         "inventory:" + "d" * 40,
         "legacy:" + "d" * 40,
     ]
+    snapshot_calls: list[Path] = []
+    monkeypatch.setattr(phase_state, "commit_exists", lambda *args, **kwargs: False)
+    monkeypatch.setattr(
+        phase_state,
+        "verify_public_bootstrap_snapshot",
+        lambda root: snapshot_calls.append(root) or {},
+    )
+    phase_state._verify_recorded_closeout_tree(
+        {
+            "phase": "historical",
+            "substantive_head_commit": "a" * 40,
+            "substantive_merge_commit": "b" * 40,
+            "substantive_tree_sha": "c" * 40,
+        },
+        public_snapshot_verified=True,
+    )
+    assert snapshot_calls == []
 
 
 @pytest.mark.parametrize(
