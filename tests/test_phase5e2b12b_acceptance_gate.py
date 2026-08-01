@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 
+from scripts import verify_phase5e2b12b_acceptance_gate as acceptance_gate
 from scripts.verify_phase5e2b12b_acceptance_gate import (
     ACCEPTANCE_BRANCH,
     ACCEPTANCE_DIFF,
@@ -87,11 +88,18 @@ def _accepted_2a_repository(tmp_path: Path) -> tuple[Path, str]:
     for path, contents in (
         ("src/owner_research/valuation_current_share_compiler.py", "VALUE = 1\n"),
         (PHASE5E2B12A_CLOSEOUT_PATH, "{}\n"),
+        ("scripts/phase5e_audit_profiles.py", "PROFILE = 1\n"),
+        ("scripts/phase5e2b12a-acceptance-trust.json", "{}\n"),
+        ("tests/test_phase5e_audit.py", "def test_profile():\n    assert True\n"),
+        ("scripts/verify_phase5e2b12a_acceptance_gate.py", "OUTER = 1\n"),
+        ("scripts/verify_phase5e2b12b_acceptance_gate.py", "INNER = 1\n"),
+        ("tests/test_phase5e2b12a_acceptance_gate.py", "def test_outer():\n    assert True\n"),
+        ("tests/test_phase5e2b12b_acceptance_gate.py", "def test_inner():\n    assert True\n"),
     ):
         target = repository / path
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(contents, encoding="utf-8")
-    (repository / "tests").mkdir()
+    (repository / "tests").mkdir(exist_ok=True)
     _write_json(repository / STATUS_PATH, STATE_PATCHES["s1"])
     return repository, _commit(repository, "accepted 2A")
 
@@ -220,6 +228,111 @@ def _acceptance_candidate(
     )
 
 
+def _interstitial_acceptance_candidate(
+    tmp_path: Path,
+) -> tuple[Path, str, str, str, str, dict[str, Any], dict[str, Any]]:
+    repository, implementation_merge, implementation_base, implementation_head = (
+        _pending_2b_repository(tmp_path)
+    )
+    subprocess.run(
+        ["git", "-C", str(repository), "checkout", "-b", "profile-repair"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    for path in ("scripts/phase5e_audit_profiles.py", "tests/test_phase5e_audit.py"):
+        target = repository / path
+        target.write_text(target.read_text(encoding="utf-8") + "# repaired\n", encoding="utf-8")
+    profile_head = _commit(repository, "profile repair")
+    subprocess.run(
+        ["git", "-C", str(repository), "checkout", "main"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repository),
+            "merge",
+            "--no-ff",
+            "profile-repair",
+            "-m",
+            "merge profile repair",
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    profile_merge = _git(repository, "rev-parse", "HEAD")
+    profile = {
+        "merge": profile_merge,
+        "first_parent": implementation_merge,
+        "second_parent": profile_head,
+        "tree": _git(repository, "rev-parse", f"{profile_merge}^{{tree}}"),
+        "files": {
+            path: {
+                "status": "M",
+                "mode": "100644",
+                "blob": _git(repository, "rev-parse", f"{profile_merge}:{path}"),
+            }
+            for path in ("scripts/phase5e_audit_profiles.py", "tests/test_phase5e_audit.py")
+        },
+    }
+
+    subprocess.run(
+        ["git", "-C", str(repository), "checkout", "-b", "topology-repair"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    for path in acceptance_gate.POST_IMPLEMENTATION_TOPOLOGY_REPAIR_PATHS:
+        target = repository / path
+        target.write_text(target.read_text(encoding="utf-8") + "# topology\n", encoding="utf-8")
+    _commit(repository, "topology repair")
+    subprocess.run(
+        ["git", "-C", str(repository), "checkout", "main"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repository),
+            "merge",
+            "--no-ff",
+            "topology-repair",
+            "-m",
+            "merge topology repair",
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    acceptance_base = _git(repository, "rev-parse", "HEAD")
+    subprocess.run(
+        ["git", "-C", str(repository), "checkout", "-b", ACCEPTANCE_BRANCH],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    _write_json(
+        repository / PHASE5E2B12B_CLOSEOUT_PATH,
+        _closeout(
+            repository=repository,
+            implementation_merge=implementation_merge,
+            implementation_head=implementation_head,
+        ),
+    )
+    _write_json(repository / STATUS_PATH, STATE_PATCHES["s3"])
+    head = _commit(repository, "2B acceptance after control repair")
+    return (
+        repository,
+        acceptance_base,
+        implementation_base,
+        implementation_merge,
+        head,
+        _event(base=acceptance_base, head=head, branch=ACCEPTANCE_BRANCH, number=82),
+        profile,
+    )
+
+
 def test_trust_diff_contract_is_narrow() -> None:
     assert EXPECTED_TEST_COUNT == 1392
     assert IMPLEMENTATION_DIFF == {
@@ -270,7 +383,9 @@ def test_implementation_rejects_wrong_branch_or_extra_path(
         )
 
 
-def test_acceptance_requires_and_calls_remote_replay_once(tmp_path: Path) -> None:
+def test_acceptance_requires_and_calls_remote_replay_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     repository, base, implementation_base, head, event = _acceptance_candidate(tmp_path)
     calls: list[dict[str, Any]] = []
 
@@ -292,6 +407,25 @@ def test_acceptance_requires_and_calls_remote_replay_once(tmp_path: Path) -> Non
     assert calls[0]["implementation_base"] == implementation_base
     assert calls[0]["implementation_merge"] == base
     assert calls[0]["token"] == "controller-token"
+
+    interstitial_root = tmp_path / "interstitial"
+    interstitial_root.mkdir()
+    interstitial = _interstitial_acceptance_candidate(interstitial_root)
+    repository, base, implementation_base, implementation_merge, head, event, profile = interstitial
+    monkeypatch.setattr(acceptance_gate, "POST_IMPLEMENTATION_PROFILE_REPAIR", profile)
+    calls.clear()
+    verify_pull_request(
+        repository=repository,
+        base=base,
+        head=head,
+        event=event,
+        repository_slug=REPOSITORY_SLUG,
+        token="controller-token",
+        require_remote=True,
+        remote_verifier=replay,
+    )
+    assert calls[0]["implementation_base"] == implementation_base
+    assert calls[0]["implementation_merge"] == implementation_merge
 
 
 @pytest.mark.parametrize(

@@ -3046,7 +3046,7 @@ def _verify_merged_main_2b_acceptance(
     parents = _commit_parents(repository, merged_main)
     if len(parents) != 2:
         raise SystemExit("accepted 2B merged main is not a two-parent pull-request merge")
-    implementation_merge, acceptance_head = parents
+    acceptance_base, acceptance_head = parents
     if _tree(repository, merged_main) != _tree(repository, acceptance_head):
         raise SystemExit("accepted 2B merged-main tree differs from its acceptance head")
     closeout = _read_json(repository, merged_main, successor_closeout_path)
@@ -3055,7 +3055,7 @@ def _verify_merged_main_2b_acceptance(
         repository_slug=repository_slug,
         token=token,
         pull_request_number=acceptance_number,
-        acceptance_base=implementation_merge,
+        acceptance_base=acceptance_base,
         acceptance_head=acceptance_head,
         acceptance_merge=merged_main,
         expected_head_ref=acceptance_branch,
@@ -3067,7 +3067,7 @@ def _verify_merged_main_2b_acceptance(
             "base": {
                 "ref": "main",
                 "repo": {"full_name": repository_slug},
-                "sha": implementation_merge,
+                "sha": acceptance_base,
             },
             "head": {
                 "ref": acceptance_branch,
@@ -3079,11 +3079,14 @@ def _verify_merged_main_2b_acceptance(
     _run_protected_structural_gate(
         relative_script="scripts/verify_phase5e2b12b_acceptance_gate.py",
         repository=repository,
-        base=implementation_merge,
+        base=acceptance_base,
         head=acceptance_head,
         event=structural_event,
         repository_slug=repository_slug,
     )
+    implementation_merge = closeout.get("implementation_merge_commit")
+    if not _git_oid(implementation_merge):
+        raise SystemExit("accepted 2B closeout lacks a valid implementation merge")
     implementation_parents = _commit_parents(repository, implementation_merge)
     if len(implementation_parents) != 2:
         raise SystemExit("accepted 2B implementation is not a two-parent merge")
@@ -3135,7 +3138,7 @@ def _verify_merged_main_2b_acceptance(
         expected_pull_request_number=acceptance_number,
         expected_pull_request_head=acceptance_head,
         expected_pull_request_head_ref=acceptance_branch,
-        expected_pull_request_base=implementation_merge,
+        expected_pull_request_base=acceptance_base,
         expected_workflow_name="phase5e2b12a-base-owned-acceptance-gate",
         expected_workflow_file=".github/workflows/phase5e2b12a-acceptance-gate.yml",
     )
@@ -6009,7 +6012,15 @@ def verify_non_acceptance_pr(
             repository_slug=repository_slug,
         )
         if acceptance_transition:
-            implementation_parents = _commit_parents(repository, base)
+            closeout = _read_json(
+                repository,
+                head,
+                "docs/phase5e2b12b-acceptance-closeout.json",
+            )
+            implementation_merge = closeout.get("implementation_merge_commit")
+            if not _git_oid(implementation_merge):
+                raise SystemExit("2B acceptance lacks a valid implementation merge")
+            implementation_parents = _commit_parents(repository, implementation_merge)
             if len(implementation_parents) != 2:
                 raise SystemExit("2B acceptance base is not a two-parent implementation merge")
             _verify_phase5e2b12b_remote_evidence(
@@ -6017,13 +6028,9 @@ def verify_non_acceptance_pr(
                 repository_slug=repository_slug,
                 token=token,
                 implementation_base=implementation_parents[0],
-                implementation_merge=base,
+                implementation_merge=implementation_merge,
                 implementation_head=implementation_parents[1],
-                closeout=_read_json(
-                    repository,
-                    head,
-                    "docs/phase5e2b12b-acceptance-closeout.json",
-                ),
+                closeout=closeout,
                 controller_app_id=controller_app_id,
             )
         return
