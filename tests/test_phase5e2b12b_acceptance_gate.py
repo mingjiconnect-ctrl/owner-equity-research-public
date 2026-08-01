@@ -90,6 +90,10 @@ def _accepted_2a_repository(tmp_path: Path) -> tuple[Path, str]:
         (PHASE5E2B12A_CLOSEOUT_PATH, "{}\n"),
         ("scripts/phase5e_audit_profiles.py", "PROFILE = 1\n"),
         ("scripts/phase5e2b12a-acceptance-trust.json", "{}\n"),
+        (
+            "scripts/phase5e_candidate_exec.sh",
+            "timeout --signal=TERM --kill-after=10s 15m\n",
+        ),
         ("tests/test_phase5e_audit.py", "def test_profile():\n    assert True\n"),
         ("scripts/verify_phase5e2b12a_acceptance_gate.py", "OUTER = 1\n"),
         ("scripts/verify_phase5e2b12b_acceptance_gate.py", "INNER = 1\n"),
@@ -306,7 +310,46 @@ def _interstitial_acceptance_candidate(
         check=True,
         stdout=subprocess.DEVNULL,
     )
+    topology_merge = _git(repository, "rev-parse", "HEAD")
+    subprocess.run(
+        ["git", "-C", str(repository), "checkout", "-b", "timeout-repair"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    for path in acceptance_gate.POST_IMPLEMENTATION_TIMEOUT_REPAIR_PATHS:
+        target = repository / path
+        if path == "scripts/phase5e_candidate_exec.sh":
+            target.write_text(
+                target.read_text(encoding="utf-8").replace("15m", "30m"),
+                encoding="utf-8",
+            )
+        else:
+            target.write_text(
+                target.read_text(encoding="utf-8") + "# timeout\n",
+                encoding="utf-8",
+            )
+    _commit(repository, "audit timeout repair")
+    subprocess.run(
+        ["git", "-C", str(repository), "checkout", "main"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repository),
+            "merge",
+            "--no-ff",
+            "timeout-repair",
+            "-m",
+            "merge audit timeout repair",
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
     acceptance_base = _git(repository, "rev-parse", "HEAD")
+    assert _git(repository, "rev-parse", f"{acceptance_base}^1") == topology_merge
     subprocess.run(
         ["git", "-C", str(repository), "checkout", "-b", ACCEPTANCE_BRANCH],
         check=True,
@@ -426,6 +469,57 @@ def test_acceptance_requires_and_calls_remote_replay_once(
     )
     assert calls[0]["implementation_base"] == implementation_base
     assert calls[0]["implementation_merge"] == implementation_merge
+
+
+def test_post_implementation_timeout_repair_cannot_be_reused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repository, base, _, implementation_merge, _, _, profile = (
+        _interstitial_acceptance_candidate(tmp_path)
+    )
+    monkeypatch.setattr(acceptance_gate, "POST_IMPLEMENTATION_PROFILE_REPAIR", profile)
+    subprocess.run(
+        ["git", "-C", str(repository), "checkout", "main"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    assert _git(repository, "rev-parse", "HEAD") == base
+    subprocess.run(
+        ["git", "-C", str(repository), "checkout", "-b", "extra-control-repair"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    target = repository / "scripts/phase5e_candidate_exec.sh"
+    target.write_text(target.read_text(encoding="utf-8") + "# replay\n", encoding="utf-8")
+    _commit(repository, "unapproved fourth repair")
+    subprocess.run(
+        ["git", "-C", str(repository), "checkout", "main"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repository),
+            "merge",
+            "--no-ff",
+            "extra-control-repair",
+            "-m",
+            "merge unapproved fourth repair",
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    with pytest.raises(
+        SystemExit,
+        match="unrecognized post-implementation history",
+    ):
+        acceptance_gate._verify_post_implementation_control_history(
+            repository=repository,
+            implementation_merge=implementation_merge,
+            acceptance_base=_git(repository, "rev-parse", "HEAD"),
+        )
 
 
 @pytest.mark.parametrize(

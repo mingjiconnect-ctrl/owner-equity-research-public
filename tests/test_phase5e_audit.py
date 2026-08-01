@@ -1047,6 +1047,8 @@ def test_phase5e_ci_permissions_and_isolation_are_enforced() -> None:
     assert 'for copied_path in (repository, *repository.rglob("*"))' in successor_tests
     assert "stat.S_IWUSR" in successor_tests
     assert "/audit/control" not in candidate_executor
+    assert "timeout --signal=TERM --kill-after=10s 30m" in candidate_executor
+    assert "timeout --signal=TERM --kill-after=10s 15m" not in candidate_executor
     assert "run_phase5e_audit.py" in launcher
     for protected_oracle in (
         "verify_phase5e2b12c_semantic_oracle.py",
