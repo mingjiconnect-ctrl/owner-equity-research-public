@@ -1,0 +1,7 @@
+{
+  "authority_sha256": "305a926f798c07b206952872e817e26177f87ef46c5621ef67c7b45d90dd5ff0",
+  "bootstrap_commit": "6c15c06159f009fb7ba4ff51dcef99337f5719b3",
+  "reason_code": "sealed-one-time-protected-audit-timeout-recovery",
+  "recovery_id": "phase5e2b12b-protected-audit-timeout-recovery-v1",
+  "schema_version": "1.0.0"
+}

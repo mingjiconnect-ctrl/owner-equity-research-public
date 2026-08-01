@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 from pathlib import Path
@@ -201,9 +202,7 @@ def _acceptance_candidate(
     acceptance_number: int = 82,
     extra_path: str | None = None,
 ) -> tuple[Path, str, str, str, dict[str, Any]]:
-    repository, base, implementation_base, implementation_head = _pending_2b_repository(
-        tmp_path
-    )
+    repository, base, implementation_base, implementation_head = _pending_2b_repository(tmp_path)
     subprocess.run(
         ["git", "-C", str(repository), "checkout", "-b", branch],
         check=True,
@@ -224,16 +223,24 @@ def _acceptance_candidate(
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text("unexpected\n", encoding="utf-8")
     head = _commit(repository, "2B acceptance")
-    return repository, base, implementation_base, head, _event(
-        base=base,
-        head=head,
-        branch=branch,
-        number=acceptance_number,
+    return (
+        repository,
+        base,
+        implementation_base,
+        head,
+        _event(
+            base=base,
+            head=head,
+            branch=branch,
+            number=acceptance_number,
+        ),
     )
 
 
 def _interstitial_acceptance_candidate(
     tmp_path: Path,
+    *,
+    sealed_timeout_recovery: bool = False,
 ) -> tuple[Path, str, str, str, str, dict[str, Any], dict[str, Any]]:
     repository, implementation_merge, implementation_base, implementation_head = (
         _pending_2b_repository(tmp_path)
@@ -350,6 +357,90 @@ def _interstitial_acceptance_candidate(
     )
     acceptance_base = _git(repository, "rev-parse", "HEAD")
     assert _git(repository, "rev-parse", f"{acceptance_base}^1") == topology_merge
+    if sealed_timeout_recovery:
+        timeout_merge = acceptance_base
+        subprocess.run(
+            ["git", "-C", str(repository), "checkout", "-b", "timeout-audit-recovery"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
+        authority = {
+            "failed_audit_artifact_digest": (
+                "sha256:83babe803d69f5a5fc2415be551f9c56935051f039fa0bfc462f642c89b2178e"
+            ),
+            "failed_audit_artifact_id": 8820812727,
+            "failed_audit_artifact_size": 622,
+            "failed_audit_report_file_sha256": (
+                "5581f2b63e8b97ebdbf4ba5547b9af61eb095a5fc05346133fb0c88bd14bccfc"
+            ),
+            "failed_audit_run_id": 30707380080,
+            "failed_error_code": "protected_runtime_junit_blocked",
+            "failed_error_fingerprint": (
+                "0677944bbf28a071fbed5eee1da49561d7b3c67b479bf7182f5a62d06c3b447f"
+            ),
+            "failed_head_commit": timeout_merge,
+            "failed_test_identities": [
+                "::tests.test_phase5e2b12a_acceptance_gate",
+                "::tests.test_phase5e_audit",
+            ],
+            "predecessor_merge_commit": timeout_merge,
+            "reason_code": (
+                "protected-predecessor-tests-rejected-the-bounded-timeout-control-repair"
+            ),
+            "recovery_id": "phase5e2b12b-protected-audit-timeout-recovery-v1",
+            "repair_base_commit": "f8f3fd15f741c7df10d8b89812e7f793c5ffa72b",
+            "repair_branch": "fix/phase5e2b12b-r11-audit-timeout-boundary",
+            "repair_head_commit": "7f4e1df9456ad294dcea81c66c2f606786f9658f",
+            "repair_main_ci_run_id": 30707371608,
+            "repair_merge_commit": timeout_merge,
+            "repair_pull_request": 79,
+            "repair_tree": "84a4c4fb5325101dc088ee3e40ec7117ba9736bd",
+            "schema_version": "1.0.0",
+        }
+        authority_path = (
+            repository / acceptance_gate.POST_IMPLEMENTATION_TIMEOUT_RECOVERY_AUTHORITY_PATH
+        )
+        _write_json(authority_path, authority)
+        for path in acceptance_gate.POST_IMPLEMENTATION_TIMEOUT_RECOVERY_BOOTSTRAP_PATHS:
+            if path == acceptance_gate.POST_IMPLEMENTATION_TIMEOUT_RECOVERY_AUTHORITY_PATH:
+                continue
+            target = repository / path
+            target.write_text(
+                target.read_text(encoding="utf-8") + "# timeout-audit recovery\n",
+                encoding="utf-8",
+            )
+        bootstrap = _commit(repository, "bootstrap timeout-audit recovery")
+        _write_json(
+            repository / acceptance_gate.POST_IMPLEMENTATION_TIMEOUT_RECOVERY_SEAL_PATH,
+            {
+                "authority_sha256": hashlib.sha256(authority_path.read_bytes()).hexdigest(),
+                "bootstrap_commit": bootstrap,
+                "reason_code": "sealed-one-time-protected-audit-timeout-recovery",
+                "recovery_id": "phase5e2b12b-protected-audit-timeout-recovery-v1",
+                "schema_version": "1.0.0",
+            },
+        )
+        _commit(repository, "seal timeout-audit recovery")
+        subprocess.run(
+            ["git", "-C", str(repository), "checkout", "main"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repository),
+                "merge",
+                "--no-ff",
+                "timeout-audit-recovery",
+                "-m",
+                "merge timeout-audit recovery",
+            ],
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
+        acceptance_base = _git(repository, "rev-parse", "HEAD")
     subprocess.run(
         ["git", "-C", str(repository), "checkout", "-b", ACCEPTANCE_BRANCH],
         check=True,
@@ -470,12 +561,28 @@ def test_acceptance_requires_and_calls_remote_replay_once(
     assert calls[0]["implementation_base"] == implementation_base
     assert calls[0]["implementation_merge"] == implementation_merge
 
+    sealed_root = tmp_path / "sealed"
+    sealed_root.mkdir()
+    sealed = _interstitial_acceptance_candidate(
+        sealed_root,
+        sealed_timeout_recovery=True,
+    )
+    sealed_repository, sealed_base, _, sealed_implementation, _, _, sealed_profile = sealed
+    monkeypatch.setattr(
+        acceptance_gate,
+        "POST_IMPLEMENTATION_PROFILE_REPAIR",
+        sealed_profile,
+    )
+    acceptance_gate._verify_post_implementation_control_history(
+        repository=sealed_repository,
+        implementation_merge=sealed_implementation,
+        acceptance_base=sealed_base,
+    )
 
-def test_post_implementation_timeout_repair_cannot_be_reused(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    repository, base, _, implementation_merge, _, _, profile = (
-        _interstitial_acceptance_candidate(tmp_path)
+    attack_root = tmp_path / "attack"
+    attack_root.mkdir()
+    repository, base, _, implementation_merge, _, _, profile = _interstitial_acceptance_candidate(
+        attack_root
     )
     monkeypatch.setattr(acceptance_gate, "POST_IMPLEMENTATION_PROFILE_REPAIR", profile)
     subprocess.run(
@@ -513,7 +620,7 @@ def test_post_implementation_timeout_repair_cannot_be_reused(
     )
     with pytest.raises(
         SystemExit,
-        match="unrecognized post-implementation history",
+        match="timeout-audit recovery",
     ):
         acceptance_gate._verify_post_implementation_control_history(
             repository=repository,
@@ -599,9 +706,7 @@ def test_acceptance_rejects_wrong_identity_or_extra_path(
 
 def test_accepted_state_authorizes_only_preimplementation_gate_work() -> None:
     accepted = STATE_PATCHES["s3"]
-    assert accepted["authorized_next"] == [
-        "Phase 5E-2B.1-2C successor-gate bootstrap"
-    ]
+    assert accepted["authorized_next"] == ["Phase 5E-2B.1-2C successor-gate bootstrap"]
     assert "Phase 5E-2B.1-2C" in accepted["prohibited"]
     assert "Phase 5E-2C" in accepted["prohibited"]
     assert not (set(accepted["authorized_next"]) & set(accepted["prohibited"]))

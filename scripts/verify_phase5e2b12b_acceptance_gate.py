@@ -62,6 +62,20 @@ POST_IMPLEMENTATION_TIMEOUT_REPAIR_PATHS = frozenset(
         "tests/test_phase5e_audit.py",
     }
 )
+POST_IMPLEMENTATION_TIMEOUT_RECOVERY_AUTHORITY_PATH = (
+    "scripts/phase5e-protected-audit-timeout-recovery-v1.json"
+)
+POST_IMPLEMENTATION_TIMEOUT_RECOVERY_SEAL_PATH = (
+    "scripts/phase5e-protected-audit-timeout-recovery-seal-v1.json"
+)
+POST_IMPLEMENTATION_TIMEOUT_RECOVERY_BOOTSTRAP_PATHS = frozenset(
+    {
+        POST_IMPLEMENTATION_TIMEOUT_RECOVERY_AUTHORITY_PATH,
+        "scripts/phase5e2b12a-acceptance-trust.json",
+        "scripts/verify_phase5e2b12b_acceptance_gate.py",
+        "tests/test_phase5e2b12b_acceptance_gate.py",
+    }
+)
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 _GIT_OID = re.compile(r"[0-9a-f]{40}\Z")
 _RUN_ID = re.compile(r"[1-9][0-9]*\Z")
@@ -82,8 +96,7 @@ def _load_trust() -> dict[str, Any]:
     if (
         not isinstance(value, dict)
         or value.get("schema_version") != "4.0.0"
-        or raw
-        != (json.dumps(value, allow_nan=False, indent=2, sort_keys=True) + "\n").encode()
+        or raw != (json.dumps(value, allow_nan=False, indent=2, sort_keys=True) + "\n").encode()
     ):
         raise RuntimeError("Phase 5E-2B.1-2B trust snapshot is malformed")
     expected_keys = {
@@ -153,14 +166,10 @@ def _load_trust() -> dict[str, Any]:
             "audit_policy",
         }
         or successor.get("gate_id") != "phase5e2b12c"
-        or successor.get("bootstrap_branch")
-        != "feature/phase5e2b12c-gate-bootstrap"
-        or successor.get("acceptance_branch")
-        != "feature/phase5e2b12c-gate-acceptance-closeout"
-        or successor.get("bundle_directory")
-        != "governance/phase5e-gates/phase5e2b12c"
-        or successor.get("closeout_path")
-        != "docs/phase5e2b12c-gate-acceptance-closeout.json"
+        or successor.get("bootstrap_branch") != "feature/phase5e2b12c-gate-bootstrap"
+        or successor.get("acceptance_branch") != "feature/phase5e2b12c-gate-acceptance-closeout"
+        or successor.get("bundle_directory") != "governance/phase5e-gates/phase5e2b12c"
+        or successor.get("closeout_path") != "docs/phase5e2b12c-gate-acceptance-closeout.json"
     ):
         raise RuntimeError("Phase 5E successor-gate bootstrap identity is malformed")
     successor_verifier = Path(__file__).with_name("verify_phase5e_successor_gate.py")
@@ -204,9 +213,7 @@ EXPECTED_TEST_COUNT = 1380 + len(EXPECTED_ADDED_TEST_NODEIDS)
 STATE_PATCHES = {
     key: copy.deepcopy(value["status_patch"]) for key, value in TRUST["states"].items()
 }
-STATE_MARKERS = {
-    key: copy.deepcopy(value["markers"]) for key, value in TRUST["states"].items()
-}
+STATE_MARKERS = {key: copy.deepcopy(value["markers"]) for key, value in TRUST["states"].items()}
 EXPECTED_CLOSEOUT_KEYS = frozenset(
     {
         "schema_version",
@@ -286,7 +293,7 @@ def _diff(repository: Path, base: str, head: str) -> dict[str, str]:
 def _verify_post_implementation_control_history(
     *, repository: Path, implementation_merge: str, acceptance_base: str
 ) -> None:
-    """Accept only the sealed profile, topology, and audit-timeout repairs."""
+    """Accept only the three bounded repairs and one sealed timeout-audit recovery."""
 
     if implementation_merge == acceptance_base:
         return
@@ -300,7 +307,11 @@ def _verify_post_implementation_control_history(
     assert isinstance(value, str)
     commits = value.splitlines()
     profile = POST_IMPLEMENTATION_PROFILE_REPAIR
-    if len(commits) != 3 or commits[0] != profile["merge"] or commits[-1] != acceptance_base:
+    if (
+        len(commits) not in {3, 4}
+        or commits[0] != profile["merge"]
+        or commits[-1] != acceptance_base
+    ):
         raise SystemExit("2B acceptance base has unrecognized post-implementation history")
 
     profile_merge = commits[0]
@@ -334,12 +345,8 @@ def _verify_post_implementation_control_history(
     if (
         _parents(repository, topology_head) != (profile_merge,)
         or _tree(repository, topology_merge) != _tree(repository, topology_head)
-        or topology_diff
-        != {path: "M" for path in POST_IMPLEMENTATION_TOPOLOGY_REPAIR_PATHS}
-        or any(
-            _mode(repository, topology_merge, path) != "100644"
-            for path in topology_diff
-        )
+        or topology_diff != {path: "M" for path in POST_IMPLEMENTATION_TOPOLOGY_REPAIR_PATHS}
+        or any(_mode(repository, topology_merge, path) != "100644" for path in topology_diff)
     ):
         raise SystemExit("2B topology repair is not the exact control-only transition")
 
@@ -352,12 +359,8 @@ def _verify_post_implementation_control_history(
     if (
         _parents(repository, timeout_head) != (topology_merge,)
         or _tree(repository, timeout_merge) != _tree(repository, timeout_head)
-        or timeout_diff
-        != {path: "M" for path in POST_IMPLEMENTATION_TIMEOUT_REPAIR_PATHS}
-        or any(
-            _mode(repository, timeout_merge, path) != "100644"
-            for path in timeout_diff
-        )
+        or timeout_diff != {path: "M" for path in POST_IMPLEMENTATION_TIMEOUT_REPAIR_PATHS}
+        or any(_mode(repository, timeout_merge, path) != "100644" for path in timeout_diff)
     ):
         raise SystemExit("2B audit-timeout repair is not the exact bounded transition")
     executor = _git(
@@ -371,6 +374,122 @@ def _verify_post_implementation_control_history(
         or "timeout --signal=TERM --kill-after=10s 15m" in executor
     ):
         raise SystemExit("2B audit-timeout repair did not install the bounded 30m limit")
+    if len(commits) == 4:
+        recovery_merge = commits[3]
+        recovery_parents = _parents(repository, recovery_merge)
+        if len(recovery_parents) != 2 or recovery_parents[0] != timeout_merge:
+            raise SystemExit("2B timeout-audit recovery is not one linear pull-request merge")
+        recovery_head = recovery_parents[1]
+        recovery_head_parents = _parents(repository, recovery_head)
+        if len(recovery_head_parents) != 1:
+            raise SystemExit("2B timeout-audit recovery seal topology drifted")
+        bootstrap = recovery_head_parents[0]
+        if _parents(repository, bootstrap) != (timeout_merge,) or _tree(
+            repository, recovery_merge
+        ) != _tree(repository, recovery_head):
+            raise SystemExit("2B timeout-audit recovery ancestry drifted")
+        authority = _read_json(
+            repository,
+            bootstrap,
+            POST_IMPLEMENTATION_TIMEOUT_RECOVERY_AUTHORITY_PATH,
+        )
+        expected_authority_keys = {
+            "failed_audit_artifact_digest",
+            "failed_audit_artifact_id",
+            "failed_audit_artifact_size",
+            "failed_audit_report_file_sha256",
+            "failed_audit_run_id",
+            "failed_error_code",
+            "failed_error_fingerprint",
+            "failed_head_commit",
+            "failed_test_identities",
+            "predecessor_merge_commit",
+            "reason_code",
+            "recovery_id",
+            "repair_base_commit",
+            "repair_branch",
+            "repair_head_commit",
+            "repair_main_ci_run_id",
+            "repair_merge_commit",
+            "repair_pull_request",
+            "repair_tree",
+            "schema_version",
+        }
+        if (
+            set(authority) != expected_authority_keys
+            or authority.get("schema_version") != "1.0.0"
+            or authority.get("recovery_id") != "phase5e2b12b-protected-audit-timeout-recovery-v1"
+            or authority.get("reason_code")
+            != "protected-predecessor-tests-rejected-the-bounded-timeout-control-repair"
+            or authority.get("predecessor_merge_commit") != timeout_merge
+            or authority.get("repair_merge_commit") != timeout_merge
+            or authority.get("failed_head_commit") != timeout_merge
+            or authority.get("repair_pull_request") != 79
+            or authority.get("repair_base_commit") != "f8f3fd15f741c7df10d8b89812e7f793c5ffa72b"
+            or authority.get("repair_head_commit") != "7f4e1df9456ad294dcea81c66c2f606786f9658f"
+            or authority.get("repair_branch") != "fix/phase5e2b12b-r11-audit-timeout-boundary"
+            or authority.get("repair_tree") != "84a4c4fb5325101dc088ee3e40ec7117ba9736bd"
+            or authority.get("repair_main_ci_run_id") != 30707371608
+            or authority.get("failed_audit_run_id") != 30707380080
+            or authority.get("failed_audit_artifact_id") != 8820812727
+            or authority.get("failed_audit_artifact_size") != 622
+            or authority.get("failed_audit_artifact_digest")
+            != "sha256:83babe803d69f5a5fc2415be551f9c56935051f039fa0bfc462f642c89b2178e"
+            or authority.get("failed_audit_report_file_sha256")
+            != "5581f2b63e8b97ebdbf4ba5547b9af61eb095a5fc05346133fb0c88bd14bccfc"
+            or authority.get("failed_error_code") != "protected_runtime_junit_blocked"
+            or authority.get("failed_error_fingerprint")
+            != "0677944bbf28a071fbed5eee1da49561d7b3c67b479bf7182f5a62d06c3b447f"
+            or authority.get("failed_test_identities")
+            != [
+                "::tests.test_phase5e2b12a_acceptance_gate",
+                "::tests.test_phase5e_audit",
+            ]
+        ):
+            raise SystemExit("2B timeout-audit recovery authority drifted")
+        seal = _read_json(
+            repository,
+            recovery_head,
+            POST_IMPLEMENTATION_TIMEOUT_RECOVERY_SEAL_PATH,
+        )
+        authority_raw = _git(
+            repository,
+            "show",
+            f"{bootstrap}:{POST_IMPLEMENTATION_TIMEOUT_RECOVERY_AUTHORITY_PATH}",
+            text=False,
+        )
+        assert isinstance(authority_raw, bytes)
+        if (
+            set(seal)
+            != {
+                "authority_sha256",
+                "bootstrap_commit",
+                "reason_code",
+                "recovery_id",
+                "schema_version",
+            }
+            or seal.get("schema_version") != "1.0.0"
+            or seal.get("recovery_id") != authority["recovery_id"]
+            or seal.get("reason_code") != "sealed-one-time-protected-audit-timeout-recovery"
+            or seal.get("bootstrap_commit") != bootstrap
+            or seal.get("authority_sha256") != hashlib.sha256(authority_raw).hexdigest()
+            or _diff(repository, timeout_merge, bootstrap)
+            != {
+                path: ("A" if path == POST_IMPLEMENTATION_TIMEOUT_RECOVERY_AUTHORITY_PATH else "M")
+                for path in POST_IMPLEMENTATION_TIMEOUT_RECOVERY_BOOTSTRAP_PATHS
+            }
+            or _diff(repository, bootstrap, recovery_head)
+            != {POST_IMPLEMENTATION_TIMEOUT_RECOVERY_SEAL_PATH: "A"}
+            or any(
+                _mode(repository, commit, path) != "100644"
+                for commit, paths in (
+                    (bootstrap, POST_IMPLEMENTATION_TIMEOUT_RECOVERY_BOOTSTRAP_PATHS),
+                    (recovery_head, (POST_IMPLEMENTATION_TIMEOUT_RECOVERY_SEAL_PATH,)),
+                )
+                for path in paths
+            )
+        ):
+            raise SystemExit("2B timeout-audit recovery seal or changed-path boundary drifted")
     if _read_json(repository, implementation_merge, STATUS_PATH) != _read_json(
         repository, acceptance_base, STATUS_PATH
     ):
@@ -401,21 +520,18 @@ def _read_json(repository: Path, commit: str, path: str) -> dict[str, Any]:
         )
     except (UnicodeDecodeError, ValueError, json.JSONDecodeError) as exc:
         raise SystemExit(f"{path} is not canonical UTF-8 JSON") from exc
-    if not isinstance(value, dict) or raw != (
-        json.dumps(value, allow_nan=False, indent=2, sort_keys=True) + "\n"
-    ).encode():
+    if (
+        not isinstance(value, dict)
+        or raw != (json.dumps(value, allow_nan=False, indent=2, sort_keys=True) + "\n").encode()
+    ):
         raise SystemExit(f"{path} is not canonically serialized")
     return value
 
 
 def _markers(repository: Path, commit: str) -> dict[str, bool]:
     return {
-        "phase5e2b12a_closeout": _path_exists(
-            repository, commit, PHASE5E2B12A_CLOSEOUT_PATH
-        ),
-        "phase5e2b12b_closeout": _path_exists(
-            repository, commit, PHASE5E2B12B_CLOSEOUT_PATH
-        ),
+        "phase5e2b12a_closeout": _path_exists(repository, commit, PHASE5E2B12A_CLOSEOUT_PATH),
+        "phase5e2b12b_closeout": _path_exists(repository, commit, PHASE5E2B12B_CLOSEOUT_PATH),
         "phase5e2b12b_test": _path_exists(repository, commit, PHASE5E2B12B_TEST_PATH),
     }
 
@@ -455,10 +571,8 @@ def _event_identity(
     if (
         event.get("repository", {}).get("full_name") != repository_slug
         or pull_request.get("base", {}).get("ref") != "main"
-        or pull_request.get("base", {}).get("repo", {}).get("full_name")
-        != repository_slug
-        or pull_request.get("head", {}).get("repo", {}).get("full_name")
-        != repository_slug
+        or pull_request.get("base", {}).get("repo", {}).get("full_name") != repository_slug
+        or pull_request.get("head", {}).get("repo", {}).get("full_name") != repository_slug
         or pull_request.get("base", {}).get("sha") != base
         or pull_request.get("head", {}).get("sha") != head
         or pull_request.get("head", {}).get("ref") != branch
@@ -466,9 +580,7 @@ def _event_identity(
         raise SystemExit("GitHub event identity does not match the protected 2B transition")
 
 
-def _verify_exact_diff(
-    repository: Path, *, base: str, head: str, expected: dict[str, str]
-) -> None:
+def _verify_exact_diff(repository: Path, *, base: str, head: str, expected: dict[str, str]) -> None:
     if _diff(repository, base, head) != expected:
         raise SystemExit("Phase 5E-2B.1-2B transition escaped its exact path boundary")
     for path in expected:
@@ -581,9 +693,10 @@ def verify_merged_acceptance_structure(
         raise SystemExit("2B acceptance base is not pending acceptance")
     closeout = _read_json(repository, head, PHASE5E2B12B_CLOSEOUT_PATH)
     implementation_merge = closeout.get("implementation_merge_commit")
-    if not isinstance(implementation_merge, str) or _GIT_OID.fullmatch(
-        implementation_merge
-    ) is None:
+    if (
+        not isinstance(implementation_merge, str)
+        or _GIT_OID.fullmatch(implementation_merge) is None
+    ):
         raise SystemExit("2B acceptance lacks a valid implementation merge")
     _verify_post_implementation_control_history(
         repository=repository,
