@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -611,10 +612,20 @@ def _verify_recorded_closeout_tree(
         raise SystemExit(f"{closeout['phase']} external closeout identity is malformed")
 
 
+def _successor_subprocess_path() -> str:
+    child_path = "/usr/bin:/bin:/usr/sbin:/sbin"
+    if os.environ.get("AUDIT_CANDIDATE_SANDBOX") == "linux-pivot-root-netless-v1":
+        child_path = os.environ.get("PATH", "")
+        if child_path != "/audit-bin:/venv/bin:/usr/bin:/bin":
+            raise SystemExit("successor position audit Git-shim path is not the sealed runtime")
+    return child_path
+
+
 def _resolve_successor_position(ref: str) -> dict[str, object]:
     """Resolve recursive successor state without importing a mutable module."""
 
     verifier = ROOT / "scripts" / "verify_phase5e_successor_gate.py"
+    child_path = _successor_subprocess_path()
     try:
         completed = subprocess.run(
             [
@@ -627,7 +638,7 @@ def _resolve_successor_position(ref: str) -> dict[str, object]:
                 ref,
             ],
             cwd="/",
-            env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin"},
+            env={"PATH": child_path},
             capture_output=True,
             check=False,
             timeout=120,

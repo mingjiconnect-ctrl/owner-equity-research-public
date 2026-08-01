@@ -76,6 +76,22 @@ POST_IMPLEMENTATION_TIMEOUT_RECOVERY_BOOTSTRAP_PATHS = frozenset(
         "tests/test_phase5e2b12b_acceptance_gate.py",
     }
 )
+POST_IMPLEMENTATION_AUDIT_GIT_SHIM_AUTHORITY_PATH = (
+    "scripts/phase5e-protected-audit-git-shim-recovery-v1.json"
+)
+POST_IMPLEMENTATION_AUDIT_GIT_SHIM_SEAL_PATH = (
+    "scripts/phase5e-protected-audit-git-shim-recovery-seal-v1.json"
+)
+POST_IMPLEMENTATION_AUDIT_GIT_SHIM_BOOTSTRAP_PATHS = frozenset(
+    {
+        POST_IMPLEMENTATION_AUDIT_GIT_SHIM_AUTHORITY_PATH,
+        "scripts/phase5e2b12a-acceptance-trust.json",
+        "scripts/verify_phase5e2b12b_acceptance_gate.py",
+        "scripts/verify_phase_state.py",
+        "tests/test_phase4d5_phase_state.py",
+        "tests/test_phase5e2b12b_acceptance_gate.py",
+    }
+)
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 _GIT_OID = re.compile(r"[0-9a-f]{40}\Z")
 _RUN_ID = re.compile(r"[1-9][0-9]*\Z")
@@ -293,7 +309,7 @@ def _diff(repository: Path, base: str, head: str) -> dict[str, str]:
 def _verify_post_implementation_control_history(
     *, repository: Path, implementation_merge: str, acceptance_base: str
 ) -> None:
-    """Accept only the three bounded repairs and one sealed timeout-audit recovery."""
+    """Accept only the bounded repairs and their two sealed audit recoveries."""
 
     if implementation_merge == acceptance_base:
         return
@@ -308,7 +324,7 @@ def _verify_post_implementation_control_history(
     commits = value.splitlines()
     profile = POST_IMPLEMENTATION_PROFILE_REPAIR
     if (
-        len(commits) not in {3, 4}
+        len(commits) not in {3, 4, 5}
         or commits[0] != profile["merge"]
         or commits[-1] != acceptance_base
     ):
@@ -374,7 +390,7 @@ def _verify_post_implementation_control_history(
         or "timeout --signal=TERM --kill-after=10s 15m" in executor
     ):
         raise SystemExit("2B audit-timeout repair did not install the bounded 30m limit")
-    if len(commits) == 4:
+    if len(commits) >= 4:
         recovery_merge = commits[3]
         recovery_parents = _parents(repository, recovery_merge)
         if len(recovery_parents) != 2 or recovery_parents[0] != timeout_merge:
@@ -490,6 +506,127 @@ def _verify_post_implementation_control_history(
             )
         ):
             raise SystemExit("2B timeout-audit recovery seal or changed-path boundary drifted")
+    if len(commits) == 5:
+        predecessor = commits[3]
+        recovery_merge = commits[4]
+        recovery_parents = _parents(repository, recovery_merge)
+        if len(recovery_parents) != 2 or recovery_parents[0] != predecessor:
+            raise SystemExit("2B audit Git-shim recovery is not one linear pull-request merge")
+        recovery_head = recovery_parents[1]
+        recovery_head_parents = _parents(repository, recovery_head)
+        if len(recovery_head_parents) != 1:
+            raise SystemExit("2B audit Git-shim recovery seal topology drifted")
+        bootstrap = recovery_head_parents[0]
+        if _parents(repository, bootstrap) != (predecessor,) or _tree(
+            repository, recovery_merge
+        ) != _tree(repository, recovery_head):
+            raise SystemExit("2B audit Git-shim recovery ancestry drifted")
+        authority = _read_json(
+            repository,
+            bootstrap,
+            POST_IMPLEMENTATION_AUDIT_GIT_SHIM_AUTHORITY_PATH,
+        )
+        if (
+            set(authority)
+            != {
+                "failed_acceptance_head_commit",
+                "failed_acceptance_pull_request",
+                "failed_audit_artifact_digest",
+                "failed_audit_artifact_id",
+                "failed_audit_artifact_size",
+                "failed_audit_report_file_sha256",
+                "failed_audit_run_id",
+                "failed_error_code",
+                "failed_error_fingerprint",
+                "failed_test_identities",
+                "predecessor_merge_commit",
+                "reason_code",
+                "recovery_id",
+                "repair_branch",
+                "repair_pull_request",
+                "schema_version",
+            }
+            or authority.get("schema_version") != "1.0.0"
+            or authority.get("recovery_id")
+            != "phase5e2b12b-protected-audit-git-shim-recovery-v1"
+            or authority.get("reason_code")
+            != "root-owned-audit-candidate-bypassed-the-sealed-git-shim"
+            or authority.get("predecessor_merge_commit") != predecessor
+            or authority.get("failed_acceptance_pull_request") != 76
+            or authority.get("failed_acceptance_head_commit")
+            != "d22bd66cc5e446308b057edf71e92237582b5cd3"
+            or authority.get("failed_audit_run_id") != 30709710268
+            or authority.get("failed_audit_artifact_id") != 8822008149
+            or authority.get("failed_audit_artifact_size") != 634
+            or authority.get("failed_audit_artifact_digest")
+            != "sha256:bda74ea5582bc629547e49f2e930c774318750f3275f69ddd9128c996affe038"
+            or authority.get("failed_audit_report_file_sha256")
+            != "f90428c228560ff0025af99fb2c18a714be645585c3c0368926e454ba7d66a9f"
+            or authority.get("failed_error_code") != "protected_runtime_junit_blocked"
+            or authority.get("failed_error_fingerprint")
+            != "0677944bbf28a071fbed5eee1da49561d7b3c67b479bf7182f5a62d06c3b447f"
+            or authority.get("failed_test_identities")
+            != [
+                "tests/test_phase4d5_phase_state.py::"
+                "test_current_phase_state_is_machine_readable_and_consistent"
+            ]
+            or authority.get("repair_branch")
+            != "fix/phase5e2b12b-r13-audit-git-shim-boundary"
+            or authority.get("repair_pull_request") != 81
+        ):
+            raise SystemExit("2B audit Git-shim recovery authority drifted")
+        seal = _read_json(
+            repository,
+            recovery_head,
+            POST_IMPLEMENTATION_AUDIT_GIT_SHIM_SEAL_PATH,
+        )
+        authority_raw = _git(
+            repository,
+            "show",
+            f"{bootstrap}:{POST_IMPLEMENTATION_AUDIT_GIT_SHIM_AUTHORITY_PATH}",
+            text=False,
+        )
+        assert isinstance(authority_raw, bytes)
+        phase_state = _git(repository, "show", f"{bootstrap}:scripts/verify_phase_state.py")
+        assert isinstance(phase_state, str)
+        if (
+            set(seal)
+            != {
+                "authority_sha256",
+                "bootstrap_commit",
+                "reason_code",
+                "recovery_id",
+                "schema_version",
+            }
+            or seal.get("schema_version") != "1.0.0"
+            or seal.get("recovery_id") != authority["recovery_id"]
+            or seal.get("reason_code") != "sealed-one-time-protected-audit-git-shim-recovery"
+            or seal.get("bootstrap_commit") != bootstrap
+            or seal.get("authority_sha256") != hashlib.sha256(authority_raw).hexdigest()
+            or _diff(repository, predecessor, bootstrap)
+            != {
+                path: (
+                    "A"
+                    if path == POST_IMPLEMENTATION_AUDIT_GIT_SHIM_AUTHORITY_PATH
+                    else "M"
+                )
+                for path in POST_IMPLEMENTATION_AUDIT_GIT_SHIM_BOOTSTRAP_PATHS
+            }
+            or _diff(repository, bootstrap, recovery_head)
+            != {POST_IMPLEMENTATION_AUDIT_GIT_SHIM_SEAL_PATH: "A"}
+            or any(
+                _mode(repository, commit, path) != "100644"
+                for commit, paths in (
+                    (bootstrap, POST_IMPLEMENTATION_AUDIT_GIT_SHIM_BOOTSTRAP_PATHS),
+                    (recovery_head, (POST_IMPLEMENTATION_AUDIT_GIT_SHIM_SEAL_PATH,)),
+                )
+                for path in paths
+            )
+            or 'child_path = os.environ.get("PATH", "")' not in phase_state
+            or 'child_path != "/audit-bin:/venv/bin:/usr/bin:/bin"' not in phase_state
+            or 'env={"PATH": child_path}' not in phase_state
+        ):
+            raise SystemExit("2B audit Git-shim recovery seal or changed-path boundary drifted")
     if _read_json(repository, implementation_merge, STATUS_PATH) != _read_json(
         repository, acceptance_base, STATUS_PATH
     ):

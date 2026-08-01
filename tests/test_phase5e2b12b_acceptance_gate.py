@@ -98,6 +98,8 @@ def _accepted_2a_repository(tmp_path: Path) -> tuple[Path, str]:
         ("tests/test_phase5e_audit.py", "def test_profile():\n    assert True\n"),
         ("scripts/verify_phase5e2b12a_acceptance_gate.py", "OUTER = 1\n"),
         ("scripts/verify_phase5e2b12b_acceptance_gate.py", "INNER = 1\n"),
+        ("scripts/verify_phase_state.py", "child_path = '/usr/bin:/bin'\n"),
+        ("tests/test_phase4d5_phase_state.py", "def test_state():\n    assert True\n"),
         ("tests/test_phase5e2b12a_acceptance_gate.py", "def test_outer():\n    assert True\n"),
         ("tests/test_phase5e2b12b_acceptance_gate.py", "def test_inner():\n    assert True\n"),
     ):
@@ -241,7 +243,10 @@ def _interstitial_acceptance_candidate(
     tmp_path: Path,
     *,
     sealed_timeout_recovery: bool = False,
+    sealed_audit_git_recovery: bool = False,
 ) -> tuple[Path, str, str, str, str, dict[str, Any], dict[str, Any]]:
+    if sealed_audit_git_recovery and not sealed_timeout_recovery:
+        raise ValueError("audit Git-shim recovery requires the sealed timeout recovery")
     repository, implementation_merge, implementation_base, implementation_head = (
         _pending_2b_repository(tmp_path)
     )
@@ -441,6 +446,91 @@ def _interstitial_acceptance_candidate(
             stdout=subprocess.DEVNULL,
         )
         acceptance_base = _git(repository, "rev-parse", "HEAD")
+    if sealed_audit_git_recovery:
+        predecessor = acceptance_base
+        subprocess.run(
+            ["git", "-C", str(repository), "checkout", "-b", "audit-git-shim-recovery"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
+        authority = {
+            "failed_acceptance_head_commit": (
+                "d22bd66cc5e446308b057edf71e92237582b5cd3"
+            ),
+            "failed_acceptance_pull_request": 76,
+            "failed_audit_artifact_digest": (
+                "sha256:bda74ea5582bc629547e49f2e930c774318750f3275f69ddd9128c996affe038"
+            ),
+            "failed_audit_artifact_id": 8822008149,
+            "failed_audit_artifact_size": 634,
+            "failed_audit_report_file_sha256": (
+                "f90428c228560ff0025af99fb2c18a714be645585c3c0368926e454ba7d66a9f"
+            ),
+            "failed_audit_run_id": 30709710268,
+            "failed_error_code": "protected_runtime_junit_blocked",
+            "failed_error_fingerprint": (
+                "0677944bbf28a071fbed5eee1da49561d7b3c67b479bf7182f5a62d06c3b447f"
+            ),
+            "failed_test_identities": [
+                "tests/test_phase4d5_phase_state.py::"
+                "test_current_phase_state_is_machine_readable_and_consistent"
+            ],
+            "predecessor_merge_commit": predecessor,
+            "reason_code": "root-owned-audit-candidate-bypassed-the-sealed-git-shim",
+            "recovery_id": "phase5e2b12b-protected-audit-git-shim-recovery-v1",
+            "repair_branch": "fix/phase5e2b12b-r13-audit-git-shim-boundary",
+            "repair_pull_request": 81,
+            "schema_version": "1.0.0",
+        }
+        authority_path = (
+            repository / acceptance_gate.POST_IMPLEMENTATION_AUDIT_GIT_SHIM_AUTHORITY_PATH
+        )
+        _write_json(authority_path, authority)
+        for path in acceptance_gate.POST_IMPLEMENTATION_AUDIT_GIT_SHIM_BOOTSTRAP_PATHS:
+            if path == acceptance_gate.POST_IMPLEMENTATION_AUDIT_GIT_SHIM_AUTHORITY_PATH:
+                continue
+            target = repository / path
+            suffix = "# audit Git-shim recovery\n"
+            if path == "scripts/verify_phase_state.py":
+                suffix += (
+                    'child_path = os.environ.get("PATH", "")\n'
+                    'if child_path != "/audit-bin:/venv/bin:/usr/bin:/bin":\n'
+                    '    raise SystemExit\n'
+                    'run(env={"PATH": child_path})\n'
+                )
+            target.write_text(target.read_text(encoding="utf-8") + suffix, encoding="utf-8")
+        bootstrap = _commit(repository, "bootstrap audit Git-shim recovery")
+        _write_json(
+            repository / acceptance_gate.POST_IMPLEMENTATION_AUDIT_GIT_SHIM_SEAL_PATH,
+            {
+                "authority_sha256": hashlib.sha256(authority_path.read_bytes()).hexdigest(),
+                "bootstrap_commit": bootstrap,
+                "reason_code": "sealed-one-time-protected-audit-git-shim-recovery",
+                "recovery_id": "phase5e2b12b-protected-audit-git-shim-recovery-v1",
+                "schema_version": "1.0.0",
+            },
+        )
+        _commit(repository, "seal audit Git-shim recovery")
+        subprocess.run(
+            ["git", "-C", str(repository), "checkout", "main"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repository),
+                "merge",
+                "--no-ff",
+                "audit-git-shim-recovery",
+                "-m",
+                "merge audit Git-shim recovery",
+            ],
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
+        acceptance_base = _git(repository, "rev-parse", "HEAD")
     subprocess.run(
         ["git", "-C", str(repository), "checkout", "-b", ACCEPTANCE_BRANCH],
         check=True,
@@ -577,6 +667,33 @@ def test_acceptance_requires_and_calls_remote_replay_once(
         repository=sealed_repository,
         implementation_merge=sealed_implementation,
         acceptance_base=sealed_base,
+    )
+
+    git_shim_root = tmp_path / "sealed-git-shim"
+    git_shim_root.mkdir()
+    sealed_git_shim = _interstitial_acceptance_candidate(
+        git_shim_root,
+        sealed_timeout_recovery=True,
+        sealed_audit_git_recovery=True,
+    )
+    (
+        git_shim_repository,
+        git_shim_base,
+        _,
+        git_shim_implementation,
+        _,
+        _,
+        git_shim_profile,
+    ) = sealed_git_shim
+    monkeypatch.setattr(
+        acceptance_gate,
+        "POST_IMPLEMENTATION_PROFILE_REPAIR",
+        git_shim_profile,
+    )
+    acceptance_gate._verify_post_implementation_control_history(
+        repository=git_shim_repository,
+        implementation_merge=git_shim_implementation,
+        acceptance_base=git_shim_base,
     )
 
     attack_root = tmp_path / "attack"
