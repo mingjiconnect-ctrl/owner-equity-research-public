@@ -53,6 +53,15 @@ POST_IMPLEMENTATION_TOPOLOGY_REPAIR_PATHS = frozenset(
         "tests/test_phase5e2b12b_acceptance_gate.py",
     }
 )
+POST_IMPLEMENTATION_TIMEOUT_REPAIR_PATHS = frozenset(
+    {
+        "scripts/phase5e_candidate_exec.sh",
+        "scripts/phase5e2b12a-acceptance-trust.json",
+        "scripts/verify_phase5e2b12b_acceptance_gate.py",
+        "tests/test_phase5e2b12b_acceptance_gate.py",
+        "tests/test_phase5e_audit.py",
+    }
+)
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 _GIT_OID = re.compile(r"[0-9a-f]{40}\Z")
 _RUN_ID = re.compile(r"[1-9][0-9]*\Z")
@@ -277,7 +286,7 @@ def _diff(repository: Path, base: str, head: str) -> dict[str, str]:
 def _verify_post_implementation_control_history(
     *, repository: Path, implementation_merge: str, acceptance_base: str
 ) -> None:
-    """Accept only the audited profile repair plus one control-only topology repair."""
+    """Accept only the sealed profile, topology, and audit-timeout repairs."""
 
     if implementation_merge == acceptance_base:
         return
@@ -291,7 +300,7 @@ def _verify_post_implementation_control_history(
     assert isinstance(value, str)
     commits = value.splitlines()
     profile = POST_IMPLEMENTATION_PROFILE_REPAIR
-    if len(commits) != 2 or commits[0] != profile["merge"] or commits[-1] != acceptance_base:
+    if len(commits) != 3 or commits[0] != profile["merge"] or commits[-1] != acceptance_base:
         raise SystemExit("2B acceptance base has unrecognized post-implementation history")
 
     profile_merge = commits[0]
@@ -333,6 +342,35 @@ def _verify_post_implementation_control_history(
         )
     ):
         raise SystemExit("2B topology repair is not the exact control-only transition")
+
+    timeout_merge = commits[2]
+    timeout_parents = _parents(repository, timeout_merge)
+    if len(timeout_parents) != 2 or timeout_parents[0] != topology_merge:
+        raise SystemExit("2B audit-timeout repair is not one linear pull-request merge")
+    timeout_head = timeout_parents[1]
+    timeout_diff = _diff(repository, topology_merge, timeout_merge)
+    if (
+        _parents(repository, timeout_head) != (topology_merge,)
+        or _tree(repository, timeout_merge) != _tree(repository, timeout_head)
+        or timeout_diff
+        != {path: "M" for path in POST_IMPLEMENTATION_TIMEOUT_REPAIR_PATHS}
+        or any(
+            _mode(repository, timeout_merge, path) != "100644"
+            for path in timeout_diff
+        )
+    ):
+        raise SystemExit("2B audit-timeout repair is not the exact bounded transition")
+    executor = _git(
+        repository,
+        "show",
+        f"{timeout_merge}:scripts/phase5e_candidate_exec.sh",
+    )
+    assert isinstance(executor, str)
+    if (
+        "timeout --signal=TERM --kill-after=10s 30m" not in executor
+        or "timeout --signal=TERM --kill-after=10s 15m" in executor
+    ):
+        raise SystemExit("2B audit-timeout repair did not install the bounded 30m limit")
     if _read_json(repository, implementation_merge, STATUS_PATH) != _read_json(
         repository, acceptance_base, STATUS_PATH
     ):
