@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import inspect
 import io
 import json
 import subprocess
@@ -1983,6 +1984,14 @@ def test_base_owned_acceptance_gate_accepts_governance_only_diff(tmp_path: Path)
             repository_slug=REPOSITORY_SLUG,
             token=None,
             require_remote=False,
+        )
+    merged_replay = inspect.getsource(acceptance_gate._verify_merged_main_2b_acceptance)
+    protected_pr = inspect.getsource(acceptance_gate.verify_non_acceptance_pr)
+    for source in (merged_replay, protected_pr):
+        assert 'implementation_merge = closeout.get("implementation_merge_commit")' in source
+        assert (
+            "implementation_parents = _commit_parents(repository, implementation_merge)"
+            in source
         )
 
 

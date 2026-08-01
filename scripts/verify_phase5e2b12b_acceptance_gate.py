@@ -26,6 +26,33 @@ STATUS_PATH = "docs/phase-status.json"
 PHASE5E2B12A_CLOSEOUT_PATH = "docs/phase5e2b12a-acceptance-closeout.json"
 PHASE5E2B12B_CLOSEOUT_PATH = "docs/phase5e2b12b-acceptance-closeout.json"
 PHASE5E2B12B_TEST_PATH = "tests/test_phase5e2b12b_canonical_event_consumption.py"
+POST_IMPLEMENTATION_PROFILE_REPAIR = {
+    "merge": "cf78f3506f8dcfd2791a6063ddb249085cea0ef1",
+    "first_parent": "c927c6e02732f54a3f154af2a3f631e952e8bdde",
+    "second_parent": "05836b7004d0b4c3bfc70bdea7498832ddd83cfc",
+    "tree": "bde36667a07a36eb833d41c3964e160d25901092",
+    "files": {
+        "scripts/phase5e_audit_profiles.py": {
+            "status": "M",
+            "mode": "100644",
+            "blob": "2760a79556937b36d7097de90bcbefa9baf267de",
+        },
+        "tests/test_phase5e_audit.py": {
+            "status": "M",
+            "mode": "100644",
+            "blob": "339e23c4e58dc099a4e23a12fdf2596c9017717b",
+        },
+    },
+}
+POST_IMPLEMENTATION_TOPOLOGY_REPAIR_PATHS = frozenset(
+    {
+        "scripts/phase5e2b12a-acceptance-trust.json",
+        "scripts/verify_phase5e2b12a_acceptance_gate.py",
+        "scripts/verify_phase5e2b12b_acceptance_gate.py",
+        "tests/test_phase5e2b12a_acceptance_gate.py",
+        "tests/test_phase5e2b12b_acceptance_gate.py",
+    }
+)
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 _GIT_OID = re.compile(r"[0-9a-f]{40}\Z")
 _RUN_ID = re.compile(r"[1-9][0-9]*\Z")
@@ -247,6 +274,73 @@ def _diff(repository: Path, base: str, head: str) -> dict[str, str]:
     return result
 
 
+def _verify_post_implementation_control_history(
+    *, repository: Path, implementation_merge: str, acceptance_base: str
+) -> None:
+    """Accept only the audited profile repair plus one control-only topology repair."""
+
+    if implementation_merge == acceptance_base:
+        return
+    value = _git(
+        repository,
+        "rev-list",
+        "--first-parent",
+        "--reverse",
+        f"{implementation_merge}..{acceptance_base}",
+    )
+    assert isinstance(value, str)
+    commits = value.splitlines()
+    profile = POST_IMPLEMENTATION_PROFILE_REPAIR
+    if len(commits) != 2 or commits[0] != profile["merge"] or commits[-1] != acceptance_base:
+        raise SystemExit("2B acceptance base has unrecognized post-implementation history")
+
+    profile_merge = commits[0]
+    profile_parents = _parents(repository, profile_merge)
+    profile_diff = _diff(repository, implementation_merge, profile_merge)
+    if (
+        profile_parents != (profile["first_parent"], profile["second_parent"])
+        or profile["first_parent"] != implementation_merge
+        or _parents(repository, profile["second_parent"]) != (implementation_merge,)
+        or _tree(repository, profile_merge) != profile["tree"]
+        or _tree(repository, profile_merge) != _tree(repository, profile["second_parent"])
+        or set(profile_diff) != set(profile["files"])
+    ):
+        raise SystemExit("2B post-implementation profile repair identity drifted")
+    for path, expected in profile["files"].items():
+        blob = _git(repository, "rev-parse", f"{profile_merge}:{path}")
+        assert isinstance(blob, str)
+        if (
+            profile_diff.get(path) != expected["status"]
+            or _mode(repository, profile_merge, path) != expected["mode"]
+            or blob != expected["blob"]
+        ):
+            raise SystemExit(f"2B profile repair file attestation drifted: {path}")
+
+    topology_merge = commits[1]
+    topology_parents = _parents(repository, topology_merge)
+    if len(topology_parents) != 2 or topology_parents[0] != profile_merge:
+        raise SystemExit("2B topology repair is not one linear pull-request merge")
+    topology_head = topology_parents[1]
+    topology_diff = _diff(repository, profile_merge, topology_merge)
+    if (
+        _parents(repository, topology_head) != (profile_merge,)
+        or _tree(repository, topology_merge) != _tree(repository, topology_head)
+        or topology_diff
+        != {path: "M" for path in POST_IMPLEMENTATION_TOPOLOGY_REPAIR_PATHS}
+        or any(
+            _mode(repository, topology_merge, path) != "100644"
+            for path in topology_diff
+        )
+    ):
+        raise SystemExit("2B topology repair is not the exact control-only transition")
+    if _read_json(repository, implementation_merge, STATUS_PATH) != _read_json(
+        repository, acceptance_base, STATUS_PATH
+    ):
+        raise SystemExit("2B post-implementation control history changed phase authority")
+    if _path_exists(repository, acceptance_base, PHASE5E2B12B_CLOSEOUT_PATH):
+        raise SystemExit("2B acceptance closeout already exists on the acceptance base")
+
+
 def _read_json(repository: Path, commit: str, path: str) -> dict[str, Any]:
     raw = _git(repository, "show", f"{commit}:{path}", text=False)
     assert isinstance(raw, bytes)
@@ -447,11 +541,22 @@ def verify_merged_acceptance_structure(
 ) -> tuple[str, str, dict[str, Any]]:
     if state_id(repository, base) != "s2":
         raise SystemExit("2B acceptance base is not pending acceptance")
-    parents = _parents(repository, base)
+    closeout = _read_json(repository, head, PHASE5E2B12B_CLOSEOUT_PATH)
+    implementation_merge = closeout.get("implementation_merge_commit")
+    if not isinstance(implementation_merge, str) or _GIT_OID.fullmatch(
+        implementation_merge
+    ) is None:
+        raise SystemExit("2B acceptance lacks a valid implementation merge")
+    _verify_post_implementation_control_history(
+        repository=repository,
+        implementation_merge=implementation_merge,
+        acceptance_base=base,
+    )
+    parents = _parents(repository, implementation_merge)
     if len(parents) != 2:
         raise SystemExit("2B implementation base is not a two-parent PR merge")
     implementation_base, implementation_head = parents
-    if _tree(repository, base) != _tree(repository, implementation_head):
+    if _tree(repository, implementation_merge) != _tree(repository, implementation_head):
         raise SystemExit("2B implementation merge tree differs from its PR head")
     verify_implementation_transition(
         repository=repository,
@@ -466,12 +571,11 @@ def verify_merged_acceptance_structure(
         raise SystemExit("2B acceptance changed immutable phase history")
     if state_id(repository, head) != "s3":
         raise SystemExit("2B acceptance attempts to authorize 2C production")
-    closeout = _read_json(repository, head, PHASE5E2B12B_CLOSEOUT_PATH)
     if not _closeout_shape(
         closeout,
-        implementation_merge=base,
+        implementation_merge=implementation_merge,
         implementation_head=implementation_head,
-        implementation_tree=_tree(repository, base),
+        implementation_tree=_tree(repository, implementation_merge),
         acceptance_number=acceptance_number,
     ):
         raise SystemExit("2B acceptance closeout is not closed typed evidence")
@@ -509,7 +613,7 @@ def verify_acceptance_transition(
         repository_slug=repository_slug,
         token=token,
         implementation_base=implementation_base,
-        implementation_merge=base,
+        implementation_merge=closeout["implementation_merge_commit"],
         implementation_head=implementation_head,
         closeout=closeout,
     )
