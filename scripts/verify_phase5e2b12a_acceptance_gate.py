@@ -545,6 +545,8 @@ REQUIRED_AUDITED_PATHS = frozenset(
         "scripts/verify_phase5e2b12a_semantic_oracle.py",
         "scripts/phase5e2b12b-acceptance-trust.json",
         "scripts/phase5e-successor-gate-bundle.schema.json",
+        "scripts/phase5e-successor-event-transport-recovery-seal-v1.json",
+        "scripts/phase5e-successor-event-transport-recovery-v1.json",
         "scripts/verify_phase5e2b12b_acceptance_gate.py",
         "scripts/verify_phase5e2b12b_semantic_oracle.py",
         "scripts/verify_phase5e_candidate_import_surface.py",
@@ -628,6 +630,38 @@ BASE_AUDIT_RECOVERY_BRANCH = "fix/phase5e2b12b-r2-base-audit-recovery"
 BASE_AUDIT_RECOVERY_BOOTSTRAP_PATHS = {
     BASE_AUDIT_RECOVERY_AUTHORITY_PATH: "A",
     "scripts/verify_all.py": "M",
+    "scripts/verify_phase5e2b12a_acceptance_gate.py": "M",
+    "tests/test_phase5e2b12a_acceptance_gate.py": "M",
+}
+SUCCESSOR_EVENT_TRANSPORT_RECOVERY_AUTHORITY_PATH = (
+    "scripts/phase5e-successor-event-transport-recovery-v1.json"
+)
+SUCCESSOR_EVENT_TRANSPORT_RECOVERY_SEAL_PATH = (
+    "scripts/phase5e-successor-event-transport-recovery-seal-v1.json"
+)
+SUCCESSOR_EVENT_TRANSPORT_RECOVERY_BRANCH = (
+    "fix/phase5e-successor-event-transport-finalization-v2"
+)
+SUCCESSOR_EVENT_TRANSPORT_FINALIZED_PREDECESSOR = (
+    "03dbafae6c6a21242ea9691c11fd02496ffb8d9f"
+)
+SUCCESSOR_EVENT_TRANSPORT_REPAIR_BRANCH = (
+    "fix/phase5e-successor-event-canonicalization"
+)
+SUCCESSOR_EVENT_TRANSPORT_REPAIR_HEAD = (
+    "0905d6ad9927abb217561149e462ba25e4415128"
+)
+SUCCESSOR_EVENT_TRANSPORT_REPAIR_MERGE = (
+    "251cfb1b4e66c29278505fd0b1d951b045272b59"
+)
+SUCCESSOR_EVENT_TRANSPORT_REPAIR_TREE = (
+    "dfae732a487e40bef418ffe0e1e24154022c2f33"
+)
+SUCCESSOR_EVENT_TRANSPORT_REPAIR_PULL_REQUEST = 83
+SUCCESSOR_EVENT_TRANSPORT_REPAIR_MAIN_CI_RUN_ID = 30720330035
+SUCCESSOR_EVENT_TRANSPORT_RECOVERY_BOOTSTRAP_PATHS = {
+    SUCCESSOR_EVENT_TRANSPORT_RECOVERY_AUTHORITY_PATH: "A",
+    "scripts/phase5e2b12a-acceptance-trust.json": "M",
     "scripts/verify_phase5e2b12a_acceptance_gate.py": "M",
     "tests/test_phase5e2b12a_acceptance_gate.py": "M",
 }
@@ -3493,6 +3527,181 @@ def _base_audit_recovery_context(
     }
 
 
+def _successor_event_transport_recovery_context(
+    repository: Path,
+    base: str,
+) -> dict[str, Any] | None:
+    """Validate the sealed one-time finalization of the event transport repair."""
+
+    if not _path_exists(repository, base, SUCCESSOR_EVENT_TRANSPORT_RECOVERY_SEAL_PATH):
+        return None
+    seal = _read_json(repository, base, SUCCESSOR_EVENT_TRANSPORT_RECOVERY_SEAL_PATH)
+    if (
+        set(seal)
+        != {
+            "authority_sha256",
+            "bootstrap_commit",
+            "reason_code",
+            "recovery_id",
+            "schema_version",
+        }
+        or seal.get("schema_version") != "1.0.0"
+        or seal.get("recovery_id")
+        != "phase5e-successor-event-transport-finalization-v1"
+        or seal.get("reason_code")
+        != "sealed-one-time-successor-event-transport-finalization"
+        or not _git_oid(seal.get("bootstrap_commit"))
+        or not _sha256(seal.get("authority_sha256"))
+    ):
+        raise SystemExit("successor-event transport recovery seal is malformed")
+    authority = _read_json(
+        repository,
+        base,
+        SUCCESSOR_EVENT_TRANSPORT_RECOVERY_AUTHORITY_PATH,
+    )
+    if (
+        set(authority)
+        != {
+            "finalized_predecessor_commit",
+            "main_ci_run_id",
+            "misprofiled_audit",
+            "reason_code",
+            "recovery_id",
+            "repair_branch",
+            "repair_files",
+            "repair_head_commit",
+            "repair_merge_commit",
+            "repair_pull_request",
+            "repair_tree",
+            "schema_version",
+        }
+        or authority.get("schema_version") != "1.0.0"
+        or authority.get("recovery_id") != seal["recovery_id"]
+        or authority.get("reason_code")
+        != "successor-event-transport-repair-was-evaluated-by-product-profile"
+        or authority.get("finalized_predecessor_commit")
+        != SUCCESSOR_EVENT_TRANSPORT_FINALIZED_PREDECESSOR
+        or authority.get("repair_head_commit")
+        != SUCCESSOR_EVENT_TRANSPORT_REPAIR_HEAD
+        or authority.get("repair_merge_commit")
+        != SUCCESSOR_EVENT_TRANSPORT_REPAIR_MERGE
+        or authority.get("repair_tree") != SUCCESSOR_EVENT_TRANSPORT_REPAIR_TREE
+        or authority.get("repair_pull_request")
+        != SUCCESSOR_EVENT_TRANSPORT_REPAIR_PULL_REQUEST
+        or authority.get("main_ci_run_id")
+        != SUCCESSOR_EVENT_TRANSPORT_REPAIR_MAIN_CI_RUN_ID
+        or authority.get("repair_branch") != SUCCESSOR_EVENT_TRANSPORT_REPAIR_BRANCH
+    ):
+        raise SystemExit("successor-event transport recovery authority is malformed")
+    authority_raw = _git(
+        repository,
+        "show",
+        f"{seal['bootstrap_commit']}:{SUCCESSOR_EVENT_TRANSPORT_RECOVERY_AUTHORITY_PATH}",
+        text=False,
+    )
+    if (
+        not isinstance(authority_raw, bytes)
+        or hashlib.sha256(authority_raw).hexdigest() != seal["authority_sha256"]
+        or _read_json(
+            repository,
+            seal["bootstrap_commit"],
+            SUCCESSOR_EVENT_TRANSPORT_RECOVERY_AUTHORITY_PATH,
+        )
+        != authority
+    ):
+        raise SystemExit("successor-event transport recovery authority hash drifted")
+
+    repair_merge = str(authority["repair_merge_commit"])
+    bootstrap = str(seal["bootstrap_commit"])
+    base_parents = _commit_parents(repository, base)
+    if len(base_parents) == 1:
+        branch_head = base
+        if base_parents != (bootstrap,):
+            raise SystemExit("successor-event transport recovery candidate topology drifted")
+    elif len(base_parents) == 2:
+        branch_head = base_parents[1]
+        if (
+            base_parents[0] != repair_merge
+            or _tree(repository, base) != _tree(repository, branch_head)
+            or _commit_parents(repository, branch_head) != (bootstrap,)
+        ):
+            raise SystemExit("successor-event transport recovery merged topology drifted")
+    else:
+        raise SystemExit("successor-event transport recovery topology drifted")
+    if _commit_parents(repository, bootstrap) != (repair_merge,):
+        raise SystemExit("successor-event transport recovery bootstrap topology drifted")
+    bootstrap_entries = {
+        path: status for status, path in _diff_entries(repository, repair_merge, bootstrap)
+    }
+    seal_entries = {
+        path: status for status, path in _diff_entries(repository, bootstrap, branch_head)
+    }
+    if (
+        bootstrap_entries != SUCCESSOR_EVENT_TRANSPORT_RECOVERY_BOOTSTRAP_PATHS
+        or seal_entries != {SUCCESSOR_EVENT_TRANSPORT_RECOVERY_SEAL_PATH: "A"}
+        or _read_json(repository, repair_merge, STATUS_PATH)
+        != _read_json(repository, base, STATUS_PATH)
+    ):
+        raise SystemExit(
+            "successor-event transport recovery changed unauthorized bytes or phase state"
+        )
+    for commit, entries in (
+        (bootstrap, bootstrap_entries),
+        (branch_head, seal_entries),
+    ):
+        if any(_mode(repository, commit, path) != "100644" for path in entries):
+            raise SystemExit(
+                "successor-event transport recovery contains a non-regular control file"
+            )
+
+    repair_files = authority.get("repair_files")
+    repair_parents = _commit_parents(repository, repair_merge)
+    if (
+        not isinstance(repair_files, dict)
+        or not repair_files
+        or repair_parents
+        != (
+            authority["finalized_predecessor_commit"],
+            authority["repair_head_commit"],
+        )
+        or _tree(repository, repair_merge) != authority["repair_tree"]
+        or {
+            path: status
+            for status, path in _diff_entries(
+                repository,
+                str(authority["finalized_predecessor_commit"]),
+                repair_merge,
+            )
+        }
+        != {
+            path: item.get("status")
+            for path, item in repair_files.items()
+            if isinstance(item, dict)
+        }
+    ):
+        raise SystemExit("recorded successor-event transport repair identity drifted")
+    for path, expected in repair_files.items():
+        if (
+            not isinstance(expected, dict)
+            or set(expected) != {"blob", "mode", "status"}
+            or expected["status"] != "M"
+            or expected["mode"] != "100644"
+            or not _git_oid(expected["blob"])
+            or _mode(repository, repair_merge, path) != expected["mode"]
+            or _git(repository, "rev-parse", f"{repair_merge}:{path}")
+            != expected["blob"]
+        ):
+            raise SystemExit(
+                f"recorded successor-event transport repair file drifted: {path}"
+            )
+    return {
+        "authority": authority,
+        "branch_head": branch_head,
+        "bootstrap_commit": bootstrap,
+        "topology": "candidate" if len(base_parents) == 1 else "merged",
+    }
+
+
 def _inventory_parity_context(
     repository: Path,
     base: str,
@@ -4839,6 +5048,234 @@ def _verify_misprofiled_repair_audit(
             raise SystemExit(f"misprofiled repair-audit omitted repaired file: {path}")
 
 
+def _verify_misprofiled_successor_event_transport_audit(
+    *,
+    repository_slug: str,
+    token: str,
+    authority: dict[str, Any],
+) -> None:
+    """Prove the repair audit failed only at the pinned product-profile boundary."""
+
+    expected = authority["misprofiled_audit"]
+    if (
+        not isinstance(expected, dict)
+        or set(expected)
+        != {
+            "artifact_digest",
+            "artifact_id",
+            "artifact_size",
+            "error_code",
+            "error_fingerprint",
+            "finding_counts",
+            "manifest_sha256",
+            "run_id",
+        }
+        or expected.get("run_id") != 30720342694
+        or expected.get("artifact_id") != 8824718387
+        or expected.get("artifact_size") != 623
+        or expected.get("artifact_digest")
+        != "sha256:3fa98a95f1ff97843dd8b94c9badc63d42c63a79db0029e9ec13e3b9b2567fa3"
+        or expected.get("manifest_sha256")
+        != "ad3d2623d5aa19660b77589526172d2ad900e7556976f70884605f1f572c61b4"
+        or expected.get("error_code") != "protected_runtime_junit_blocked"
+        or expected.get("error_fingerprint")
+        != "0677944bbf28a071fbed5eee1da49561d7b3c67b479bf7182f5a62d06c3b447f"
+        or expected.get("finding_counts") != {"P0": 1, "P1": 0, "P2": 0, "P3": 0}
+    ):
+        raise SystemExit("misprofiled successor-event repair audit authority is malformed")
+    run_id = str(expected["run_id"])
+    run = _api_json(
+        f"https://api.github.com/repos/{repository_slug}/actions/runs/{run_id}",
+        token,
+    )
+    if (
+        str(run.get("id")) != run_id
+        or run.get("head_sha") != authority["repair_merge_commit"]
+        or run.get("head_branch") != "main"
+        or run.get("event") != "workflow_run"
+        or run.get("status") != "completed"
+        or run.get("conclusion") != "failure"
+        or run.get("name") != "phase5e2b12a-base-owned-acceptance-gate"
+        or run.get("path") != ".github/workflows/phase5e2b12a-acceptance-gate.yml"
+        or run.get("repository", {}).get("full_name") != repository_slug
+        or run.get("head_repository", {}).get("full_name") != repository_slug
+    ):
+        raise SystemExit("misprofiled successor-event repair audit run drifted")
+    artifacts = _api_paginated_items(
+        f"https://api.github.com/repos/{repository_slug}/actions/runs/{run_id}/artifacts",
+        key="artifacts",
+        token=token,
+    )
+    expected_name = f"phase5e-audit-{authority['repair_merge_commit']}"
+    matching = [
+        item
+        for item in artifacts
+        if item.get("id") == expected["artifact_id"] and item.get("name") == expected_name
+    ]
+    if (
+        len(matching) != 1
+        or matching[0].get("expired")
+        or matching[0].get("digest") != expected["artifact_digest"]
+        or matching[0].get("size_in_bytes") != expected["artifact_size"]
+    ):
+        raise SystemExit("misprofiled successor-event repair artifact identity drifted")
+    archive = _api_bytes(str(matching[0]["archive_download_url"]), token)
+    if hashlib.sha256(archive).hexdigest() != expected["artifact_digest"].split(":", 1)[1]:
+        raise SystemExit("misprofiled successor-event repair archive digest drifted")
+    with zipfile.ZipFile(io.BytesIO(archive)) as bundle:
+        infos = bundle.infolist()
+        if (
+            len(infos) != 1
+            or infos[0].filename != "phase5e-audit.json"
+            or infos[0].is_dir()
+            or infos[0].file_size > 4 * 1024 * 1024
+        ):
+            raise SystemExit("misprofiled successor-event repair archive is not bounded")
+        report_raw = bundle.read(infos[0])
+    report = _load_canonical_evidence_json(
+        report_raw,
+        "misprofiled successor-event repair audit",
+    )
+    blocked = [
+        {
+            "identity": "::tests.test_phase5e2b12a_acceptance_gate",
+            "identity_kind": "junit_testcase",
+            "status": "failed",
+        },
+        {
+            "identity": "::tests.test_phase5e_audit",
+            "identity_kind": "junit_testcase",
+            "status": "failed",
+        },
+    ]
+    expected_runtime = [
+        {
+            "blocked_test_nodeids": blocked,
+            "failed_tests": 2,
+            "outcomes_reconciled": True,
+            "runtime_id": runtime_id,
+            "skipped_tests": 0,
+        }
+        for runtime_id in ("cp311", "cp312", "cp313")
+    ]
+    if (
+        hashlib.sha256(report_raw).hexdigest() != expected["manifest_sha256"]
+        or report.get("schema_version") != "1.0.0"
+        or report.get("audit_tool") != AUDIT_TOOL
+        or report.get("reviewed_commit") != authority["repair_merge_commit"]
+        or report.get("ci_run_ids") != [run_id]
+        or report.get("status") != "blocked"
+        or report.get("error_code") != expected["error_code"]
+        or report.get("error_fingerprint") != expected["error_fingerprint"]
+        or report.get("diagnostic_error_fingerprint") is not None
+        or report.get("finding_counts") != expected["finding_counts"]
+        or report.get("runtime_diagnostics") != expected_runtime
+    ):
+        raise SystemExit("misprofiled successor-event repair audit manifest drifted")
+
+
+def _verify_successor_event_transport_recovery(
+    *,
+    repository: Path,
+    base: str,
+    repository_slug: str,
+    token: str,
+    controller_app_id: int,
+) -> bool:
+    context = _successor_event_transport_recovery_context(repository, base)
+    if context is None:
+        return False
+    authority = context["authority"]
+    _verify_base_merged_main_finalized(
+        repository=repository,
+        base=str(authority["finalized_predecessor_commit"]),
+        repository_slug=repository_slug,
+        token=token,
+        controller_app_id=controller_app_id,
+    )
+    pull_request = _api_json(
+        f"https://api.github.com/repos/{repository_slug}/pulls/{authority['repair_pull_request']}",
+        token,
+    )
+    if (
+        not _pull_request_identity_matches(
+            pull_request,
+            number=int(authority["repair_pull_request"]),
+            head_sha=str(authority["repair_head_commit"]),
+            head_ref=str(authority["repair_branch"]),
+            base_sha=str(authority["finalized_predecessor_commit"]),
+        )
+        or pull_request.get("state") != "closed"
+        or not pull_request.get("merged")
+        or pull_request.get("merge_commit_sha") != authority["repair_merge_commit"]
+    ):
+        raise SystemExit("recorded successor-event transport repair pull request drifted")
+    _verify_run(
+        repository_slug=repository_slug,
+        token=token,
+        run_id=str(authority["main_ci_run_id"]),
+        expected_head=str(authority["repair_merge_commit"]),
+        expected_event="push",
+        expected_head_branch="main",
+    )
+    _verify_misprofiled_successor_event_transport_audit(
+        repository_slug=repository_slug,
+        token=token,
+        authority=authority,
+    )
+
+    recovery_pull_requests = _api_list(
+        f"https://api.github.com/repos/{repository_slug}/commits/{base}/pulls",
+        token,
+    )
+    matching_recovery = [
+        item
+        for item in recovery_pull_requests
+        if isinstance(item, dict)
+        and item.get("state") == "closed"
+        and item.get("merged_at") is not None
+        and item.get("merge_commit_sha") == base
+        and item.get("head", {}).get("sha") == context["branch_head"]
+        and item.get("head", {}).get("ref")
+        == SUCCESSOR_EVENT_TRANSPORT_RECOVERY_BRANCH
+        and item.get("base", {}).get("sha") == authority["repair_merge_commit"]
+        and item.get("base", {}).get("ref") == "main"
+    ]
+    if len(matching_recovery) != 1:
+        raise SystemExit("successor-event transport recovery pull request is ambiguous")
+    ci_runs = _api_paginated_items(
+        (
+            f"https://api.github.com/repos/{repository_slug}/actions/workflows/ci.yml/runs"
+            f"?event=push&status=completed&head_sha={base}"
+        ),
+        key="workflow_runs",
+        token=token,
+    )
+    successful = [
+        item
+        for item in ci_runs
+        if item.get("head_sha") == base
+        and item.get("head_branch") == "main"
+        and item.get("event") == "push"
+        and item.get("conclusion") == "success"
+        and item.get("name") == "owner-research-ci"
+        and item.get("path") == ".github/workflows/ci.yml"
+        and type(item.get("id")) is int
+        and item["id"] > 0
+    ]
+    if len(successful) != 1:
+        raise SystemExit("successor-event transport recovery lacks one successful main CI run")
+    _verify_run(
+        repository_slug=repository_slug,
+        token=token,
+        run_id=str(successful[0]["id"]),
+        expected_head=base,
+        expected_event="push",
+        expected_head_branch="main",
+    )
+    return True
+
+
 def _verify_base_audit_recovery(
     *,
     repository: Path,
@@ -4976,6 +5413,14 @@ def _verify_base_merged_main_finalized(
         and run["id"] > 0
     ]
     if len(matching_gate_runs) != 1:
+        if _verify_successor_event_transport_recovery(
+            repository=repository,
+            base=base,
+            repository_slug=repository_slug,
+            token=token,
+            controller_app_id=controller_app_id,
+        ):
+            return
         if _verify_protected_semantic_fixture_recovery(
             repository=repository,
             base=base,
@@ -6147,6 +6592,10 @@ def main() -> int:
         action="store_true",
     )
     parser.add_argument(
+        "--verify-successor-event-transport-recovery-topology-only",
+        action="store_true",
+    )
+    parser.add_argument(
         "--verify-inventory-parity-topology-only",
         action="store_true",
     )
@@ -6197,6 +6646,22 @@ def main() -> int:
             raise SystemExit("base-audit recovery seal is absent")
         print(
             "Phase 5E sealed base-audit recovery "
+            f"{context['topology']} topology passed"
+        )
+        return 0
+    if args.verify_successor_event_transport_recovery_topology_only:
+        if not args.base:
+            raise SystemExit(
+                "successor-event transport recovery topology verification requires --base"
+            )
+        context = _successor_event_transport_recovery_context(
+            args.repository.resolve(),
+            args.base,
+        )
+        if context is None:
+            raise SystemExit("successor-event transport recovery seal is absent")
+        print(
+            "Phase 5E sealed successor-event transport recovery "
             f"{context['topology']} topology passed"
         )
         return 0

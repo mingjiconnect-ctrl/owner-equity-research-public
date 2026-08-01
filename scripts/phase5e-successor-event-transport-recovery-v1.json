@@ -1,0 +1,44 @@
+{
+  "finalized_predecessor_commit": "03dbafae6c6a21242ea9691c11fd02496ffb8d9f",
+  "main_ci_run_id": 30720330035,
+  "misprofiled_audit": {
+    "artifact_digest": "sha256:3fa98a95f1ff97843dd8b94c9badc63d42c63a79db0029e9ec13e3b9b2567fa3",
+    "artifact_id": 8824718387,
+    "artifact_size": 623,
+    "error_code": "protected_runtime_junit_blocked",
+    "error_fingerprint": "0677944bbf28a071fbed5eee1da49561d7b3c67b479bf7182f5a62d06c3b447f",
+    "finding_counts": {
+      "P0": 1,
+      "P1": 0,
+      "P2": 0,
+      "P3": 0
+    },
+    "manifest_sha256": "ad3d2623d5aa19660b77589526172d2ad900e7556976f70884605f1f572c61b4",
+    "run_id": 30720342694
+  },
+  "reason_code": "successor-event-transport-repair-was-evaluated-by-product-profile",
+  "recovery_id": "phase5e-successor-event-transport-finalization-v1",
+  "repair_branch": "fix/phase5e-successor-event-canonicalization",
+  "repair_files": {
+    "scripts/phase5e2b12a-acceptance-trust.json": {
+      "blob": "349b47917fea9bb8f721bdaa8350be927c424280",
+      "mode": "100644",
+      "status": "M"
+    },
+    "scripts/verify_phase5e_successor_gate.py": {
+      "blob": "2ee0e6ce40e2bc00cbdbd28a92c79202c710b1fd",
+      "mode": "100644",
+      "status": "M"
+    },
+    "tests/test_phase5e_successor_gate.py": {
+      "blob": "32596f3d0d6fbc0ca9204be1c4c76fb5880fe02d",
+      "mode": "100644",
+      "status": "M"
+    }
+  },
+  "repair_head_commit": "0905d6ad9927abb217561149e462ba25e4415128",
+  "repair_merge_commit": "251cfb1b4e66c29278505fd0b1d951b045272b59",
+  "repair_pull_request": 83,
+  "repair_tree": "dfae732a487e40bef418ffe0e1e24154022c2f33",
+  "schema_version": "1.0.0"
+}

@@ -230,6 +230,174 @@ def _base_audit_recovery_repository(
     return repository, _git(repository, "rev-parse", "HEAD")
 
 
+def _successor_event_transport_recovery_repository(
+    tmp_path: Path,
+) -> tuple[Path, str, dict[str, str]]:
+    repository = tmp_path / "successor-event-transport-recovery"
+    repository.mkdir()
+    subprocess.run(["git", "-C", str(repository), "init", "-b", "main"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repository), "config", "user.email", "audit@example.com"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repository), "config", "user.name", "Audit Fixture"],
+        check=True,
+    )
+    for path, content in {
+        "docs/phase-status.json": json.dumps(
+            {
+                "authorized_next": ["Phase 5E-2B.1-2C successor-gate bootstrap"],
+                "current_phase": "Phase 5E-2B.1-2B",
+                "prohibited": ["Phase 5E-2C"],
+                "release_tag": None,
+                "status": "accepted_closed",
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        "scripts/phase5e2b12a-acceptance-trust.json": "trust-v1\n",
+        "scripts/verify_phase5e2b12a_acceptance_gate.py": "controller-v1\n",
+        "scripts/verify_phase5e_successor_gate.py": "successor-v1\n",
+        "tests/test_phase5e2b12a_acceptance_gate.py": "controller-tests-v1\n",
+        "tests/test_phase5e_successor_gate.py": "successor-tests-v1\n",
+    }.items():
+        target = repository / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+    finalized = _commit(repository, "finalized predecessor")
+
+    subprocess.run(
+        ["git", "-C", str(repository), "checkout", "-b", "repair"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    repair_paths = (
+        "scripts/phase5e2b12a-acceptance-trust.json",
+        "scripts/verify_phase5e_successor_gate.py",
+        "tests/test_phase5e_successor_gate.py",
+    )
+    for path in repair_paths:
+        target = repository / path
+        target.write_text(target.read_text(encoding="utf-8") + "repair\n", encoding="utf-8")
+    repair_head = _commit(repository, "repair compact event transport")
+    subprocess.run(
+        ["git", "-C", str(repository), "checkout", "main"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    subprocess.run(
+        ["git", "-C", str(repository), "merge", "--no-ff", "repair", "-m", "merge repair"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    repair_merge = _git(repository, "rev-parse", "HEAD")
+    repair_files = {
+        path: {
+            "blob": _git(repository, "rev-parse", f"{repair_merge}:{path}"),
+            "mode": "100644",
+            "status": "M",
+        }
+        for path in repair_paths
+    }
+
+    subprocess.run(
+        ["git", "-C", str(repository), "checkout", "-b", "recovery"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    authority = {
+        "finalized_predecessor_commit": finalized,
+        "main_ci_run_id": acceptance_gate.SUCCESSOR_EVENT_TRANSPORT_REPAIR_MAIN_CI_RUN_ID,
+        "misprofiled_audit": {
+            "artifact_digest": (
+                "sha256:3fa98a95f1ff97843dd8b94c9badc63d42c63a79db0029e9ec13e3b9b2567fa3"
+            ),
+            "artifact_id": 8824718387,
+            "artifact_size": 623,
+            "error_code": "protected_runtime_junit_blocked",
+            "error_fingerprint": (
+                "0677944bbf28a071fbed5eee1da49561d7b3c67b479bf7182f5a62d06c3b447f"
+            ),
+            "finding_counts": {"P0": 1, "P1": 0, "P2": 0, "P3": 0},
+            "manifest_sha256": (
+                "ad3d2623d5aa19660b77589526172d2ad900e7556976f70884605f1f572c61b4"
+            ),
+            "run_id": 30720342694,
+        },
+        "reason_code": (
+            "successor-event-transport-repair-was-evaluated-by-product-profile"
+        ),
+        "recovery_id": "phase5e-successor-event-transport-finalization-v1",
+        "repair_branch": "repair",
+        "repair_files": repair_files,
+        "repair_head_commit": repair_head,
+        "repair_merge_commit": repair_merge,
+        "repair_pull_request": acceptance_gate.SUCCESSOR_EVENT_TRANSPORT_REPAIR_PULL_REQUEST,
+        "repair_tree": _git(repository, "rev-parse", f"{repair_merge}^{{tree}}"),
+        "schema_version": "1.0.0",
+    }
+    authority_path = (
+        repository / acceptance_gate.SUCCESSOR_EVENT_TRANSPORT_RECOVERY_AUTHORITY_PATH
+    )
+    authority_path.parent.mkdir(parents=True, exist_ok=True)
+    authority_path.write_text(
+        json.dumps(authority, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    for path in (
+        "scripts/phase5e2b12a-acceptance-trust.json",
+        "scripts/verify_phase5e2b12a_acceptance_gate.py",
+        "tests/test_phase5e2b12a_acceptance_gate.py",
+    ):
+        target = repository / path
+        target.write_text(target.read_text(encoding="utf-8") + "recovery\n", encoding="utf-8")
+    bootstrap = _commit(repository, "bootstrap transport finalization")
+    seal_path = repository / acceptance_gate.SUCCESSOR_EVENT_TRANSPORT_RECOVERY_SEAL_PATH
+    seal_path.write_text(
+        json.dumps(
+            {
+                "authority_sha256": hashlib.sha256(authority_path.read_bytes()).hexdigest(),
+                "bootstrap_commit": bootstrap,
+                "reason_code": "sealed-one-time-successor-event-transport-finalization",
+                "recovery_id": "phase5e-successor-event-transport-finalization-v1",
+                "schema_version": "1.0.0",
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    _commit(repository, "seal transport finalization")
+    subprocess.run(
+        ["git", "-C", str(repository), "checkout", "main"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repository),
+            "merge",
+            "--no-ff",
+            "recovery",
+            "-m",
+            "merge transport finalization",
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    return repository, _git(repository, "rev-parse", "HEAD"), {
+        "finalized": finalized,
+        "repair_head": repair_head,
+        "repair_merge": repair_merge,
+        "repair_tree": authority["repair_tree"],
+    }
+
+
 def _protected_test_overlay_recovery_repository(
     tmp_path: Path,
 ) -> tuple[Path, str, str]:
@@ -2065,6 +2233,43 @@ def test_sealed_base_audit_recovery_has_exact_two_commit_topology(
     assert _git(fixture_repository, "rev-parse", f"{fixture_base}^2^") == (
         fixture_context["bootstrap_commit"]
     )
+    transport_repository, transport_base, transport_identity = (
+        _successor_event_transport_recovery_repository(tmp_path)
+    )
+    monkeypatch.setattr(
+        acceptance_gate,
+        "SUCCESSOR_EVENT_TRANSPORT_FINALIZED_PREDECESSOR",
+        transport_identity["finalized"],
+    )
+    monkeypatch.setattr(
+        acceptance_gate,
+        "SUCCESSOR_EVENT_TRANSPORT_REPAIR_BRANCH",
+        "repair",
+    )
+    monkeypatch.setattr(
+        acceptance_gate,
+        "SUCCESSOR_EVENT_TRANSPORT_REPAIR_HEAD",
+        transport_identity["repair_head"],
+    )
+    monkeypatch.setattr(
+        acceptance_gate,
+        "SUCCESSOR_EVENT_TRANSPORT_REPAIR_MERGE",
+        transport_identity["repair_merge"],
+    )
+    monkeypatch.setattr(
+        acceptance_gate,
+        "SUCCESSOR_EVENT_TRANSPORT_REPAIR_TREE",
+        transport_identity["repair_tree"],
+    )
+    transport_context = acceptance_gate._successor_event_transport_recovery_context(
+        transport_repository,
+        transport_base,
+    )
+    assert transport_context is not None
+    assert transport_context["topology"] == "merged"
+    assert _git(transport_repository, "rev-parse", f"{transport_base}^2^") == (
+        transport_context["bootstrap_commit"]
+    )
 
 
 def test_sealed_base_audit_recovery_candidate_head_is_validated(
@@ -2100,6 +2305,11 @@ def test_base_finalization_uses_only_validated_recovery_fallback(
 ) -> None:
     calls: list[str] = []
     monkeypatch.setattr(acceptance_gate, "_api_paginated_items", lambda *args, **kwargs: [])
+    monkeypatch.setattr(
+        acceptance_gate,
+        "_verify_successor_event_transport_recovery",
+        lambda **kwargs: calls.append("transport:" + str(kwargs["base"])) or False,
+    )
     monkeypatch.setattr(
         acceptance_gate,
         "_verify_protected_semantic_fixture_recovery",
@@ -2143,6 +2353,7 @@ def test_base_finalization_uses_only_validated_recovery_fallback(
         controller_app_id=98765,
     )
     assert calls == [
+        "transport:" + "d" * 40,
         "semantic:" + "d" * 40,
         "profile:" + "d" * 40,
         "overlay:" + "d" * 40,
