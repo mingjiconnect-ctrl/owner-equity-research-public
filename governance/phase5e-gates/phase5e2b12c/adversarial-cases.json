@@ -1,0 +1,10 @@
+{
+  "cases": [
+    {
+      "case_id": "phase5e2b12c-001",
+      "expectation": "The next gate remains inert until its acceptance closeout.",
+      "priority": "P0"
+    }
+  ],
+  "schema_version": "1.0.0"
+}
