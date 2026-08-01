@@ -1,0 +1,7 @@
+{
+  "authority_sha256": "f4a98191399c0361dc57c573c340c4407c84dc914e00d7ebd7e988112e84aa75",
+  "bootstrap_commit": "74a8e9a011f039ae09f7647d400ac7d736dbd2e5",
+  "reason_code": "sealed-one-time-protected-audit-git-shim-recovery",
+  "recovery_id": "phase5e2b12b-protected-audit-git-shim-recovery-v1",
+  "schema_version": "1.0.0"
+}
