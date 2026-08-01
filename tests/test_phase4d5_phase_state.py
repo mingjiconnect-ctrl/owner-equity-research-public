@@ -28,12 +28,13 @@ from scripts.verify_phase_state import (
     PHASE5E2B_CLOSEOUT,
     _expected_phase_state,
     _resolve_successor_position,
+    _successor_subprocess_path,
 )
 
 ROOT = Path(__file__).parents[1]
 
 
-def test_current_phase_state_is_machine_readable_and_consistent() -> None:
+def test_current_phase_state_is_machine_readable_and_consistent(monkeypatch) -> None:
     state = json.loads((ROOT / "docs" / "phase-status.json").read_text(encoding="utf-8"))
     is_accepted = (ROOT / "docs/phase5e2b12a-acceptance-closeout.json").is_file()
     implementation_test = (
@@ -111,6 +112,17 @@ def test_current_phase_state_is_machine_readable_and_consistent() -> None:
     ]
     assert "Phase 5E-2B.1-2C" in accepted["prohibited"]
     assert "Phase 5E-2B.1-3" in accepted["prohibited"]
+    with monkeypatch.context() as environment:
+        environment.setenv("AUDIT_CANDIDATE_SANDBOX", "linux-pivot-root-netless-v1")
+        environment.setenv("PATH", "/audit-bin:/venv/bin:/usr/bin:/bin")
+        assert _successor_subprocess_path() == "/audit-bin:/venv/bin:/usr/bin:/bin"
+        environment.setenv("PATH", "/tmp/untrusted:/usr/bin:/bin")
+        try:
+            _successor_subprocess_path()
+        except SystemExit as exc:
+            assert str(exc) == "successor position audit Git-shim path is not the sealed runtime"
+        else:
+            raise AssertionError("unsealed audit Git path was accepted")
     subprocess.run(
         [sys.executable, "scripts/verify_phase_state.py"],
         cwd=ROOT,
