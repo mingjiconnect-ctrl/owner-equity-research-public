@@ -451,6 +451,130 @@ def _protected_profile_selection_recovery_repository(
     return repository, _git(repository, "rev-parse", "HEAD"), predecessor
 
 
+def _protected_semantic_fixture_recovery_repository(
+    tmp_path: Path,
+) -> tuple[Path, str, str]:
+    repository = tmp_path / "protected-semantic-fixture-recovery"
+    repository.mkdir()
+    subprocess.run(["git", "-C", str(repository), "init", "-b", "main"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repository), "config", "user.email", "audit@example.com"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repository), "config", "user.name", "Audit Fixture"],
+        check=True,
+    )
+    initial_paths = {
+        "docs/phase-status.json": json.dumps(
+            {"status": "accepted_closed"}, indent=2, sort_keys=True
+        )
+        + "\n",
+    }
+    for path in acceptance_gate.PROTECTED_SEMANTIC_FIXTURE_BOOTSTRAP_PATHS:
+        if path != acceptance_gate.PROTECTED_SEMANTIC_FIXTURE_AUTHORITY_PATH:
+            initial_paths[path] = f"predecessor:{path}\n"
+    for path, content in initial_paths.items():
+        target = repository / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+    predecessor = _commit(repository, "protected semantic-fixture predecessor")
+    subprocess.run(
+        ["git", "-C", str(repository), "checkout", "-b", "semantic-fixture-recovery"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    authority = {
+        "artifact_digest": (
+            "sha256:a90868a591e3fd4e843ec1068a6ac09e67db248ce3b0a122ebf02815ef240bb5"
+        ),
+        "artifact_id": 8816240015,
+        "artifact_size": 9789,
+        "failed_product_audit_run_id": 30691002919,
+        "failed_product_head_commit": "f01954cb9f6fbcf7012b3cfc20b85e41182cb56f",
+        "finding_ids": ["P0:phase5e2b12b-independent-semantic-oracle"],
+        "normalized_report_file_sha256": (
+            "a0669e0b6df1702198d07140e5ee63c4838f9658cbab1b7befb60c278ddd65f2"
+        ),
+        "normalized_report_sha256": (
+            "a3efab996bbc572eab393891a68de2a22dde35f7013631c0ca7db218f3498b27"
+        ),
+        "observed_profile": "phase5e2b12b",
+        "predecessor_merge_commit": predecessor,
+        "previous_current_control_nodeid_sha256": (
+            "aa6b9e7f0edfdc744df7271043d9efd18ba6066f71a4ff754a50ca114b7155c8"
+        ),
+        "previous_current_control_test_count": 1379,
+        "previous_product_nodeid_sha256": (
+            "07679b6b518c0c779ced9b30e8ed5c5f323733a03b8812c79d66470b1c0cb306"
+        ),
+        "previous_product_test_count": 1391,
+        "prohibited_fixture_root": "/oracle/tests",
+        "reason_code": "protected-semantic-worker-resolved-hidden-controller-test-root",
+        "recovery_id": "phase5e2b12b-protected-semantic-fixture-recovery-v1",
+        "required_current_control_nodeid_sha256": (
+            "b93b955a9b79a40cca8a281f5cd7f226022839d609bfe3747de4933385bc8148"
+        ),
+        "required_current_control_test_count": 1380,
+        "required_fixture_root": "/work/tests",
+        "required_product_nodeid_sha256": (
+            "78d7d6114a9b600a3f66ce9d092e66c0003a8a40eb7d2b88258c99e6adc9c438"
+        ),
+        "required_product_test_count": 1392,
+        "schema_version": "1.0.0",
+    }
+    authority_path = (
+        repository / acceptance_gate.PROTECTED_SEMANTIC_FIXTURE_AUTHORITY_PATH
+    )
+    authority_path.parent.mkdir(parents=True, exist_ok=True)
+    authority_path.write_text(
+        json.dumps(authority, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    for path in acceptance_gate.PROTECTED_SEMANTIC_FIXTURE_BOOTSTRAP_PATHS:
+        if path == acceptance_gate.PROTECTED_SEMANTIC_FIXTURE_AUTHORITY_PATH:
+            continue
+        target = repository / path
+        target.write_text(target.read_text(encoding="utf-8") + "fixture-recovery\n")
+    bootstrap = _commit(repository, "bootstrap protected semantic-fixture recovery")
+    seal_path = repository / acceptance_gate.PROTECTED_SEMANTIC_FIXTURE_SEAL_PATH
+    seal_path.write_text(
+        json.dumps(
+            {
+                "authority_sha256": hashlib.sha256(authority_path.read_bytes()).hexdigest(),
+                "bootstrap_commit": bootstrap,
+                "reason_code": "sealed-protected-semantic-fixture-overlay-selection",
+                "recovery_id": "phase5e2b12b-protected-semantic-fixture-recovery-v1",
+                "schema_version": "1.0.0",
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    _commit(repository, "seal protected semantic-fixture recovery")
+    subprocess.run(
+        ["git", "-C", str(repository), "checkout", "main"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repository),
+            "merge",
+            "--no-ff",
+            "semantic-fixture-recovery",
+            "-m",
+            "merge protected semantic-fixture recovery",
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    return repository, _git(repository, "rev-parse", "HEAD"), predecessor
+
+
 def _repository(
     tmp_path: Path,
     *,
@@ -1915,6 +2039,23 @@ def test_sealed_base_audit_recovery_has_exact_two_commit_topology(
     assert _git(profile_repository, "rev-parse", f"{profile_base}^2^") == (
         profile_context["bootstrap_commit"]
     )
+    fixture_repository, fixture_base, fixture_predecessor = (
+        _protected_semantic_fixture_recovery_repository(tmp_path)
+    )
+    monkeypatch.setattr(
+        acceptance_gate,
+        "PROTECTED_SEMANTIC_FIXTURE_PREDECESSOR",
+        fixture_predecessor,
+    )
+    fixture_context = acceptance_gate._protected_semantic_fixture_context(
+        fixture_repository,
+        fixture_base,
+    )
+    assert fixture_context is not None
+    assert fixture_context["topology"] == "merged"
+    assert _git(fixture_repository, "rev-parse", f"{fixture_base}^2^") == (
+        fixture_context["bootstrap_commit"]
+    )
 
 
 def test_sealed_base_audit_recovery_candidate_head_is_validated(
@@ -1950,6 +2091,11 @@ def test_base_finalization_uses_only_validated_recovery_fallback(
 ) -> None:
     calls: list[str] = []
     monkeypatch.setattr(acceptance_gate, "_api_paginated_items", lambda *args, **kwargs: [])
+    monkeypatch.setattr(
+        acceptance_gate,
+        "_verify_protected_semantic_fixture_recovery",
+        lambda **kwargs: calls.append("semantic:" + str(kwargs["base"])) or False,
+    )
     monkeypatch.setattr(
         acceptance_gate,
         "_verify_protected_profile_selection_recovery",
@@ -1988,6 +2134,7 @@ def test_base_finalization_uses_only_validated_recovery_fallback(
         controller_app_id=98765,
     )
     assert calls == [
+        "semantic:" + "d" * 40,
         "profile:" + "d" * 40,
         "overlay:" + "d" * 40,
         "performance:" + "d" * 40,

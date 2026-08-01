@@ -234,8 +234,8 @@
         "read-only-checkout",
         "tracked-bytes-immutable"
       ],
-      "predecessor_nodeid_sha256": "07679b6b518c0c779ced9b30e8ed5c5f323733a03b8812c79d66470b1c0cb306",
-      "predecessor_test_count": 1391,
+      "predecessor_nodeid_sha256": "78d7d6114a9b600a3f66ce9d092e66c0003a8a40eb7d2b88258c99e6adc9c438",
+      "predecessor_test_count": 1392,
       "profile_id": "phase5e-2b12c",
       "protected_oracle_path": "scripts/verify_phase5e2b12c_semantic_oracle.py",
       "protected_oracle_sha256": "e55690d7905c3b3b407f1fe7955f39e878a3c74e731157c7a4f9155b54281a95"

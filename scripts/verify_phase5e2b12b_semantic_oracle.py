@@ -299,7 +299,12 @@ class _Artifact:
 def _worker_observation(repository: Path, case_id: str) -> dict[str, Any]:
     # Candidate import is deliberately confined to this disposable subprocess.
     prior_path = list(sys.path)
-    sys.path.append(str(CONTROL_ROOT / "tests"))
+    # ``/work/tests`` is the root-owned read-only overlay assembled by
+    # ``phase5e_candidate_exec.sh``.  The controller deliberately hides
+    # ``/oracle/tests`` after constructing that overlay, so resolving the frozen
+    # fixture through ``CONTROL_ROOT`` would make every protected worker fail
+    # before it reaches candidate behavior.
+    sys.path.append(str(repository / "tests"))
     sys.path.append(str(repository / "src"))
     try:
         import test_phase5e2b12a_integration_contracts as fixture

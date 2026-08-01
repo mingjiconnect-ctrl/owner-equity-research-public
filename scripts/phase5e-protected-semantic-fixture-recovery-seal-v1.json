@@ -1,0 +1,7 @@
+{
+  "authority_sha256": "d9608f722296ffc24d69f0996d44cc5184fe3e7883bb6f6ed15716f890c151d4",
+  "bootstrap_commit": "d78099857112adf3ce61e37555fa6f58a6eb8493",
+  "reason_code": "sealed-protected-semantic-fixture-overlay-selection",
+  "recovery_id": "phase5e2b12b-protected-semantic-fixture-recovery-v1",
+  "schema_version": "1.0.0"
+}

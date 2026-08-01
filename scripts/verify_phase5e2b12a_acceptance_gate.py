@@ -724,6 +724,31 @@ PROTECTED_PROFILE_SELECTION_BOOTSTRAP_PATHS = {
     "tests/test_phase5e2b12a_acceptance_gate.py": "M",
     "tests/test_phase5e_audit.py": "M",
 }
+PROTECTED_SEMANTIC_FIXTURE_AUTHORITY_PATH = (
+    "scripts/phase5e-protected-semantic-fixture-recovery-v1.json"
+)
+PROTECTED_SEMANTIC_FIXTURE_SEAL_PATH = (
+    "scripts/phase5e-protected-semantic-fixture-recovery-seal-v1.json"
+)
+PROTECTED_SEMANTIC_FIXTURE_BRANCH = (
+    "fix/phase5e2b12b-r8-protected-semantic-fixture-path"
+)
+PROTECTED_SEMANTIC_FIXTURE_PREDECESSOR = (
+    "937b3fcb12c5bc8ad83ba21a7e222ae701aa5c81"
+)
+PROTECTED_SEMANTIC_FIXTURE_BOOTSTRAP_PATHS = {
+    PROTECTED_SEMANTIC_FIXTURE_AUTHORITY_PATH: "A",
+    "scripts/phase5e2b12a-acceptance-trust.json": "M",
+    "scripts/phase5e2b12b-acceptance-trust.json": "M",
+    "scripts/phase5e_audit_profiles.py": "M",
+    "scripts/verify_all.py": "M",
+    "scripts/verify_phase5e2b12a_acceptance_gate.py": "M",
+    "scripts/verify_phase5e2b12b_acceptance_gate.py": "M",
+    "scripts/verify_phase5e2b12b_semantic_oracle.py": "M",
+    "tests/test_phase5e2b12a_acceptance_gate.py": "M",
+    "tests/test_phase5e2b12b_acceptance_gate.py": "M",
+    "tests/test_phase5e_audit.py": "M",
+}
 POST_IMPLEMENTATION_PINNED_REPAIRS = {
     "7e1804446e1c58416294d3fb81388cc790655e96": {
         "first_parent": "45e316bfb5513eb5cca3fd3cdd09da58da039e37",
@@ -4117,6 +4142,178 @@ def _protected_profile_selection_context(
     }
 
 
+def _protected_semantic_fixture_context(
+    repository: Path,
+    base: str,
+) -> dict[str, Any] | None:
+    """Validate the sealed protected semantic-fixture path recovery."""
+
+    if not _path_exists(repository, base, PROTECTED_SEMANTIC_FIXTURE_SEAL_PATH):
+        return None
+    seal = _read_json(repository, base, PROTECTED_SEMANTIC_FIXTURE_SEAL_PATH)
+    if (
+        set(seal)
+        != {
+            "authority_sha256",
+            "bootstrap_commit",
+            "reason_code",
+            "recovery_id",
+            "schema_version",
+        }
+        or seal.get("schema_version") != "1.0.0"
+        or seal.get("recovery_id")
+        != "phase5e2b12b-protected-semantic-fixture-recovery-v1"
+        or seal.get("reason_code")
+        != "sealed-protected-semantic-fixture-overlay-selection"
+        or not _git_oid(seal.get("bootstrap_commit"))
+        or not _sha256(seal.get("authority_sha256"))
+    ):
+        raise SystemExit("protected semantic-fixture recovery seal is malformed")
+    authority = _read_json(
+        repository,
+        base,
+        PROTECTED_SEMANTIC_FIXTURE_AUTHORITY_PATH,
+    )
+    if (
+        set(authority)
+        != {
+            "artifact_digest",
+            "artifact_id",
+            "artifact_size",
+            "failed_product_audit_run_id",
+            "failed_product_head_commit",
+            "finding_ids",
+            "normalized_report_file_sha256",
+            "normalized_report_sha256",
+            "observed_profile",
+            "predecessor_merge_commit",
+            "previous_current_control_nodeid_sha256",
+            "previous_current_control_test_count",
+            "previous_product_nodeid_sha256",
+            "previous_product_test_count",
+            "prohibited_fixture_root",
+            "reason_code",
+            "recovery_id",
+            "required_current_control_nodeid_sha256",
+            "required_current_control_test_count",
+            "required_fixture_root",
+            "required_product_nodeid_sha256",
+            "required_product_test_count",
+            "schema_version",
+        }
+        or authority.get("schema_version") != "1.0.0"
+        or authority.get("recovery_id") != seal["recovery_id"]
+        or authority.get("reason_code")
+        != "protected-semantic-worker-resolved-hidden-controller-test-root"
+        or authority.get("predecessor_merge_commit")
+        != PROTECTED_SEMANTIC_FIXTURE_PREDECESSOR
+        or authority.get("failed_product_audit_run_id") != 30691002919
+        or authority.get("failed_product_head_commit")
+        != "f01954cb9f6fbcf7012b3cfc20b85e41182cb56f"
+        or authority.get("artifact_id") != 8816240015
+        or authority.get("artifact_size") != 9789
+        or authority.get("artifact_digest")
+        != "sha256:a90868a591e3fd4e843ec1068a6ac09e67db248ce3b0a122ebf02815ef240bb5"
+        or authority.get("normalized_report_file_sha256")
+        != "a0669e0b6df1702198d07140e5ee63c4838f9658cbab1b7befb60c278ddd65f2"
+        or authority.get("normalized_report_sha256")
+        != "a3efab996bbc572eab393891a68de2a22dde35f7013631c0ca7db218f3498b27"
+        or authority.get("observed_profile") != PHASE5E2B12B_AUDIT_PROFILE
+        or authority.get("previous_current_control_test_count") != 1379
+        or authority.get("previous_current_control_nodeid_sha256")
+        != "aa6b9e7f0edfdc744df7271043d9efd18ba6066f71a4ff754a50ca114b7155c8"
+        or authority.get("previous_product_test_count") != 1391
+        or authority.get("previous_product_nodeid_sha256")
+        != "07679b6b518c0c779ced9b30e8ed5c5f323733a03b8812c79d66470b1c0cb306"
+        or authority.get("required_current_control_test_count") != 1380
+        or authority.get("required_current_control_nodeid_sha256")
+        != "b93b955a9b79a40cca8a281f5cd7f226022839d609bfe3747de4933385bc8148"
+        or authority.get("required_product_test_count") != 1392
+        or authority.get("required_product_nodeid_sha256")
+        != "78d7d6114a9b600a3f66ce9d092e66c0003a8a40eb7d2b88258c99e6adc9c438"
+        or authority.get("required_fixture_root") != "/work/tests"
+        or authority.get("prohibited_fixture_root") != "/oracle/tests"
+        or authority.get("finding_ids")
+        != ["P0:phase5e2b12b-independent-semantic-oracle"]
+    ):
+        raise SystemExit("protected semantic-fixture recovery authority is malformed")
+    bootstrap = str(seal["bootstrap_commit"])
+    authority_raw = _git(
+        repository,
+        "show",
+        f"{bootstrap}:{PROTECTED_SEMANTIC_FIXTURE_AUTHORITY_PATH}",
+        text=False,
+    )
+    if (
+        not isinstance(authority_raw, bytes)
+        or hashlib.sha256(authority_raw).hexdigest() != seal["authority_sha256"]
+        or _read_json(
+            repository,
+            bootstrap,
+            PROTECTED_SEMANTIC_FIXTURE_AUTHORITY_PATH,
+        )
+        != authority
+    ):
+        raise SystemExit("protected semantic-fixture recovery authority hash drifted")
+    parents = _commit_parents(repository, base)
+    if len(parents) == 1:
+        branch_head = base
+        if parents != (bootstrap,):
+            raise SystemExit("protected semantic-fixture candidate topology drifted")
+    elif len(parents) == 2:
+        branch_head = parents[1]
+        if (
+            parents[0] != PROTECTED_SEMANTIC_FIXTURE_PREDECESSOR
+            or _tree(repository, base) != _tree(repository, branch_head)
+            or _commit_parents(repository, branch_head) != (bootstrap,)
+        ):
+            raise SystemExit("protected semantic-fixture merged topology drifted")
+    else:
+        raise SystemExit("protected semantic-fixture recovery topology drifted")
+    if _commit_parents(repository, bootstrap) != (
+        PROTECTED_SEMANTIC_FIXTURE_PREDECESSOR,
+    ):
+        raise SystemExit("protected semantic-fixture bootstrap topology drifted")
+    bootstrap_entries = {
+        path: status
+        for status, path in _diff_entries(
+            repository,
+            PROTECTED_SEMANTIC_FIXTURE_PREDECESSOR,
+            bootstrap,
+        )
+    }
+    seal_entries = {
+        path: status for status, path in _diff_entries(repository, bootstrap, branch_head)
+    }
+    if (
+        bootstrap_entries != PROTECTED_SEMANTIC_FIXTURE_BOOTSTRAP_PATHS
+        or seal_entries != {PROTECTED_SEMANTIC_FIXTURE_SEAL_PATH: "A"}
+        or _read_json(
+            repository,
+            PROTECTED_SEMANTIC_FIXTURE_PREDECESSOR,
+            STATUS_PATH,
+        )
+        != _read_json(repository, base, STATUS_PATH)
+    ):
+        raise SystemExit(
+            "protected semantic-fixture recovery changed unauthorized bytes or phase state"
+        )
+    for commit, entries in (
+        (bootstrap, bootstrap_entries),
+        (branch_head, seal_entries),
+    ):
+        if any(_mode(repository, commit, path) != "100644" for path in entries):
+            raise SystemExit(
+                "protected semantic-fixture recovery contains a non-regular control file"
+            )
+    return {
+        "authority": authority,
+        "branch_head": branch_head,
+        "bootstrap_commit": bootstrap,
+        "topology": "candidate" if len(parents) == 1 else "merged",
+    }
+
+
 def _verify_inventory_parity_base(
     *,
     repository: Path,
@@ -4428,6 +4625,79 @@ def _verify_protected_profile_selection_recovery(
     return True
 
 
+def _verify_protected_semantic_fixture_recovery(
+    *,
+    repository: Path,
+    base: str,
+    repository_slug: str,
+    token: str,
+    controller_app_id: int,
+) -> bool:
+    context = _protected_semantic_fixture_context(repository, base)
+    if context is None:
+        return False
+    _verify_base_merged_main_finalized(
+        repository=repository,
+        base=PROTECTED_SEMANTIC_FIXTURE_PREDECESSOR,
+        repository_slug=repository_slug,
+        token=token,
+        controller_app_id=controller_app_id,
+    )
+    recovery_pull_requests = _api_list(
+        f"https://api.github.com/repos/{repository_slug}/commits/{base}/pulls",
+        token,
+    )
+    matching_recovery = [
+        item
+        for item in recovery_pull_requests
+        if isinstance(item, dict)
+        and item.get("state") == "closed"
+        and item.get("merged_at") is not None
+        and item.get("merge_commit_sha") == base
+        and item.get("head", {}).get("sha") == context["branch_head"]
+        and item.get("head", {}).get("ref") == PROTECTED_SEMANTIC_FIXTURE_BRANCH
+        and item.get("base", {}).get("sha") == PROTECTED_SEMANTIC_FIXTURE_PREDECESSOR
+        and item.get("base", {}).get("ref") == "main"
+    ]
+    if len(matching_recovery) != 1:
+        raise SystemExit(
+            "protected semantic-fixture recovery pull request identity is ambiguous"
+        )
+    ci_runs = _api_paginated_items(
+        (
+            f"https://api.github.com/repos/{repository_slug}/actions/workflows/ci.yml/runs"
+            f"?event=push&status=completed&head_sha={base}"
+        ),
+        key="workflow_runs",
+        token=token,
+    )
+    successful = [
+        item
+        for item in ci_runs
+        if item.get("head_sha") == base
+        and item.get("head_branch") == "main"
+        and item.get("event") == "push"
+        and item.get("conclusion") == "success"
+        and item.get("name") == "owner-research-ci"
+        and item.get("path") == ".github/workflows/ci.yml"
+        and type(item.get("id")) is int
+        and item["id"] > 0
+    ]
+    if len(successful) != 1:
+        raise SystemExit(
+            "protected semantic-fixture recovery lacks one successful main CI run"
+        )
+    _verify_run(
+        repository_slug=repository_slug,
+        token=token,
+        run_id=str(successful[0]["id"]),
+        expected_head=base,
+        expected_event="push",
+        expected_head_branch="main",
+    )
+    return True
+
+
 def _verify_misprofiled_repair_audit(
     *,
     repository: Path,
@@ -4703,6 +4973,14 @@ def _verify_base_merged_main_finalized(
         and run["id"] > 0
     ]
     if len(matching_gate_runs) != 1:
+        if _verify_protected_semantic_fixture_recovery(
+            repository=repository,
+            base=base,
+            repository_slug=repository_slug,
+            token=token,
+            controller_app_id=controller_app_id,
+        ):
+            return
         if _verify_protected_profile_selection_recovery(
             repository=repository,
             base=base,
@@ -5882,6 +6160,10 @@ def main() -> int:
         action="store_true",
     )
     parser.add_argument(
+        "--verify-protected-semantic-fixture-topology-only",
+        action="store_true",
+    )
+    parser.add_argument(
         "--verify-external-gate-author-authority-only",
         action="store_true",
     )
@@ -5970,6 +6252,22 @@ def main() -> int:
             raise SystemExit("protected profile-selection recovery seal is absent")
         print(
             "Phase 5E sealed protected profile-selection recovery "
+            f"{context['topology']} topology passed"
+        )
+        return 0
+    if args.verify_protected_semantic_fixture_topology_only:
+        if not args.base:
+            raise SystemExit(
+                "protected semantic-fixture topology verification requires --base"
+            )
+        context = _protected_semantic_fixture_context(
+            args.repository.resolve(),
+            args.base,
+        )
+        if context is None:
+            raise SystemExit("protected semantic-fixture recovery seal is absent")
+        print(
+            "Phase 5E sealed protected semantic-fixture recovery "
             f"{context['topology']} topology passed"
         )
         return 0
