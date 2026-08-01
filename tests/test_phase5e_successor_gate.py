@@ -985,13 +985,41 @@ def _accepted_gate(
 def test_bootstrap_accepts_exact_inert_bundle_without_executing_oracle(tmp_path: Path) -> None:
     repository, base, bundle, _ = _repository(tmp_path)
     head = _commit(repository, "bootstrap")
+    event = _event(base, head, bundle["gate_bootstrap_branch"])
     gate.verify_bootstrap_transition(
         repository=repository,
         base=base,
         head=head,
-        event=_event(base, head, bundle["gate_bootstrap_branch"]),
+        event=event,
         repository_slug=SLUG,
     )
+    event_path = tmp_path / "compact-controller-event.json"
+    event_path.write_bytes(
+        (json.dumps(event, allow_nan=False, sort_keys=True, separators=(",", ":")) + "\n").encode()
+    )
+    cli = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            str(ROOT / "scripts/verify_phase5e_successor_gate.py"),
+            "--repository",
+            str(repository),
+            "--base",
+            base,
+            "--head",
+            head,
+            "--event-json",
+            str(event_path),
+            "--repository-slug",
+            SLUG,
+        ],
+        cwd="/",
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+    )
+    assert cli.returncode == 0, cli.stdout
     oracle = _run_independent_oracle(
         repository,
         controller_ref=base,

@@ -2732,7 +2732,17 @@ def main() -> int:
         return 0
     if not args.base or not args.head or args.event_json is None:
         parser.error("pull-request verification requires --base, --head, and --event-json")
-    event = _canonical_json(args.event_json.read_bytes(), label="GitHub event")
+    # The base-owned controller has already parsed, identity-checked, and reserialized this
+    # untrusted GitHub event before crossing the isolated-process boundary.  Its transport form
+    # is deliberately compact canonical JSON, whereas repository-owned governance artifacts use
+    # the indented canonical form enforced by ``_canonical_json``.  Keep duplicate/non-finite
+    # rejection here, but do not confuse the controller's compact transport encoding with a
+    # candidate-controlled repository artifact.
+    event = _canonical_json(
+        args.event_json.read_bytes(),
+        label="GitHub event",
+        require_canonical=False,
+    )
     repository_slug = args.repository_slug
     if not isinstance(repository_slug, str) or not repository_slug:
         parser.error("pull-request verification requires --repository-slug")
