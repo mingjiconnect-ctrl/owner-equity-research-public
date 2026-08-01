@@ -544,6 +544,7 @@ def _write_emergency_failure(argv: list[str], error: BaseException) -> None:
         return
     reviewed_commit = "0" * 40
     runtime_id = "unknown"
+    repository: Path | None = None
     try:
         reviewed_commit = argv[argv.index("--reviewed-commit") + 1]
     except (ValueError, IndexError):
@@ -552,17 +553,18 @@ def _write_emergency_failure(argv: list[str], error: BaseException) -> None:
         runtime_id = argv[argv.index("--runtime-id") + 1]
     except (ValueError, IndexError):
         pass
+    try:
+        repository = Path(argv[argv.index("--repository") + 1]).resolve()
+    except (ValueError, IndexError):
+        pass
     evidence = f"{type(error).__name__}:{error}".encode("utf-8", errors="replace")
     digest = hashlib.sha256(evidence).hexdigest()
     try:
-        controller_root = Path(__file__).resolve().parents[1]
-        json.loads((controller_root / "docs/phase-status.json").read_text(encoding="utf-8"))
+        if repository is None:
+            raise ValueError("candidate repository is unavailable")
         profile = resolve_controller_audit_profile(
-            controller_root,
-            "HEAD",
-            has_2a_closeout=(
-                controller_root / PHASE5E2B12A_ACCEPTANCE_CLOSEOUT_PATH
-            ).is_file(),
+            repository,
+            reviewed_commit,
         )
     except BaseException:
         # A damaged recursive state must never be mislabeled as a historical
@@ -1484,11 +1486,8 @@ def main() -> int:
     repository = args.repository.resolve()
     controller_root = Path(__file__).resolve().parents[1]
     profile = resolve_controller_audit_profile(
-        controller_root,
-        "HEAD",
-        has_2a_closeout=(
-            controller_root / PHASE5E2B12A_ACCEPTANCE_CLOSEOUT_PATH
-        ).is_file(),
+        repository,
+        args.reviewed_commit,
     )
     interface = args.kernel_interface.resolve() if args.kernel_interface is not None else None
     kernel = (

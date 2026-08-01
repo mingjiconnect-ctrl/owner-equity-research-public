@@ -1,0 +1,19 @@
+{
+  "artifact_digest": "sha256:97b58ab625e66b6dd96a09d6c4a528ec90b1632d50e8630f7a35efbe9481ef42",
+  "artifact_id": 8815171478,
+  "artifact_size": 9718,
+  "failed_product_audit_run_id": 30687715790,
+  "failed_product_head_commit": "65977aeb1d030b707fa6bdc50b7f15deefd1f5b0",
+  "finding_ids": [
+    "P0:independent-test-manifest-replay",
+    "P1:phase5e2b12a-repository-wide-changed-path-boundary"
+  ],
+  "normalized_report_file_sha256": "ea3577b2bed870e505e785b774079b7fe56a450d92d57d2843135a5a08c7e897",
+  "normalized_report_sha256": "6e9f1a9bbe9c738607c2d4166775fbcff827e61f58293f89b36244c858c94c99",
+  "observed_profile": "phase5e2b12a-current-control",
+  "predecessor_merge_commit": "52e34ba340e223af6dfcc01f765afe58dbad4fc4",
+  "reason_code": "protected-audit-selected-controller-state-instead-of-candidate-state",
+  "recovery_id": "phase5e2b12b-protected-profile-selection-recovery-v1",
+  "required_profile": "phase5e2b12b",
+  "schema_version": "1.0.0"
+}

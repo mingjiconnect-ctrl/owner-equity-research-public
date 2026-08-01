@@ -130,6 +130,18 @@ def test_control_oracle_launcher_and_runner_have_one_exact_fixed_inventory() -> 
         audit_profiles.PHASE5E_SUCCESSOR_PREDECESSOR_NODEID_SHA256
         == "07679b6b518c0c779ced9b30e8ed5c5f323733a03b8812c79d66470b1c0cb306"
     )
+    runner = (ROOT / "scripts/run_phase5e_audit.py").read_text(encoding="utf-8")
+    assert (
+        "profile = resolve_controller_audit_profile(\n"
+        "        repository,\n"
+        "        args.reviewed_commit,\n"
+        "    )"
+    ) in runner
+    assert (
+        "profile = resolve_controller_audit_profile(\n"
+        "        controller_root,\n"
+        "        \"HEAD\""
+    ) not in runner
     launcher = (ROOT / "scripts/launch_phase5e_readonly_audit.sh").read_text(
         encoding="utf-8"
     )
