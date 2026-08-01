@@ -674,7 +674,15 @@ def resolve_controller_audit_profile(
     except ValueError as exc:
         position_error = exc
         position = {"stage": "invalid"}
-    if position.get("stage") in {"s3", "g1", "g2", "g3", "g4", "g5"}:
+    # S3 is both the accepted 2B tree and the predecessor for the first generic
+    # gate.  Auditing the S3 tree itself must therefore finish under the frozen
+    # 2B product profile; the successor-bootstrap profile becomes authoritative
+    # only after the inert bundle advances the candidate to G1.  Treating S3 as
+    # a bootstrap candidate asks an acceptance-only tree to contain a bundle
+    # that its closed diff explicitly forbids.
+    if position.get("stage") == "s3":
+        return audit_profile(PHASE5E2B12B_AUDIT_PROFILE)
+    if position.get("stage") in {"g1", "g2", "g3", "g4", "g5"}:
         return _generic_controller_profile(repository, ref)
     try:
         profile_id = controller_profile_id(status, has_2a_closeout=has_2a_closeout)
@@ -703,9 +711,9 @@ def controller_profile_id(status: dict[str, Any], *, has_2a_closeout: bool) -> s
     """Derive the next audit subject from the immutable controller state.
 
     The pending 2A controller audits 2A corrections and its acceptance-only transition.  Once the
-    2A closeout exists, the accepted 2A or pending 2B controller audits the 2B implementation and
-    acceptance transition.  An accepted 2B controller deliberately has no profile here: a later
-    phase must install a new protected successor gate before production can advance.
+    2A closeout exists, the accepted 2A, pending 2B, and accepted 2B tree are all audited by the
+    frozen 2B profile.  Only a candidate that has installed the inert successor bundle may switch
+    to the successor-bootstrap profile.
     """
 
     phase = status.get("current_phase")
@@ -722,14 +730,15 @@ def controller_profile_id(status: dict[str, Any], *, has_2a_closeout: bool) -> s
             phase == "Phase 5E-2B.1-2B"
             and state == "implementation_complete_pending_acceptance"
         )
+        or (
+            phase == "Phase 5E-2B.1-2B"
+            and state == "accepted_closed"
+            and status.get("authorized_next")
+            == ["Phase 5E-2B.1-2C successor-gate bootstrap"]
+        )
     ):
         return PHASE5E2B12B_AUDIT_PROFILE
     if (
-        phase == "Phase 5E-2B.1-2B"
-        and state == "accepted_closed"
-        and status.get("authorized_next")
-        == ["Phase 5E-2B.1-2C successor-gate bootstrap"]
-    ) or (
         phase == "Phase 5E-2B.1-2C-gate"
         and state == "implementation_complete_pending_acceptance"
     ):
