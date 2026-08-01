@@ -55,8 +55,9 @@ exec unshare --mount --net --ipc --uts --pid --fork --kill-child bash -ceu '
   mount -o remount,ro,bind "$root/candidate-import/scripts"
   mount --bind "$candidate/tests" "$root/candidate-import/tests"
   mount -o remount,ro,bind "$root/candidate-import/tests"
-  mount --bind "$oracle/tests" "$root/work/tests"
-  mount -o remount,ro,bind "$root/work/tests"
+  mount -t overlay overlay \
+    -o "ro,nodev,nosuid,noexec,lowerdir=$oracle/tests:$candidate/tests" \
+    "$root/work/tests"
   mount -t tmpfs -o mode=0555,nosuid,nodev,noexec tmpfs "$root/oracle/tests"
   mount --bind /usr "$root/usr"
   mount -o remount,ro,bind "$root/usr"

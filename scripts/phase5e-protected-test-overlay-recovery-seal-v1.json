@@ -1,0 +1,7 @@
+{
+  "authority_sha256": "3012cb58a6149558d82b68691171127331d4929ffd47adc4ff40cd787dda6b67",
+  "bootstrap_commit": "f38d710cd66d0ebba7e252fd5333a4de4d95548f",
+  "reason_code": "sealed-protected-controller-candidate-test-overlay",
+  "recovery_id": "phase5e2b12b-protected-test-overlay-recovery-v1",
+  "schema_version": "1.0.0"
+}

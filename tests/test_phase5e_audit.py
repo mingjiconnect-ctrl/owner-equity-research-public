@@ -997,7 +997,9 @@ def test_phase5e_ci_permissions_and_isolation_are_enforced() -> None:
         in candidate_executor
     )
     assert "/interface/kernel/src" not in candidate_executor
-    assert 'mount --bind "$oracle/tests" "$root/work/tests"' in candidate_executor
+    assert "mount -t overlay overlay" in candidate_executor
+    assert "lowerdir=$oracle/tests:$candidate/tests" in candidate_executor
+    assert 'mount --bind "$oracle/tests" "$root/work/tests"' not in candidate_executor
     assert (
         'mount -t tmpfs -o mode=0555,nosuid,nodev,noexec tmpfs "$root/oracle/tests"'
         in candidate_executor
