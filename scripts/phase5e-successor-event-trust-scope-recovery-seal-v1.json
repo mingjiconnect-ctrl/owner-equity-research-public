@@ -1,0 +1,7 @@
+{
+  "authority_sha256": "3e482dd8ef851e8eb66104f658d9849743fc9c3e7dc9d4ea0e51f6604a9d8d14",
+  "bootstrap_commit": "da9e43b3e7fb34e5ceeafc65e2f191d091fbab97",
+  "reason_code": "sealed-one-time-successor-event-trust-scope-finalization",
+  "recovery_id": "phase5e-successor-event-trust-scope-finalization-v1",
+  "schema_version": "1.0.0"
+}
