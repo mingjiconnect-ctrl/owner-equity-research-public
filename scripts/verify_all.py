@@ -92,6 +92,24 @@ def main() -> int:
     }:
         integration_command.append("--frozen-contract-replay")
     elif (
+        ROOT / "scripts/phase5e-protected-semantic-fixture-recovery-seal-v1.json"
+    ).is_file():
+        recovery_head = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=ROOT,
+            text=True,
+        ).strip()
+        run(
+            sys.executable,
+            "scripts/verify_phase5e2b12a_acceptance_gate.py",
+            "--repository",
+            str(ROOT),
+            "--base",
+            recovery_head,
+            "--verify-protected-semantic-fixture-topology-only",
+        )
+        integration_command.append("--frozen-contract-replay")
+    elif (
         ROOT / "scripts/phase5e-protected-profile-selection-recovery-seal-v1.json"
     ).is_file():
         recovery_head = subprocess.check_output(

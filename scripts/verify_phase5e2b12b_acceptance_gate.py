@@ -164,7 +164,7 @@ CONTROLLER_APP_ID_VARIABLE = str(TRUST["controller_app_id_variable"])
 if CONTROLLER_APP_ID_VARIABLE != "PHASE5E_CONTROLLER_APP_ID":
     raise RuntimeError("Phase 5E controller App variable identity drifted")
 EXPECTED_ADDED_TEST_NODEIDS = tuple(TRUST["expected_added_test_nodeids"])
-EXPECTED_TEST_COUNT = 1379 + len(EXPECTED_ADDED_TEST_NODEIDS)
+EXPECTED_TEST_COUNT = 1380 + len(EXPECTED_ADDED_TEST_NODEIDS)
 STATE_PATCHES = {
     key: copy.deepcopy(value["status_patch"]) for key, value in TRUST["states"].items()
 }

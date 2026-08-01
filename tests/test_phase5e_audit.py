@@ -118,17 +118,17 @@ def test_control_oracle_launcher_and_runner_have_one_exact_fixed_inventory() -> 
     product = audit_profiles.audit_profile(
         audit_profiles.PHASE5E2B12B_AUDIT_PROFILE
     )
-    assert current.expected_test_count == current.predecessor_test_count == 1379
+    assert current.expected_test_count == current.predecessor_test_count == 1380
     assert (
         current.predecessor_nodeid_sha256
-        == "aa6b9e7f0edfdc744df7271043d9efd18ba6066f71a4ff754a50ca114b7155c8"
+        == "b93b955a9b79a40cca8a281f5cd7f226022839d609bfe3747de4933385bc8148"
     )
-    assert product.predecessor_test_count == 1379
-    assert product.expected_test_count == 1391
-    assert audit_profiles.PHASE5E_SUCCESSOR_PREDECESSOR_TEST_COUNT == 1391
+    assert product.predecessor_test_count == 1380
+    assert product.expected_test_count == 1392
+    assert audit_profiles.PHASE5E_SUCCESSOR_PREDECESSOR_TEST_COUNT == 1392
     assert (
         audit_profiles.PHASE5E_SUCCESSOR_PREDECESSOR_NODEID_SHA256
-        == "07679b6b518c0c779ced9b30e8ed5c5f323733a03b8812c79d66470b1c0cb306"
+        == "78d7d6114a9b600a3f66ce9d092e66c0003a8a40eb7d2b88258c99e6adc9c438"
     )
     runner = (ROOT / "scripts/run_phase5e_audit.py").read_text(encoding="utf-8")
     assert (
@@ -1248,6 +1248,17 @@ def test_2b_semantic_oracle_runs_in_an_isolated_interpreter() -> None:
     assert completed.stdout == (
         b"Phase 5E-2B.1-2B protected profile load passed\n"
     )
+
+
+def test_2b_semantic_worker_uses_the_root_owned_work_tests_overlay() -> None:
+    source = (
+        ROOT / "scripts/verify_phase5e2b12b_semantic_oracle.py"
+    ).read_text(encoding="utf-8")
+    worker_source = source.split("def _worker_observation", 1)[1].split(
+        "def _run_worker", 1
+    )[0]
+    assert 'sys.path.append(str(repository / "tests"))' in worker_source
+    assert 'sys.path.append(str(CONTROL_ROOT / "tests"))' not in worker_source
 
 
 def test_2b_semantic_oracle_rejects_main_module_serializer_poisoning(
