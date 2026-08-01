@@ -1,0 +1,25 @@
+{
+  "failed_audit_artifact_digest": "sha256:83babe803d69f5a5fc2415be551f9c56935051f039fa0bfc462f642c89b2178e",
+  "failed_audit_artifact_id": 8820812727,
+  "failed_audit_artifact_size": 622,
+  "failed_audit_report_file_sha256": "5581f2b63e8b97ebdbf4ba5547b9af61eb095a5fc05346133fb0c88bd14bccfc",
+  "failed_audit_run_id": 30707380080,
+  "failed_error_code": "protected_runtime_junit_blocked",
+  "failed_error_fingerprint": "0677944bbf28a071fbed5eee1da49561d7b3c67b479bf7182f5a62d06c3b447f",
+  "failed_head_commit": "7567a2abaf9d5146545a12bdefe858ef4a1f7160",
+  "failed_test_identities": [
+    "::tests.test_phase5e2b12a_acceptance_gate",
+    "::tests.test_phase5e_audit"
+  ],
+  "predecessor_merge_commit": "7567a2abaf9d5146545a12bdefe858ef4a1f7160",
+  "reason_code": "protected-predecessor-tests-rejected-the-bounded-timeout-control-repair",
+  "recovery_id": "phase5e2b12b-protected-audit-timeout-recovery-v1",
+  "repair_base_commit": "f8f3fd15f741c7df10d8b89812e7f793c5ffa72b",
+  "repair_branch": "fix/phase5e2b12b-r11-audit-timeout-boundary",
+  "repair_head_commit": "7f4e1df9456ad294dcea81c66c2f606786f9658f",
+  "repair_main_ci_run_id": 30707371608,
+  "repair_merge_commit": "7567a2abaf9d5146545a12bdefe858ef4a1f7160",
+  "repair_pull_request": 79,
+  "repair_tree": "84a4c4fb5325101dc088ee3e40ec7117ba9736bd",
+  "schema_version": "1.0.0"
+}
