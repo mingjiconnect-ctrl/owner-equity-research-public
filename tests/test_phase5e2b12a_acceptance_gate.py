@@ -398,6 +398,109 @@ def _successor_event_transport_recovery_repository(
     }
 
 
+def _successor_event_trust_scope_recovery_repository(
+    tmp_path: Path,
+) -> tuple[Path, str, str]:
+    repository = tmp_path / "successor-event-trust-scope-recovery"
+    repository.mkdir()
+    subprocess.run(["git", "-C", str(repository), "init", "-b", "main"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repository), "config", "user.email", "audit@example.com"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repository), "config", "user.name", "Audit Fixture"],
+        check=True,
+    )
+    for path, content in {
+        "docs/phase-status.json": json.dumps(
+            {"status": "accepted_closed"},
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        "scripts/phase5e2b12a-acceptance-trust.json": "trust-v1\n",
+        "scripts/verify_phase5e2b12a_acceptance_gate.py": "controller-v1\n",
+        "tests/test_phase5e2b12a_acceptance_gate.py": "controller-tests-v1\n",
+    }.items():
+        target = repository / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+    predecessor = _commit(repository, "finalized transport recovery")
+    subprocess.run(
+        ["git", "-C", str(repository), "checkout", "-b", "trust-scope-recovery"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    authority = {
+        "finalized_predecessor_commit": predecessor,
+        "reason_code": "historical-audit-paths-were-not-scoped-to-reviewed-tree",
+        "recovery_id": "phase5e-successor-event-trust-scope-finalization-v1",
+        "schema_version": "1.0.0",
+        "triggering_candidate_head": (
+            acceptance_gate.SUCCESSOR_EVENT_TRUST_SCOPE_TRIGGERING_CANDIDATE_HEAD
+        ),
+        "triggering_controller_run_id": (
+            acceptance_gate.SUCCESSOR_EVENT_TRUST_SCOPE_TRIGGERING_CONTROLLER_RUN_ID
+        ),
+        "triggering_pull_request": (
+            acceptance_gate.SUCCESSOR_EVENT_TRUST_SCOPE_TRIGGERING_PULL_REQUEST
+        ),
+    }
+    authority_path = (
+        repository / acceptance_gate.SUCCESSOR_EVENT_TRUST_SCOPE_RECOVERY_AUTHORITY_PATH
+    )
+    authority_path.write_text(
+        json.dumps(authority, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    for path in (
+        "scripts/phase5e2b12a-acceptance-trust.json",
+        "scripts/verify_phase5e2b12a_acceptance_gate.py",
+        "tests/test_phase5e2b12a_acceptance_gate.py",
+    ):
+        target = repository / path
+        target.write_text(target.read_text(encoding="utf-8") + "recovery\n", encoding="utf-8")
+    bootstrap = _commit(repository, "bootstrap trust-scope finalization")
+    seal_path = repository / acceptance_gate.SUCCESSOR_EVENT_TRUST_SCOPE_RECOVERY_SEAL_PATH
+    seal_path.write_text(
+        json.dumps(
+            {
+                "authority_sha256": hashlib.sha256(authority_path.read_bytes()).hexdigest(),
+                "bootstrap_commit": bootstrap,
+                "reason_code": "sealed-one-time-successor-event-trust-scope-finalization",
+                "recovery_id": "phase5e-successor-event-trust-scope-finalization-v1",
+                "schema_version": "1.0.0",
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    _commit(repository, "seal trust-scope finalization")
+    subprocess.run(
+        ["git", "-C", str(repository), "checkout", "main"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repository),
+            "merge",
+            "--no-ff",
+            "trust-scope-recovery",
+            "-m",
+            "merge trust-scope finalization",
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    return repository, _git(repository, "rev-parse", "HEAD"), predecessor
+
+
 def _protected_test_overlay_recovery_repository(
     tmp_path: Path,
 ) -> tuple[Path, str, str]:
@@ -2270,6 +2373,45 @@ def test_sealed_base_audit_recovery_has_exact_two_commit_topology(
     assert _git(transport_repository, "rev-parse", f"{transport_base}^2^") == (
         transport_context["bootstrap_commit"]
     )
+    trust_repository, trust_base, trust_predecessor = (
+        _successor_event_trust_scope_recovery_repository(tmp_path)
+    )
+    monkeypatch.setattr(
+        acceptance_gate,
+        "SUCCESSOR_EVENT_TRUST_SCOPE_RECOVERY_PREDECESSOR",
+        trust_predecessor,
+    )
+    trust_context = acceptance_gate._successor_event_trust_scope_recovery_context(
+        trust_repository,
+        trust_base,
+    )
+    assert trust_context is not None
+    assert trust_context["topology"] == "merged"
+    assert _git(trust_repository, "rev-parse", f"{trust_base}^2^") == (
+        trust_context["bootstrap_commit"]
+    )
+    monkeypatch.setattr(
+        acceptance_gate,
+        "STATIC_CONTROL_FILES",
+        frozenset(
+            {
+                "docs/phase-status.json",
+                acceptance_gate.SUCCESSOR_EVENT_TRUST_SCOPE_RECOVERY_AUTHORITY_PATH,
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        acceptance_gate,
+        "REQUIRED_AUDITED_PATHS",
+        frozenset({acceptance_gate.SUCCESSOR_EVENT_TRUST_SCOPE_RECOVERY_AUTHORITY_PATH}),
+    )
+    expected, required = acceptance_gate._historical_audit_path_scope(
+        trust_repository,
+        reviewed_commit=trust_predecessor,
+        comparison_commit=trust_predecessor,
+    )
+    assert expected == {"docs/phase-status.json"}
+    assert required == set()
 
 
 def test_sealed_base_audit_recovery_candidate_head_is_validated(
@@ -2305,6 +2447,11 @@ def test_base_finalization_uses_only_validated_recovery_fallback(
 ) -> None:
     calls: list[str] = []
     monkeypatch.setattr(acceptance_gate, "_api_paginated_items", lambda *args, **kwargs: [])
+    monkeypatch.setattr(
+        acceptance_gate,
+        "_verify_successor_event_trust_scope_recovery",
+        lambda **kwargs: calls.append("trust-scope:" + str(kwargs["base"])) or False,
+    )
     monkeypatch.setattr(
         acceptance_gate,
         "_verify_successor_event_transport_recovery",
@@ -2353,6 +2500,7 @@ def test_base_finalization_uses_only_validated_recovery_fallback(
         controller_app_id=98765,
     )
     assert calls == [
+        "trust-scope:" + "d" * 40,
         "transport:" + "d" * 40,
         "semantic:" + "d" * 40,
         "profile:" + "d" * 40,

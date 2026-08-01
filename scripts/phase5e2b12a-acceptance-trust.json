@@ -195,6 +195,8 @@
     "scripts/phase5e-futu-market-authority-policy-v1.json",
     "scripts/phase5e-successor-event-transport-recovery-seal-v1.json",
     "scripts/phase5e-successor-event-transport-recovery-v1.json",
+    "scripts/phase5e-successor-event-trust-scope-recovery-seal-v1.json",
+    "scripts/phase5e-successor-event-trust-scope-recovery-v1.json",
     "scripts/phase5e-successor-gate-bundle.schema.json",
     "scripts/public_bootstrap.py",
     "scripts/pytest_phase5e_nodeids.py",

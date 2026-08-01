@@ -1,0 +1,9 @@
+{
+  "finalized_predecessor_commit": "09fc728c97209f91ca522a333def3ec8073f7bd3",
+  "reason_code": "historical-audit-paths-were-not-scoped-to-reviewed-tree",
+  "recovery_id": "phase5e-successor-event-trust-scope-finalization-v1",
+  "schema_version": "1.0.0",
+  "triggering_candidate_head": "e52e10f0d3c143f5223d21615d41b4f2d3043d33",
+  "triggering_controller_run_id": 30722381184,
+  "triggering_pull_request": 82
+}
