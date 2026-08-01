@@ -679,6 +679,27 @@ PHASE_STATE_PERFORMANCE_BOOTSTRAP_PATHS = {
     "scripts/verify_phase_state.py": "M",
     "tests/test_phase5e2b12a_acceptance_gate.py": "M",
 }
+PROTECTED_TEST_OVERLAY_AUTHORITY_PATH = (
+    "scripts/phase5e-protected-test-overlay-recovery-v1.json"
+)
+PROTECTED_TEST_OVERLAY_SEAL_PATH = (
+    "scripts/phase5e-protected-test-overlay-recovery-seal-v1.json"
+)
+PROTECTED_TEST_OVERLAY_BRANCH = (
+    "fix/phase5e2b12b-r6-protected-test-overlay"
+)
+PROTECTED_TEST_OVERLAY_PREDECESSOR = (
+    "fdc1e22dcd29b343c9cf787fd8af66e7343f8723"
+)
+PROTECTED_TEST_OVERLAY_BOOTSTRAP_PATHS = {
+    PROTECTED_TEST_OVERLAY_AUTHORITY_PATH: "A",
+    "scripts/phase5e_candidate_exec.sh": "M",
+    "scripts/run_phase5e_audit.py": "M",
+    "scripts/verify_all.py": "M",
+    "scripts/verify_phase5e2b12a_acceptance_gate.py": "M",
+    "tests/test_phase5e2b12a_acceptance_gate.py": "M",
+    "tests/test_phase5e_audit.py": "M",
+}
 POST_IMPLEMENTATION_PINNED_REPAIRS = {
     "7e1804446e1c58416294d3fb81388cc790655e96": {
         "first_parent": "45e316bfb5513eb5cca3fd3cdd09da58da039e37",
@@ -3778,6 +3799,146 @@ def _phase_state_performance_context(
     }
 
 
+def _protected_test_overlay_context(
+    repository: Path,
+    base: str,
+) -> dict[str, Any] | None:
+    """Validate the sealed controller-test overlay recovery."""
+
+    if not _path_exists(repository, base, PROTECTED_TEST_OVERLAY_SEAL_PATH):
+        return None
+    seal = _read_json(repository, base, PROTECTED_TEST_OVERLAY_SEAL_PATH)
+    if (
+        set(seal)
+        != {
+            "authority_sha256",
+            "bootstrap_commit",
+            "reason_code",
+            "recovery_id",
+            "schema_version",
+        }
+        or seal.get("schema_version") != "1.0.0"
+        or seal.get("recovery_id")
+        != "phase5e2b12b-protected-test-overlay-recovery-v1"
+        or seal.get("reason_code")
+        != "sealed-protected-controller-candidate-test-overlay"
+        or not _git_oid(seal.get("bootstrap_commit"))
+        or not _sha256(seal.get("authority_sha256"))
+    ):
+        raise SystemExit("protected-test overlay recovery seal is malformed")
+    authority = _read_json(
+        repository,
+        base,
+        PROTECTED_TEST_OVERLAY_AUTHORITY_PATH,
+    )
+    if (
+        set(authority)
+        != {
+            "failed_nodeid",
+            "failed_product_audit_run_id",
+            "failed_product_head_commit",
+            "normalized_error_fingerprint",
+            "predecessor_merge_commit",
+            "reason_code",
+            "recovery_id",
+            "schema_version",
+        }
+        or authority.get("schema_version") != "1.0.0"
+        or authority.get("recovery_id") != seal["recovery_id"]
+        or authority.get("reason_code")
+        != "protected-controller-bind-mount-hid-candidate-only-product-tests"
+        or authority.get("predecessor_merge_commit")
+        != PROTECTED_TEST_OVERLAY_PREDECESSOR
+        or authority.get("failed_product_audit_run_id") != 30534228111
+        or authority.get("failed_product_head_commit")
+        != "37d3f8202d00b583e0c3812d662bd953f5f723d4"
+        or authority.get("failed_nodeid")
+        != (
+            "tests/test_phase4d5_phase_state.py::"
+            "test_current_phase_state_is_machine_readable_and_consistent"
+        )
+        or authority.get("normalized_error_fingerprint")
+        != "0677944bbf28a071fbed5eee1da49561d7b3c67b479bf7182f5a62d06c3b447f"
+    ):
+        raise SystemExit("protected-test overlay recovery authority is malformed")
+    bootstrap = str(seal["bootstrap_commit"])
+    authority_raw = _git(
+        repository,
+        "show",
+        f"{bootstrap}:{PROTECTED_TEST_OVERLAY_AUTHORITY_PATH}",
+        text=False,
+    )
+    if (
+        not isinstance(authority_raw, bytes)
+        or hashlib.sha256(authority_raw).hexdigest()
+        != seal["authority_sha256"]
+        or _read_json(
+            repository,
+            bootstrap,
+            PROTECTED_TEST_OVERLAY_AUTHORITY_PATH,
+        )
+        != authority
+    ):
+        raise SystemExit("protected-test overlay recovery authority hash drifted")
+    parents = _commit_parents(repository, base)
+    if len(parents) == 1:
+        branch_head = base
+        if parents != (bootstrap,):
+            raise SystemExit("protected-test overlay candidate topology drifted")
+    elif len(parents) == 2:
+        branch_head = parents[1]
+        if (
+            parents[0] != PROTECTED_TEST_OVERLAY_PREDECESSOR
+            or _tree(repository, base) != _tree(repository, branch_head)
+            or _commit_parents(repository, branch_head) != (bootstrap,)
+        ):
+            raise SystemExit("protected-test overlay merged topology drifted")
+    else:
+        raise SystemExit("protected-test overlay recovery topology drifted")
+    if _commit_parents(repository, bootstrap) != (
+        PROTECTED_TEST_OVERLAY_PREDECESSOR,
+    ):
+        raise SystemExit("protected-test overlay bootstrap topology drifted")
+    bootstrap_entries = {
+        path: status
+        for status, path in _diff_entries(
+            repository,
+            PROTECTED_TEST_OVERLAY_PREDECESSOR,
+            bootstrap,
+        )
+    }
+    seal_entries = {
+        path: status for status, path in _diff_entries(repository, bootstrap, branch_head)
+    }
+    if (
+        bootstrap_entries != PROTECTED_TEST_OVERLAY_BOOTSTRAP_PATHS
+        or seal_entries != {PROTECTED_TEST_OVERLAY_SEAL_PATH: "A"}
+        or _read_json(
+            repository,
+            PROTECTED_TEST_OVERLAY_PREDECESSOR,
+            STATUS_PATH,
+        )
+        != _read_json(repository, base, STATUS_PATH)
+    ):
+        raise SystemExit(
+            "protected-test overlay recovery changed unauthorized bytes or phase state"
+        )
+    for commit, entries in (
+        (bootstrap, bootstrap_entries),
+        (branch_head, seal_entries),
+    ):
+        if any(_mode(repository, commit, path) != "100644" for path in entries):
+            raise SystemExit(
+                "protected-test overlay recovery contains a non-regular control file"
+            )
+    return {
+        "authority": authority,
+        "branch_head": branch_head,
+        "bootstrap_commit": bootstrap,
+        "topology": "candidate" if len(parents) == 1 else "merged",
+    }
+
+
 def _verify_inventory_parity_base(
     *,
     repository: Path,
@@ -3931,6 +4092,79 @@ def _verify_phase_state_performance_recovery(
     if len(successful) != 1:
         raise SystemExit(
             "phase-state performance recovery lacks one successful main CI run"
+        )
+    _verify_run(
+        repository_slug=repository_slug,
+        token=token,
+        run_id=str(successful[0]["id"]),
+        expected_head=base,
+        expected_event="push",
+        expected_head_branch="main",
+    )
+    return True
+
+
+def _verify_protected_test_overlay_recovery(
+    *,
+    repository: Path,
+    base: str,
+    repository_slug: str,
+    token: str,
+    controller_app_id: int,
+) -> bool:
+    context = _protected_test_overlay_context(repository, base)
+    if context is None:
+        return False
+    _verify_base_merged_main_finalized(
+        repository=repository,
+        base=PROTECTED_TEST_OVERLAY_PREDECESSOR,
+        repository_slug=repository_slug,
+        token=token,
+        controller_app_id=controller_app_id,
+    )
+    recovery_pull_requests = _api_list(
+        f"https://api.github.com/repos/{repository_slug}/commits/{base}/pulls",
+        token,
+    )
+    matching_recovery = [
+        item
+        for item in recovery_pull_requests
+        if isinstance(item, dict)
+        and item.get("state") == "closed"
+        and item.get("merged_at") is not None
+        and item.get("merge_commit_sha") == base
+        and item.get("head", {}).get("sha") == context["branch_head"]
+        and item.get("head", {}).get("ref") == PROTECTED_TEST_OVERLAY_BRANCH
+        and item.get("base", {}).get("sha") == PROTECTED_TEST_OVERLAY_PREDECESSOR
+        and item.get("base", {}).get("ref") == "main"
+    ]
+    if len(matching_recovery) != 1:
+        raise SystemExit(
+            "protected-test overlay recovery pull request identity is ambiguous"
+        )
+    ci_runs = _api_paginated_items(
+        (
+            f"https://api.github.com/repos/{repository_slug}/actions/workflows/ci.yml/runs"
+            f"?event=push&status=completed&head_sha={base}"
+        ),
+        key="workflow_runs",
+        token=token,
+    )
+    successful = [
+        item
+        for item in ci_runs
+        if item.get("head_sha") == base
+        and item.get("head_branch") == "main"
+        and item.get("event") == "push"
+        and item.get("conclusion") == "success"
+        and item.get("name") == "owner-research-ci"
+        and item.get("path") == ".github/workflows/ci.yml"
+        and type(item.get("id")) is int
+        and item["id"] > 0
+    ]
+    if len(successful) != 1:
+        raise SystemExit(
+            "protected-test overlay recovery lacks one successful main CI run"
         )
     _verify_run(
         repository_slug=repository_slug,
@@ -4218,6 +4452,14 @@ def _verify_base_merged_main_finalized(
         and run["id"] > 0
     ]
     if len(matching_gate_runs) != 1:
+        if _verify_protected_test_overlay_recovery(
+            repository=repository,
+            base=base,
+            repository_slug=repository_slug,
+            token=token,
+            controller_app_id=controller_app_id,
+        ):
+            return
         if _verify_phase_state_performance_recovery(
             repository=repository,
             base=base,
@@ -5373,6 +5615,10 @@ def main() -> int:
         action="store_true",
     )
     parser.add_argument(
+        "--verify-protected-test-overlay-topology-only",
+        action="store_true",
+    )
+    parser.add_argument(
         "--verify-external-gate-author-authority-only",
         action="store_true",
     )
@@ -5429,6 +5675,22 @@ def main() -> int:
             raise SystemExit("phase-state performance recovery seal is absent")
         print(
             "Phase 5E sealed phase-state performance recovery "
+            f"{context['topology']} topology passed"
+        )
+        return 0
+    if args.verify_protected_test_overlay_topology_only:
+        if not args.base:
+            raise SystemExit(
+                "protected-test overlay topology verification requires --base"
+            )
+        context = _protected_test_overlay_context(
+            args.repository.resolve(),
+            args.base,
+        )
+        if context is None:
+            raise SystemExit("protected-test overlay recovery seal is absent")
+        print(
+            "Phase 5E sealed protected-test overlay recovery "
             f"{context['topology']} topology passed"
         )
         return 0

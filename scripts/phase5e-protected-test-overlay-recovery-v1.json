@@ -1,0 +1,10 @@
+{
+  "failed_nodeid": "tests/test_phase4d5_phase_state.py::test_current_phase_state_is_machine_readable_and_consistent",
+  "failed_product_audit_run_id": 30534228111,
+  "failed_product_head_commit": "37d3f8202d00b583e0c3812d662bd953f5f723d4",
+  "normalized_error_fingerprint": "0677944bbf28a071fbed5eee1da49561d7b3c67b479bf7182f5a62d06c3b447f",
+  "predecessor_merge_commit": "fdc1e22dcd29b343c9cf787fd8af66e7343f8723",
+  "reason_code": "protected-controller-bind-mount-hid-candidate-only-product-tests",
+  "recovery_id": "phase5e2b12b-protected-test-overlay-recovery-v1",
+  "schema_version": "1.0.0"
+}

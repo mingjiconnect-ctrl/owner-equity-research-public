@@ -229,6 +229,111 @@ def _base_audit_recovery_repository(
     return repository, _git(repository, "rev-parse", "HEAD")
 
 
+def _protected_test_overlay_recovery_repository(
+    tmp_path: Path,
+) -> tuple[Path, str, str]:
+    repository = tmp_path / "protected-test-overlay-recovery"
+    repository.mkdir()
+    subprocess.run(["git", "-C", str(repository), "init", "-b", "main"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repository), "config", "user.email", "audit@example.com"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repository), "config", "user.name", "Audit Fixture"],
+        check=True,
+    )
+    initial_paths = {
+        "docs/phase-status.json": json.dumps(
+            {"status": "accepted_closed"},
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        "scripts/phase5e_candidate_exec.sh": "candidate-exec-v1\n",
+        "scripts/run_phase5e_audit.py": "audit-v1\n",
+        "scripts/verify_all.py": "verify-all-v1\n",
+        "scripts/verify_phase5e2b12a_acceptance_gate.py": "controller-v1\n",
+        "tests/test_phase5e2b12a_acceptance_gate.py": "controller-test-v1\n",
+        "tests/test_phase5e_audit.py": "audit-test-v1\n",
+    }
+    for path, content in initial_paths.items():
+        target = repository / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+    predecessor = _commit(repository, "protected controller predecessor")
+    subprocess.run(
+        ["git", "-C", str(repository), "checkout", "-b", "overlay-recovery"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    authority = {
+        "failed_nodeid": (
+            "tests/test_phase4d5_phase_state.py::"
+            "test_current_phase_state_is_machine_readable_and_consistent"
+        ),
+        "failed_product_audit_run_id": 30534228111,
+        "failed_product_head_commit": "37d3f8202d00b583e0c3812d662bd953f5f723d4",
+        "normalized_error_fingerprint": (
+            "0677944bbf28a071fbed5eee1da49561d7b3c67b479bf7182f5a62d06c3b447f"
+        ),
+        "predecessor_merge_commit": predecessor,
+        "reason_code": (
+            "protected-controller-bind-mount-hid-candidate-only-product-tests"
+        ),
+        "recovery_id": "phase5e2b12b-protected-test-overlay-recovery-v1",
+        "schema_version": "1.0.0",
+    }
+    authority_path = repository / acceptance_gate.PROTECTED_TEST_OVERLAY_AUTHORITY_PATH
+    authority_path.write_text(
+        json.dumps(authority, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    for path in acceptance_gate.PROTECTED_TEST_OVERLAY_BOOTSTRAP_PATHS:
+        if path == acceptance_gate.PROTECTED_TEST_OVERLAY_AUTHORITY_PATH:
+            continue
+        target = repository / path
+        target.write_text(target.read_text(encoding="utf-8") + "overlay-recovery\n")
+    bootstrap = _commit(repository, "bootstrap protected-test overlay recovery")
+    seal_path = repository / acceptance_gate.PROTECTED_TEST_OVERLAY_SEAL_PATH
+    seal_path.write_text(
+        json.dumps(
+            {
+                "authority_sha256": hashlib.sha256(authority_path.read_bytes()).hexdigest(),
+                "bootstrap_commit": bootstrap,
+                "reason_code": "sealed-protected-controller-candidate-test-overlay",
+                "recovery_id": "phase5e2b12b-protected-test-overlay-recovery-v1",
+                "schema_version": "1.0.0",
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    _commit(repository, "seal protected-test overlay recovery")
+    subprocess.run(
+        ["git", "-C", str(repository), "checkout", "main"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repository),
+            "merge",
+            "--no-ff",
+            "overlay-recovery",
+            "-m",
+            "merge protected-test overlay recovery",
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    return repository, _git(repository, "rev-parse", "HEAD"), predecessor
+
+
 def _repository(
     tmp_path: Path,
     *,
@@ -1642,6 +1747,7 @@ def test_base_owned_acceptance_gate_accepts_governance_only_diff(tmp_path: Path)
 
 def test_sealed_base_audit_recovery_has_exact_two_commit_topology(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     repository, base = _base_audit_recovery_repository(tmp_path)
     context = acceptance_gate._base_audit_recovery_context(repository, base)
@@ -1658,6 +1764,23 @@ def test_sealed_base_audit_recovery_has_exact_two_commit_topology(
     assert acceptance_gate.INVENTORY_PARITY_BOOTSTRAP_PATHS[
         "scripts/phase5e_audit_profiles.py"
     ] == "M"
+    overlay_repository, overlay_base, overlay_predecessor = (
+        _protected_test_overlay_recovery_repository(tmp_path)
+    )
+    monkeypatch.setattr(
+        acceptance_gate,
+        "PROTECTED_TEST_OVERLAY_PREDECESSOR",
+        overlay_predecessor,
+    )
+    overlay_context = acceptance_gate._protected_test_overlay_context(
+        overlay_repository,
+        overlay_base,
+    )
+    assert overlay_context is not None
+    assert overlay_context["topology"] == "merged"
+    assert _git(overlay_repository, "rev-parse", f"{overlay_base}^2^") == (
+        overlay_context["bootstrap_commit"]
+    )
 
 
 def test_sealed_base_audit_recovery_candidate_head_is_validated(
@@ -1695,6 +1818,11 @@ def test_base_finalization_uses_only_validated_recovery_fallback(
     monkeypatch.setattr(acceptance_gate, "_api_paginated_items", lambda *args, **kwargs: [])
     monkeypatch.setattr(
         acceptance_gate,
+        "_verify_protected_test_overlay_recovery",
+        lambda **kwargs: calls.append("overlay:" + str(kwargs["base"])) or False,
+    )
+    monkeypatch.setattr(
+        acceptance_gate,
         "_verify_phase_state_performance_recovery",
         lambda **kwargs: calls.append("performance:" + str(kwargs["base"])) or False,
     )
@@ -1721,6 +1849,7 @@ def test_base_finalization_uses_only_validated_recovery_fallback(
         controller_app_id=98765,
     )
     assert calls == [
+        "overlay:" + "d" * 40,
         "performance:" + "d" * 40,
         "finalization:" + "d" * 40,
         "inventory:" + "d" * 40,
