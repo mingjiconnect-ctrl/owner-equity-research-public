@@ -1,6 +1,6 @@
 {
   "authorized_next": [
-    "Phase 5E-2B.1-2B acceptance closeout"
+    "Phase 5E-2B.1-2C successor-gate bootstrap"
   ],
   "baseline_release": {
     "commit": "30d6e77780175deeffc5c211749bcb0169aa1dde",
@@ -447,5 +447,5 @@
   ],
   "release_tag": null,
   "schema_version": "2.0.0",
-  "status": "implementation_complete_pending_acceptance"
+  "status": "accepted_closed"
 }
