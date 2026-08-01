@@ -111,7 +111,9 @@ def test_candidate_import_surface_accepts_only_the_expected_project_roots(
     import_surface.verify(tmp_path)
 
 
-def test_control_oracle_launcher_and_runner_have_one_exact_fixed_inventory() -> None:
+def test_control_oracle_launcher_and_runner_have_one_exact_fixed_inventory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     current = audit_profiles.audit_profile(
         audit_profiles.PHASE5E2B12A_RECOVERY_AUDIT_PROFILE
     )
@@ -130,6 +132,25 @@ def test_control_oracle_launcher_and_runner_have_one_exact_fixed_inventory() -> 
         audit_profiles.PHASE5E_SUCCESSOR_PREDECESSOR_NODEID_SHA256
         == "78d7d6114a9b600a3f66ce9d092e66c0003a8a40eb7d2b88258c99e6adc9c438"
     )
+    monkeypatch.setattr(
+        audit_profiles,
+        "resolve_controller_gate_position",
+        lambda *args, **kwargs: {"stage": "s3"},
+    )
+    accepted_product = audit_profiles.resolve_controller_audit_profile(
+        ROOT,
+        "HEAD",
+        has_2a_closeout=True,
+    )
+    assert accepted_product == product
+    assert audit_profiles.controller_profile_id(
+        {
+            "authorized_next": ["Phase 5E-2B.1-2C successor-gate bootstrap"],
+            "current_phase": "Phase 5E-2B.1-2B",
+            "status": "accepted_closed",
+        },
+        has_2a_closeout=True,
+    ) == audit_profiles.PHASE5E2B12B_AUDIT_PROFILE
     runner = (ROOT / "scripts/run_phase5e_audit.py").read_text(encoding="utf-8")
     assert (
         "profile = resolve_controller_audit_profile(\n"
