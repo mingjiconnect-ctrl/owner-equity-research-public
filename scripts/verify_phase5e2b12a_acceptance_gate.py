@@ -89,6 +89,9 @@ _AUDIT_PROFILES_MODULE = _load_absolute_control_module(
 AUDIT_TOOL = _AUDIT_PROFILES_MODULE.AUDIT_TOOL
 AuditProfile = _AUDIT_PROFILES_MODULE.AuditProfile
 PHASE5E2B12A_AUDIT_PROFILE = _AUDIT_PROFILES_MODULE.PHASE5E2B12A_AUDIT_PROFILE
+PHASE5E2B12A_RECOVERY_AUDIT_PROFILE = (
+    _AUDIT_PROFILES_MODULE.PHASE5E2B12A_RECOVERY_AUDIT_PROFILE
+)
 PHASE5E2B12B_AUDIT_PROFILE = _AUDIT_PROFILES_MODULE.PHASE5E2B12B_AUDIT_PROFILE
 audit_profile = _AUDIT_PROFILES_MODULE.audit_profile
 audit_profile_context_sha256 = _AUDIT_PROFILES_MODULE.audit_profile_context_sha256
@@ -694,6 +697,27 @@ PROTECTED_TEST_OVERLAY_PREDECESSOR = (
 PROTECTED_TEST_OVERLAY_BOOTSTRAP_PATHS = {
     PROTECTED_TEST_OVERLAY_AUTHORITY_PATH: "A",
     "scripts/phase5e_candidate_exec.sh": "M",
+    "scripts/run_phase5e_audit.py": "M",
+    "scripts/verify_all.py": "M",
+    "scripts/verify_phase5e2b12a_acceptance_gate.py": "M",
+    "tests/test_phase5e2b12a_acceptance_gate.py": "M",
+    "tests/test_phase5e_audit.py": "M",
+}
+PROTECTED_PROFILE_SELECTION_AUTHORITY_PATH = (
+    "scripts/phase5e-protected-profile-selection-recovery-v1.json"
+)
+PROTECTED_PROFILE_SELECTION_SEAL_PATH = (
+    "scripts/phase5e-protected-profile-selection-recovery-seal-v1.json"
+)
+PROTECTED_PROFILE_SELECTION_BRANCH = (
+    "fix/phase5e2b12b-r7-protected-profile-selection"
+)
+PROTECTED_PROFILE_SELECTION_PREDECESSOR = (
+    "52e34ba340e223af6dfcc01f765afe58dbad4fc4"
+)
+PROTECTED_PROFILE_SELECTION_BOOTSTRAP_PATHS = {
+    PROTECTED_PROFILE_SELECTION_AUTHORITY_PATH: "A",
+    "scripts/phase5e_audit_profiles.py": "M",
     "scripts/run_phase5e_audit.py": "M",
     "scripts/verify_all.py": "M",
     "scripts/verify_phase5e2b12a_acceptance_gate.py": "M",
@@ -3939,6 +3963,160 @@ def _protected_test_overlay_context(
     }
 
 
+def _protected_profile_selection_context(
+    repository: Path,
+    base: str,
+) -> dict[str, Any] | None:
+    """Validate the sealed candidate-state audit-profile recovery."""
+
+    if not _path_exists(repository, base, PROTECTED_PROFILE_SELECTION_SEAL_PATH):
+        return None
+    seal = _read_json(repository, base, PROTECTED_PROFILE_SELECTION_SEAL_PATH)
+    if (
+        set(seal)
+        != {
+            "authority_sha256",
+            "bootstrap_commit",
+            "reason_code",
+            "recovery_id",
+            "schema_version",
+        }
+        or seal.get("schema_version") != "1.0.0"
+        or seal.get("recovery_id")
+        != "phase5e2b12b-protected-profile-selection-recovery-v1"
+        or seal.get("reason_code")
+        != "sealed-protected-candidate-state-profile-selection"
+        or not _git_oid(seal.get("bootstrap_commit"))
+        or not _sha256(seal.get("authority_sha256"))
+    ):
+        raise SystemExit("protected profile-selection recovery seal is malformed")
+    authority = _read_json(
+        repository,
+        base,
+        PROTECTED_PROFILE_SELECTION_AUTHORITY_PATH,
+    )
+    if (
+        set(authority)
+        != {
+            "artifact_digest",
+            "artifact_id",
+            "artifact_size",
+            "failed_product_audit_run_id",
+            "failed_product_head_commit",
+            "finding_ids",
+            "normalized_report_file_sha256",
+            "normalized_report_sha256",
+            "observed_profile",
+            "predecessor_merge_commit",
+            "reason_code",
+            "recovery_id",
+            "required_profile",
+            "schema_version",
+        }
+        or authority.get("schema_version") != "1.0.0"
+        or authority.get("recovery_id") != seal["recovery_id"]
+        or authority.get("reason_code")
+        != "protected-audit-selected-controller-state-instead-of-candidate-state"
+        or authority.get("predecessor_merge_commit")
+        != PROTECTED_PROFILE_SELECTION_PREDECESSOR
+        or authority.get("failed_product_audit_run_id") != 30687715790
+        or authority.get("failed_product_head_commit")
+        != "65977aeb1d030b707fa6bdc50b7f15deefd1f5b0"
+        or authority.get("artifact_id") != 8815171478
+        or authority.get("artifact_size") != 9718
+        or authority.get("artifact_digest")
+        != "sha256:97b58ab625e66b6dd96a09d6c4a528ec90b1632d50e8630f7a35efbe9481ef42"
+        or authority.get("normalized_report_file_sha256")
+        != "ea3577b2bed870e505e785b774079b7fe56a450d92d57d2843135a5a08c7e897"
+        or authority.get("normalized_report_sha256")
+        != "6e9f1a9bbe9c738607c2d4166775fbcff827e61f58293f89b36244c858c94c99"
+        or authority.get("observed_profile")
+        != PHASE5E2B12A_RECOVERY_AUDIT_PROFILE
+        or authority.get("required_profile") != PHASE5E2B12B_AUDIT_PROFILE
+        or authority.get("finding_ids")
+        != [
+            "P0:independent-test-manifest-replay",
+            "P1:phase5e2b12a-repository-wide-changed-path-boundary",
+        ]
+    ):
+        raise SystemExit("protected profile-selection recovery authority is malformed")
+    bootstrap = str(seal["bootstrap_commit"])
+    authority_raw = _git(
+        repository,
+        "show",
+        f"{bootstrap}:{PROTECTED_PROFILE_SELECTION_AUTHORITY_PATH}",
+        text=False,
+    )
+    if (
+        not isinstance(authority_raw, bytes)
+        or hashlib.sha256(authority_raw).hexdigest() != seal["authority_sha256"]
+        or _read_json(
+            repository,
+            bootstrap,
+            PROTECTED_PROFILE_SELECTION_AUTHORITY_PATH,
+        )
+        != authority
+    ):
+        raise SystemExit("protected profile-selection recovery authority hash drifted")
+    parents = _commit_parents(repository, base)
+    if len(parents) == 1:
+        branch_head = base
+        if parents != (bootstrap,):
+            raise SystemExit("protected profile-selection candidate topology drifted")
+    elif len(parents) == 2:
+        branch_head = parents[1]
+        if (
+            parents[0] != PROTECTED_PROFILE_SELECTION_PREDECESSOR
+            or _tree(repository, base) != _tree(repository, branch_head)
+            or _commit_parents(repository, branch_head) != (bootstrap,)
+        ):
+            raise SystemExit("protected profile-selection merged topology drifted")
+    else:
+        raise SystemExit("protected profile-selection recovery topology drifted")
+    if _commit_parents(repository, bootstrap) != (
+        PROTECTED_PROFILE_SELECTION_PREDECESSOR,
+    ):
+        raise SystemExit("protected profile-selection bootstrap topology drifted")
+    bootstrap_entries = {
+        path: status
+        for status, path in _diff_entries(
+            repository,
+            PROTECTED_PROFILE_SELECTION_PREDECESSOR,
+            bootstrap,
+        )
+    }
+    seal_entries = {
+        path: status for status, path in _diff_entries(repository, bootstrap, branch_head)
+    }
+    if (
+        bootstrap_entries != PROTECTED_PROFILE_SELECTION_BOOTSTRAP_PATHS
+        or seal_entries != {PROTECTED_PROFILE_SELECTION_SEAL_PATH: "A"}
+        or _read_json(
+            repository,
+            PROTECTED_PROFILE_SELECTION_PREDECESSOR,
+            STATUS_PATH,
+        )
+        != _read_json(repository, base, STATUS_PATH)
+    ):
+        raise SystemExit(
+            "protected profile-selection recovery changed unauthorized bytes or phase state"
+        )
+    for commit, entries in (
+        (bootstrap, bootstrap_entries),
+        (branch_head, seal_entries),
+    ):
+        if any(_mode(repository, commit, path) != "100644" for path in entries):
+            raise SystemExit(
+                "protected profile-selection recovery contains a non-regular control file"
+            )
+    return {
+        "authority": authority,
+        "branch_head": branch_head,
+        "bootstrap_commit": bootstrap,
+        "topology": "candidate" if len(parents) == 1 else "merged",
+    }
+
+
 def _verify_inventory_parity_base(
     *,
     repository: Path,
@@ -4165,6 +4343,79 @@ def _verify_protected_test_overlay_recovery(
     if len(successful) != 1:
         raise SystemExit(
             "protected-test overlay recovery lacks one successful main CI run"
+        )
+    _verify_run(
+        repository_slug=repository_slug,
+        token=token,
+        run_id=str(successful[0]["id"]),
+        expected_head=base,
+        expected_event="push",
+        expected_head_branch="main",
+    )
+    return True
+
+
+def _verify_protected_profile_selection_recovery(
+    *,
+    repository: Path,
+    base: str,
+    repository_slug: str,
+    token: str,
+    controller_app_id: int,
+) -> bool:
+    context = _protected_profile_selection_context(repository, base)
+    if context is None:
+        return False
+    _verify_base_merged_main_finalized(
+        repository=repository,
+        base=PROTECTED_PROFILE_SELECTION_PREDECESSOR,
+        repository_slug=repository_slug,
+        token=token,
+        controller_app_id=controller_app_id,
+    )
+    recovery_pull_requests = _api_list(
+        f"https://api.github.com/repos/{repository_slug}/commits/{base}/pulls",
+        token,
+    )
+    matching_recovery = [
+        item
+        for item in recovery_pull_requests
+        if isinstance(item, dict)
+        and item.get("state") == "closed"
+        and item.get("merged_at") is not None
+        and item.get("merge_commit_sha") == base
+        and item.get("head", {}).get("sha") == context["branch_head"]
+        and item.get("head", {}).get("ref") == PROTECTED_PROFILE_SELECTION_BRANCH
+        and item.get("base", {}).get("sha") == PROTECTED_PROFILE_SELECTION_PREDECESSOR
+        and item.get("base", {}).get("ref") == "main"
+    ]
+    if len(matching_recovery) != 1:
+        raise SystemExit(
+            "protected profile-selection recovery pull request identity is ambiguous"
+        )
+    ci_runs = _api_paginated_items(
+        (
+            f"https://api.github.com/repos/{repository_slug}/actions/workflows/ci.yml/runs"
+            f"?event=push&status=completed&head_sha={base}"
+        ),
+        key="workflow_runs",
+        token=token,
+    )
+    successful = [
+        item
+        for item in ci_runs
+        if item.get("head_sha") == base
+        and item.get("head_branch") == "main"
+        and item.get("event") == "push"
+        and item.get("conclusion") == "success"
+        and item.get("name") == "owner-research-ci"
+        and item.get("path") == ".github/workflows/ci.yml"
+        and type(item.get("id")) is int
+        and item["id"] > 0
+    ]
+    if len(successful) != 1:
+        raise SystemExit(
+            "protected profile-selection recovery lacks one successful main CI run"
         )
     _verify_run(
         repository_slug=repository_slug,
@@ -4452,6 +4703,14 @@ def _verify_base_merged_main_finalized(
         and run["id"] > 0
     ]
     if len(matching_gate_runs) != 1:
+        if _verify_protected_profile_selection_recovery(
+            repository=repository,
+            base=base,
+            repository_slug=repository_slug,
+            token=token,
+            controller_app_id=controller_app_id,
+        ):
+            return
         if _verify_protected_test_overlay_recovery(
             repository=repository,
             base=base,
@@ -5619,6 +5878,10 @@ def main() -> int:
         action="store_true",
     )
     parser.add_argument(
+        "--verify-protected-profile-selection-topology-only",
+        action="store_true",
+    )
+    parser.add_argument(
         "--verify-external-gate-author-authority-only",
         action="store_true",
     )
@@ -5691,6 +5954,22 @@ def main() -> int:
             raise SystemExit("protected-test overlay recovery seal is absent")
         print(
             "Phase 5E sealed protected-test overlay recovery "
+            f"{context['topology']} topology passed"
+        )
+        return 0
+    if args.verify_protected_profile_selection_topology_only:
+        if not args.base:
+            raise SystemExit(
+                "protected profile-selection topology verification requires --base"
+            )
+        context = _protected_profile_selection_context(
+            args.repository.resolve(),
+            args.base,
+        )
+        if context is None:
+            raise SystemExit("protected profile-selection recovery seal is absent")
+        print(
+            "Phase 5E sealed protected profile-selection recovery "
             f"{context['topology']} topology passed"
         )
         return 0

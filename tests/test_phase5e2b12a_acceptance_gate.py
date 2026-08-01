@@ -334,6 +334,123 @@ def _protected_test_overlay_recovery_repository(
     return repository, _git(repository, "rev-parse", "HEAD"), predecessor
 
 
+def _protected_profile_selection_recovery_repository(
+    tmp_path: Path,
+) -> tuple[Path, str, str]:
+    repository = tmp_path / "protected-profile-selection-recovery"
+    repository.mkdir()
+    subprocess.run(["git", "-C", str(repository), "init", "-b", "main"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repository), "config", "user.email", "audit@example.com"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repository), "config", "user.name", "Audit Fixture"],
+        check=True,
+    )
+    initial_paths = {
+        "docs/phase-status.json": json.dumps(
+            {"status": "accepted_closed"},
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        "scripts/phase5e_audit_profiles.py": "profiles-v1\n",
+        "scripts/run_phase5e_audit.py": "audit-v1\n",
+        "scripts/verify_all.py": "verify-all-v1\n",
+        "scripts/verify_phase5e2b12a_acceptance_gate.py": "controller-v1\n",
+        "tests/test_phase5e2b12a_acceptance_gate.py": "controller-test-v1\n",
+        "tests/test_phase5e_audit.py": "audit-test-v1\n",
+    }
+    for path, content in initial_paths.items():
+        target = repository / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+    predecessor = _commit(repository, "protected profile-selection predecessor")
+    subprocess.run(
+        ["git", "-C", str(repository), "checkout", "-b", "profile-recovery"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    authority = {
+        "artifact_digest": (
+            "sha256:97b58ab625e66b6dd96a09d6c4a528ec90b1632d50e8630f7a35efbe9481ef42"
+        ),
+        "artifact_id": 8815171478,
+        "artifact_size": 9718,
+        "failed_product_audit_run_id": 30687715790,
+        "failed_product_head_commit": "65977aeb1d030b707fa6bdc50b7f15deefd1f5b0",
+        "finding_ids": [
+            "P0:independent-test-manifest-replay",
+            "P1:phase5e2b12a-repository-wide-changed-path-boundary",
+        ],
+        "normalized_report_file_sha256": (
+            "ea3577b2bed870e505e785b774079b7fe56a450d92d57d2843135a5a08c7e897"
+        ),
+        "normalized_report_sha256": (
+            "6e9f1a9bbe9c738607c2d4166775fbcff827e61f58293f89b36244c858c94c99"
+        ),
+        "observed_profile": "phase5e2b12a-current-control",
+        "predecessor_merge_commit": predecessor,
+        "reason_code": (
+            "protected-audit-selected-controller-state-instead-of-candidate-state"
+        ),
+        "recovery_id": "phase5e2b12b-protected-profile-selection-recovery-v1",
+        "required_profile": "phase5e2b12b",
+        "schema_version": "1.0.0",
+    }
+    authority_path = (
+        repository / acceptance_gate.PROTECTED_PROFILE_SELECTION_AUTHORITY_PATH
+    )
+    authority_path.write_text(
+        json.dumps(authority, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    for path in acceptance_gate.PROTECTED_PROFILE_SELECTION_BOOTSTRAP_PATHS:
+        if path == acceptance_gate.PROTECTED_PROFILE_SELECTION_AUTHORITY_PATH:
+            continue
+        target = repository / path
+        target.write_text(target.read_text(encoding="utf-8") + "profile-recovery\n")
+    bootstrap = _commit(repository, "bootstrap protected profile-selection recovery")
+    seal_path = repository / acceptance_gate.PROTECTED_PROFILE_SELECTION_SEAL_PATH
+    seal_path.write_text(
+        json.dumps(
+            {
+                "authority_sha256": hashlib.sha256(authority_path.read_bytes()).hexdigest(),
+                "bootstrap_commit": bootstrap,
+                "reason_code": "sealed-protected-candidate-state-profile-selection",
+                "recovery_id": "phase5e2b12b-protected-profile-selection-recovery-v1",
+                "schema_version": "1.0.0",
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    _commit(repository, "seal protected profile-selection recovery")
+    subprocess.run(
+        ["git", "-C", str(repository), "checkout", "main"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repository),
+            "merge",
+            "--no-ff",
+            "profile-recovery",
+            "-m",
+            "merge protected profile-selection recovery",
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    return repository, _git(repository, "rev-parse", "HEAD"), predecessor
+
+
 def _repository(
     tmp_path: Path,
     *,
@@ -1781,6 +1898,23 @@ def test_sealed_base_audit_recovery_has_exact_two_commit_topology(
     assert _git(overlay_repository, "rev-parse", f"{overlay_base}^2^") == (
         overlay_context["bootstrap_commit"]
     )
+    profile_repository, profile_base, profile_predecessor = (
+        _protected_profile_selection_recovery_repository(tmp_path)
+    )
+    monkeypatch.setattr(
+        acceptance_gate,
+        "PROTECTED_PROFILE_SELECTION_PREDECESSOR",
+        profile_predecessor,
+    )
+    profile_context = acceptance_gate._protected_profile_selection_context(
+        profile_repository,
+        profile_base,
+    )
+    assert profile_context is not None
+    assert profile_context["topology"] == "merged"
+    assert _git(profile_repository, "rev-parse", f"{profile_base}^2^") == (
+        profile_context["bootstrap_commit"]
+    )
 
 
 def test_sealed_base_audit_recovery_candidate_head_is_validated(
@@ -1818,6 +1952,11 @@ def test_base_finalization_uses_only_validated_recovery_fallback(
     monkeypatch.setattr(acceptance_gate, "_api_paginated_items", lambda *args, **kwargs: [])
     monkeypatch.setattr(
         acceptance_gate,
+        "_verify_protected_profile_selection_recovery",
+        lambda **kwargs: calls.append("profile:" + str(kwargs["base"])) or False,
+    )
+    monkeypatch.setattr(
+        acceptance_gate,
         "_verify_protected_test_overlay_recovery",
         lambda **kwargs: calls.append("overlay:" + str(kwargs["base"])) or False,
     )
@@ -1849,6 +1988,7 @@ def test_base_finalization_uses_only_validated_recovery_fallback(
         controller_app_id=98765,
     )
     assert calls == [
+        "profile:" + "d" * 40,
         "overlay:" + "d" * 40,
         "performance:" + "d" * 40,
         "finalization:" + "d" * 40,

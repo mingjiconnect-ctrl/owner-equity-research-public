@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Protected-controller audit profiles for the Phase 5E 2A/2B hand-off.
 
-The profile is selected from the protected controller commit, never from candidate input.  It
-fixes the audit version and the closed check identity set that the controller, public writer, and
-remote acceptance verifiers must all replay.
+The immutable candidate ref selects its lifecycle position while this protected module supplies
+the closed profile registry and policy.  Candidate executable bytes never participate in profile
+resolution.  The controller, public writer, and remote acceptance verifiers replay the resulting
+fixed audit version and check identity set.
 """
 
 from __future__ import annotations
