@@ -1,0 +1,7 @@
+{
+  "authority_sha256": "505a968e7e41e3d4dd49ed47d19bccd050d05147ecbcd08de6a1e700522429f6",
+  "bootstrap_commit": "4a64ab71d49154c5d8ba33fa091ed973900e6147",
+  "reason_code": "sealed-one-time-successor-event-trigger-evidence-finalization",
+  "recovery_id": "phase5e-successor-event-trigger-evidence-finalization-v1",
+  "schema_version": "1.0.0"
+}
