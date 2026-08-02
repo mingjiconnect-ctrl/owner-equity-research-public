@@ -1,0 +1,6 @@
+{
+  "finalized_predecessor_commit": "20632317a43eecb6cc4db2fff4071743e62bc1a7",
+  "reason_code": "completed-run-pull-request-association-was-mutable",
+  "recovery_id": "phase5e-successor-event-run-identity-finalization-v1",
+  "schema_version": "1.0.0"
+}
