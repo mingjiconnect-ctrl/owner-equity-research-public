@@ -41,6 +41,7 @@ def test_kernel_reader_ci_closed_projection_is_accepted() -> None:
         "top_level_defaults",
         "semantic_secret",
         "extra_secret_job",
+        "shallow_candidate_checkout",
     ),
 )
 def test_kernel_reader_ci_adversarial_mutations_are_rejected(mutation: str) -> None:
@@ -92,6 +93,8 @@ def test_kernel_reader_ci_adversarial_mutations_are_rejected(mutation: str) -> N
                 }
             ],
         }
+    elif mutation == "shallow_candidate_checkout":
+        steps[0]["with"]["fetch-depth"] = 1
     else:  # pragma: no cover - parameter list is closed above
         raise AssertionError(mutation)
     findings = KERNEL_FINDINGS(_render(workflow))
