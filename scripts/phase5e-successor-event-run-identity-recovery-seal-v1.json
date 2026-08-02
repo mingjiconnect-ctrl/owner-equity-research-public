@@ -1,0 +1,7 @@
+{
+  "authority_sha256": "15e6b9c05e8a06e083375b18ce7b3affd2bbc7584c158a97a64e703d633dc90d",
+  "bootstrap_commit": "41dac31fb8334084f17cf4f3e93dc4b5b134f492",
+  "reason_code": "sealed-one-time-successor-event-run-identity-finalization",
+  "recovery_id": "phase5e-successor-event-run-identity-finalization-v1",
+  "schema_version": "1.0.0"
+}
