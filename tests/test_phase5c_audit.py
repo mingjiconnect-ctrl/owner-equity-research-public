@@ -93,7 +93,7 @@ def test_all_phase5c_finding_priorities_block_acceptance() -> None:
 
 
 def test_ci_runs_current_readonly_audit_on_pr_and_main_with_split_permissions() -> None:
-    path = ROOT / ".github" / "workflows" / "phase5e2b12a-acceptance-gate.yml"
+    path = ROOT / "legacy_governance" / "phase5e2b12a-acceptance-gate.yml"
     workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
     job = workflow["jobs"]["phase5e-readonly-audit"]
     comment_job = workflow["jobs"]["phase5e-readonly-audit-comment"]

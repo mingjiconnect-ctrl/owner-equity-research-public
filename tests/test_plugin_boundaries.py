@@ -56,9 +56,9 @@ def test_skills_admit_their_current_non_production_boundary() -> None:
         assert "[TODO" not in text
 
 
-def test_plugin_manifest_is_phase5e2b_dev_and_has_no_runtime_connectors() -> None:
+def test_plugin_manifest_is_phase5_v1_market_slice_and_has_no_runtime_connectors() -> None:
     manifest = json.loads((PLUGIN / ".codex-plugin" / "plugin.json").read_text())
-    assert manifest["version"] == "0.5.0-dev.11"
+    assert manifest["version"] == "0.6.0-dev.1"
     assert manifest["skills"] == "./skills/"
     assert "apps" not in manifest
     assert "mcpServers" not in manifest
@@ -96,27 +96,14 @@ def test_primary_skill_has_phase3_management_and_business_quality_references() -
     assert "publisher" in text
 
 
-def test_audit_skill_covers_phase5e2a_without_enabling_implicit_use() -> None:
+def test_audit_skill_covers_vertical_slice_without_enabling_implicit_use() -> None:
     audit = PLUGIN / "skills" / "owner-research-audit"
     text = (audit / "SKILL.md").read_text(encoding="utf-8")
     config = yaml.safe_load((audit / "agents" / "openai.yaml").read_text())
 
     assert "Phase 1-5D" in text
-    assert "Phase 5D-3 McKinsey input" in text
-    assert "Phase 5D-4 Penman input" in text
     assert "Phase 5D-5" in text
     assert "Phase 5D-6" in text
-    assert "Phase 5E-0" in text
-    assert "Phase 5E-1" in text
-    assert "`2.2.5`" in text
-    assert "`2.2.6`" in text
-    assert "`2.3.0`" in text
-    assert "`2.3.1`" in text
-    assert "`2.3.1.1`" in text
-    assert "`2.3.2`" in text
-    assert "`2.3.2.1`" in text
-    assert "`2.3.2.2`" in text
-    assert "`2.3.2.2.1`" in text
     assert "MarketReferenceSnapshot" in text
     assert "canonical price-blind input artifact" in text
     assert "ResearchBundle 1.0.0" in text
@@ -137,26 +124,19 @@ def test_audit_skill_covers_phase5e2a_without_enabling_implicit_use() -> None:
     assert "build_capital_allocation_review" in text
     assert "metadata-only Shadows" in text
     assert "ValuationAssumptionCandidate" in text
-    assert "MarketReferenceSnapshot" in text
-    assert "Phase 5D-0" in text
     assert "Candidate/Handoff v2" in text
-    assert "audit `2.1.0.1`" in text
-    assert "audit `2.1.1`" in text
-    assert "audit `2.1.2`" in text
-    assert "audit `2.1.3`" in text
-    assert "audit `2.1.4`" in text
-    assert "audit `2.1.5`" in text
-    assert "audit `2.1.5.1`" in text
     assert "sole Phase 5C-1 internal compiler" in text
     assert "sole Phase 5C-2 internal quality compiler" in text
     assert "sole Phase 5C-3 internal MethodView compiler" in text
     assert "sole Phase 5C-4 internal equity-bridge compiler" in text
     assert "sole Phase 5C-5 internal successor-readiness assessor" in text
     assert "nine-role equity-bridge" in text
+    assert "reviewed-file Provider" in text
+    assert "canonical legal event exactly once" in text
+    assert "P0=P1=0" in text
+    assert "Recursive controller" not in text
+    assert "G1/G2/G3/G4/G5" not in text
     assert config["policy"]["allow_implicit_invocation"] is False
-    assert "Phase 1-5E-1" in config["interface"]["default_prompt"]
-    assert "accounting reconciliation" in config["interface"]["default_prompt"]
-    assert "accounting-quality adjustments" in config["interface"]["default_prompt"]
-    assert "deterministic MethodViews" in config["interface"]["default_prompt"]
-    assert "nine-role equity bridge" in config["interface"]["default_prompt"]
-    assert "separate successor readiness" in config["interface"]["default_prompt"]
+    assert "accounting and method views" in config["interface"]["default_prompt"]
+    assert "quote-date current common shares" in config["interface"]["default_prompt"]
+    assert "reviewed market-reference Snapshot" in config["interface"]["default_prompt"]

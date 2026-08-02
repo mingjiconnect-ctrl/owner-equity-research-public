@@ -130,7 +130,7 @@ REQUIRED_SOURCE_MARKERS = {
     "Phase 5C review binding references are duplicated",
     "research-bundle-current-share-extension",
     "current-share-source-search-authority",
-    "owner-research-source-search/1.0.0",
+    "owner-research-current-share-coverage/1.0.0",
     "_candidate_evidence_object_ids",
     "observed share-event source is absent from its governed receipt",
     "claim-transition economic claim key does not replay",
@@ -173,18 +173,18 @@ EXPECTED_SOURCE_FAMILIES = (
     "credit_or_indentures",
     "official_ir",
 )
-EXPECTED_POLICY_SHA256 = "3c0b97cd2145efaf35b92fb28c65ba7bf0ab76a2a097ad59dd103b01c3014da4"
+EXPECTED_POLICY_SHA256 = "332ba7d4cf4370126119fdc172082f5f3b19a82da8f65fe3a1e811fa726dc96f"
 EXPECTED_POLICY_RAW_SHA256 = (
-    "78538fe7b76ac12eeadbd9298fcf46d67b87e4a86718694233fd445de152ddb5"
+    "815fbbd41f8ae307b6b758fd210830deb777a9e952e171b09e61e1a2b68fb16b"
 )
 EXPECTED_TYPE_MODULE_SHA256 = (
-    "401b283f18ffd5e5f990a7a756e89804c9803cbdfc711cf19d5f877792b56865"
+    "003dfad8e1da2d07bddeaaf39310ad5a7529643e9a2aedbaffaa6d552683051d"
 )
 EXPECTED_TYPE_AST_SHA256 = {
-    (3, 11): "0b298e1d5bba64e7a03218f001dc7f34daa68909bccb0f45d8133b3fd002b086",
-    (3, 12): "cca66107f6d33ac1398850816f7ebd799fc542385df7ded79aaeca0624996c40",
-    (3, 13): "a88f78bec3e0c076388b366c647deae23da0cc9fe2bd51fac35ecd7aba83e659",
-    (3, 14): "a88f78bec3e0c076388b366c647deae23da0cc9fe2bd51fac35ecd7aba83e659",
+    (3, 11): "d242cf697494f21377f3260a25f5e6f3d2cacdaedeca65034dc5b448e5761a1c",
+    (3, 12): "e18d6d9c55fd19392a6009252710865d9676d825186704dab7254fdafb6c629c",
+    (3, 13): "78c8f6e361f62cbbefe10834517d5dcaba9fd43258e2507b7dcb9f7655dc0411",
+    (3, 14): "78c8f6e361f62cbbefe10834517d5dcaba9fd43258e2507b7dcb9f7655dc0411",
 }
 STATUS_PATH = "docs/phase-status.json"
 ACCEPTANCE_CLOSEOUT = "docs/phase5e2b12a-acceptance-closeout.json"
@@ -624,7 +624,7 @@ def main() -> int:
     }:
         raise SystemExit("current-share extension authority is not closed")
     if (
-        policy["coverage"]["search_authority"] != "current-share-source-search-authority/1.0.0"
+        policy["coverage"]["search_authority"] != "current-share-source-search-authority/2.0.0"
         or policy["claim_transition"]["authority"]
         != "full_price_blind_freeze_and_current_contract_graph_replayed_phase5c_claim_authority"
         or policy["claim_transition"]["authority_policy"]

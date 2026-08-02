@@ -33,18 +33,18 @@ BASELINE = "4fd643df73108b1fa3ab3ce1eb258ae3c3ce8a6d"
 EXPECTED_VERSION = "0.5.0.dev11"
 EXPECTED_PLUGIN_VERSION = "0.5.0-dev.11"
 EXPECTED_AUDIT_VERSION = "2.3.2.3.3"
-EXPECTED_POLICY_SHA256 = "78538fe7b76ac12eeadbd9298fcf46d67b87e4a86718694233fd445de152ddb5"
+EXPECTED_POLICY_SHA256 = "815fbbd41f8ae307b6b758fd210830deb777a9e952e171b09e61e1a2b68fb16b"
 EXPECTED_POLICY_OBJECT_SHA256 = (
-    "3c0b97cd2145efaf35b92fb28c65ba7bf0ab76a2a097ad59dd103b01c3014da4"
+    "332ba7d4cf4370126119fdc172082f5f3b19a82da8f65fe3a1e811fa726dc96f"
 )
 EXPECTED_TYPE_MODULE_SHA256 = (
-    "401b283f18ffd5e5f990a7a756e89804c9803cbdfc711cf19d5f877792b56865"
+    "003dfad8e1da2d07bddeaaf39310ad5a7529643e9a2aedbaffaa6d552683051d"
 )
 EXPECTED_TYPE_AST_SHA256 = {
-    (3, 11): "0b298e1d5bba64e7a03218f001dc7f34daa68909bccb0f45d8133b3fd002b086",
-    (3, 12): "cca66107f6d33ac1398850816f7ebd799fc542385df7ded79aaeca0624996c40",
-    (3, 13): "a88f78bec3e0c076388b366c647deae23da0cc9fe2bd51fac35ecd7aba83e659",
-    (3, 14): "a88f78bec3e0c076388b366c647deae23da0cc9fe2bd51fac35ecd7aba83e659",
+    (3, 11): "d242cf697494f21377f3260a25f5e6f3d2cacdaedeca65034dc5b448e5761a1c",
+    (3, 12): "e18d6d9c55fd19392a6009252710865d9676d825186704dab7254fdafb6c629c",
+    (3, 13): "78c8f6e361f62cbbefe10834517d5dcaba9fd43258e2507b7dcb9f7655dc0411",
+    (3, 14): "78c8f6e361f62cbbefe10834517d5dcaba9fd43258e2507b7dcb9f7655dc0411",
 }
 EXPECTED_ADVERSARIAL_FIXTURE_SHA256 = (
     "7f8ba762df20c51fbea5edee89e440ec7205c546416676211090ca950f65ec0d"
@@ -400,7 +400,7 @@ def main() -> int:
         _file_sha(POLICY) != EXPECTED_POLICY_SHA256
         or _canonical_object_sha256(policy) != EXPECTED_POLICY_OBJECT_SHA256
         or policy.get("policy_id") != "canonical-share-event-current-share-integration"
-        or policy.get("policy_version") != "2.0.0"
+        or policy.get("policy_version") != "2.1.0"
         or tuple(policy["coverage"]["required_categories"])
         != (
             "issuance",
@@ -428,7 +428,7 @@ def main() -> int:
             "official_ir",
         )
         or policy["coverage"].get("search_authority")
-        != "current-share-source-search-authority/1.0.0"
+        != "current-share-source-search-authority/2.0.0"
         or policy.get("research_bundle_extension", {}).get("policy_id")
         != "research-bundle-current-share-extension"
         or policy["claim_transition"].get("authority")
@@ -490,7 +490,18 @@ def main() -> int:
             "convertible_shares_converted_completed",
             "warrant_shares_exercised_completed",
         )
-        or "market_evidence" not in policy["deferred_production"]
+        or policy.get("status") != "production_active"
+        or set(policy.get("active_production", ()))
+        != {
+            "canonical_fact_materializer",
+            "current_share_rollforward_integration",
+            "coverage_builder",
+            "claim_transition_builder",
+            "recursive_closure_builder",
+            "market_evidence",
+            "market_reference_snapshot",
+        }
+        or "market_evidence" in policy["deferred_production"]
         or "kernel_execution" not in policy["deferred_production"]
     ):
         raise SystemExit("Phase 5E-2B.1-2A closed policy is incomplete")

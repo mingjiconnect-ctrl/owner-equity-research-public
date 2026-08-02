@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from collections import defaultdict
+from dataclasses import replace
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import PurePosixPath
@@ -50,6 +51,7 @@ from .valuation_handoff_policies import (
     method_assumption_policy,
     price_blind_freeze_policy_sha256,
 )
+from .valuation_share_event_integration_types import CurrentShareEvidenceClosureV2
 
 
 class ValuationHandoffValidationError(ValueError):
@@ -65,6 +67,54 @@ EVIDENCE_FIELDS = {
     "BusinessQualityReview": "business_quality_reviews",
     "CapitalAllocationReview": "capital_allocation_reviews",
 }
+
+_PRICE_BLIND_HANDOFF_STATES = frozenset(
+    {
+        "evidence_open",
+        "price_blind_candidates_reviewed",
+        "price_blind_input_frozen",
+        "market_reference_allowed",
+    }
+)
+
+
+def _pre_market_replay_graph(
+    graph: Any,
+    *,
+    handoffs: tuple[ValuationHandoff, ...] | None = None,
+) -> Any:
+    """Return a validation view that cannot recursively re-enter market validation."""
+
+    snapshots = tuple(graph.market_reference_snapshots)
+    market_document_ids = {item.quote_source_document_id for item in snapshots}
+    market_fact_ids = {item.quote_fact_id for item in snapshots}
+    market_calculation_ids = {
+        str(item.market_equity["calculation_id"]) for item in snapshots
+    }
+    replay_handoffs = (
+        tuple(handoffs)
+        if handoffs is not None
+        else tuple(
+            item
+            for item in graph.valuation_handoffs
+            if item.state in _PRICE_BLIND_HANDOFF_STATES
+        )
+    )
+    return replace(
+        graph,
+        documents=tuple(
+            item for item in graph.documents if item.document_id not in market_document_ids
+        ),
+        facts=tuple(item for item in graph.facts if item.fact_id not in market_fact_ids),
+        calculations=tuple(
+            item
+            for item in graph.calculations
+            if item.calculation_id not in market_calculation_ids
+        ),
+        market_reference_snapshots=(),
+        market_reference_validation_contexts=(),
+        valuation_handoffs=replay_handoffs,
+    )
 
 
 def _index(items: tuple[Contract, ...], attribute: str) -> dict[str, Contract]:
@@ -767,6 +817,7 @@ def market_evidence_closure_sha256(
         security_compilation_result=security,
         share_basis_decision=share_basis,
         claim_control_authority=claim_control_authority,
+        expected_closure=share_compilation.evidence_closure,
     )
     if share_evidence.closure_sha256 != share_compilation.evidence_closure.closure_sha256:
         raise ValuationHandoffValidationError(
@@ -814,6 +865,35 @@ def market_evidence_closure_sha256(
             governed.raw_response_sha256,
         ),
     }
+    if governed.evidence_mode == "human_reviewed_file":
+        if (
+            context.authorization_reservation is None
+            or context.authorization_consumption is None
+        ):
+            raise ValuationHandoffValidationError(
+                "Reviewed market closure lacks authorization attestations"
+            )
+        entries.add(
+            (
+                "MarketAuthorizationReservation",
+                context.authorization_reservation.reservation_id,
+                context.authorization_reservation.fingerprint,
+            )
+        )
+        entries.add(
+            (
+                "MarketAuthorizationConsumption",
+                context.authorization_consumption.consumption_id,
+                context.authorization_consumption.fingerprint,
+            )
+        )
+    elif (
+        context.authorization_reservation is not None
+        or context.authorization_consumption is not None
+    ):
+        raise ValuationHandoffValidationError(
+            "Fixture market closure cannot inject authorization attestations"
+        )
     entries.update(share_evidence.object_fingerprints)
     referenced = (
         ("SourceDocument", snapshot_payload["quote_source_document_id"], documents),
@@ -858,9 +938,62 @@ def _validate_current_share_lineage(
     security_compilation_result: Any,
     share_basis_decision: Any,
     claim_control_authority: Any,
-) -> CurrentShareEvidenceClosure:
+    expected_closure: CurrentShareEvidenceClosure | CurrentShareEvidenceClosureV2 | None = None,
+) -> CurrentShareEvidenceClosure | CurrentShareEvidenceClosureV2:
     """Derive a recursive, cutoff-safe share authority from the exact ContractGraph."""
 
+    if isinstance(expected_closure, CurrentShareEvidenceClosureV2):
+        from .valuation_current_share_compiler import (
+            derive_current_share_evidence_closure_v2,
+        )
+
+        derived_ids = {
+            expected_closure.output_share_fact_id,
+            *(
+                item.canonical_event_fact_id
+                for item in expected_closure.materializations
+            ),
+        }
+        pre_market_graph = _pre_market_replay_graph(graph)
+        replay_graph = replace(
+            pre_market_graph,
+            facts=tuple(
+                item
+                for item in pre_market_graph.facts
+                if item.fact_id not in derived_ids
+            ),
+            calculations=tuple(
+                item
+                for item in pre_market_graph.calculations
+                if not set(item.input_fact_ids).intersection(derived_ids)
+            ),
+        )
+        try:
+            replayed = derive_current_share_evidence_closure_v2(
+                graph=replay_graph,
+                grouping_result=expected_closure.grouping_result,
+                opening_share_fact=expected_closure.opening_share_fact,
+                security_compilation_result=security_compilation_result,
+                claim_control_authority=(
+                    expected_closure.claim_transition_reconciliation.claim_control_authority
+                ),
+                quote_date=trading_date,
+                data_cutoff_date=data_cutoff_date,
+                expected_research_bundle_id=(
+                    expected_closure.bundle_evidence_closure.research_bundle_id
+                ),
+            )
+        except ValueError as exc:
+            raise ValuationHandoffValidationError(str(exc)) from exc
+        if (
+            replayed != expected_closure
+            or replayed.output_share_fact != share_fact
+            or share_basis_decision.share_fact_id != share_fact.fact_id
+        ):
+            raise ValuationHandoffValidationError(
+                "Current-share V2 evidence closure does not replay"
+            )
+        return replayed
     try:
         return derive_current_share_evidence_closure(
             graph=graph,
@@ -881,6 +1014,7 @@ def _validate_raw_evidence(graph: Any, snapshot: MarketReferenceSnapshot, contex
     from .valuation_market_runtime import contains_secret_material
 
     raw = snapshot.raw_evidence
+    raw_bytes: bytes | None = None
     if raw["locator"] != context.raw_evidence_locator or contains_secret_material(raw):
         raise ValuationHandoffValidationError("Raw evidence locator is unsafe or mismatched")
     locator = raw["locator"]
@@ -901,16 +1035,201 @@ def _validate_raw_evidence(graph: Any, snapshot: MarketReferenceSnapshot, contex
         path = (root / relative).resolve()
         if root not in path.parents or not path.is_file():
             raise ValuationHandoffValidationError("Repository raw evidence is unavailable")
-        if hashlib.sha256(path.read_bytes()).hexdigest() != raw["raw_response_sha256"]:
+        raw_bytes = path.read_bytes()
+        if hashlib.sha256(raw_bytes).hexdigest() != raw["raw_response_sha256"]:
             raise ValuationHandoffValidationError("Repository raw evidence SHA mismatch")
+    elif raw["store_kind"] == "reviewed_file":
+        from .valuation_market_provider import (
+            _MAX_RAW_EVIDENCE_BYTES,
+            _read_regular_file,
+            reviewed_file_authority_hashes,
+        )
+
+        expected = f"reviewed://sha256/{raw['raw_response_sha256']}"
+        path = context.raw_evidence_path
+        if locator != expected or path is None:
+            raise ValuationHandoffValidationError("Reviewed-file raw evidence is unavailable")
+        try:
+            raw_bytes = _read_regular_file(
+                path,
+                label="raw market evidence",
+                maximum_bytes=_MAX_RAW_EVIDENCE_BYTES,
+            )
+        except ValueError as exc:
+            raise ValuationHandoffValidationError(str(exc)) from exc
+        if hashlib.sha256(raw_bytes).hexdigest() != raw["raw_response_sha256"]:
+            raise ValuationHandoffValidationError("Reviewed-file raw evidence SHA mismatch")
     else:
         expected = f"cas://sha256/{raw['raw_response_sha256']}"
         if locator != expected:
             raise ValuationHandoffValidationError("CAS raw evidence identity mismatch")
-    authority = load_market_access_authority(graph.component_lock_path)
+        raise ValuationHandoffValidationError(
+            "Content-addressed market evidence has no active replay authority"
+        )
     governed = context.market_access_result.receipt
     assert governed is not None
     receipt = governed.receipt
+    expected_snapshot_id = (
+        f"market-reference:{snapshot.issuer_id}:{snapshot.trading_date}:"
+        f"{raw['raw_response_sha256'][:20]}"
+    )
+    if snapshot.snapshot_id != expected_snapshot_id:
+        raise ValuationHandoffValidationError(
+            "Market-reference Snapshot identity does not replay"
+        )
+    if snapshot.evidence_mode == "human_reviewed_file":
+        expected_hashes = reviewed_file_authority_hashes(
+            graph.component_lock_path,
+            calendar_dataset_sha256=governed.calendar_dataset_sha256,
+        )
+        if (
+            receipt.provider_id != "provider:human-reviewed-file"
+            or governed.evidence_mode != "human_reviewed_file"
+            or raw["store_kind"] != "reviewed_file"
+            or any(
+                getattr(governed, name) != value
+                for name, value in expected_hashes.items()
+            )
+        ):
+            raise ValuationHandoffValidationError(
+                "Reviewed-file evidence does not match its provider authority"
+            )
+        from .valuation_market_calendar import select_latest_completed_session
+        from .valuation_market_provider import (
+            ReviewedFileMarketProvider,
+            _timestamp,
+            _verify_authorization_consumption,
+        )
+        from .valuation_price_blind_freeze import load_price_blind_input_artifact
+        from .valuation_security_identity import compile_security_identity
+
+        if (
+            context.review_file_path is None
+            or context.raw_evidence_path is None
+            or context.price_blind_artifact_directory is None
+            or context.price_blind_freeze_result is None
+            or context.market_reference_request is None
+            or context.reviewed_quote is None
+            or context.authorization_reservation is None
+            or context.authorization_consumption is None
+        ):
+            raise ValuationHandoffValidationError(
+                "Reviewed-file evidence lacks its replay context"
+            )
+        try:
+            _verify_authorization_consumption(
+                graph.component_lock_path,
+                context.authorization_reservation,
+                context.authorization_consumption,
+            )
+            replayed_quote = ReviewedFileMarketProvider(
+                context.review_file_path,
+                context.raw_evidence_path,
+            ).acquire(context.market_reference_request)
+            replay_graph = _pre_market_replay_graph(
+                graph,
+                handoffs=context.price_blind_freeze_result.handoffs,
+            )
+            loaded = load_price_blind_input_artifact(
+                context.price_blind_artifact_directory,
+                graph=replay_graph,
+                expected_result=context.price_blind_freeze_result,
+            )
+            replayed_security = compile_security_identity(
+                graph=replay_graph,
+                expected_freeze=loaded,
+                proposal=context.security_compilation_result.proposal,
+            )
+            authority = load_market_access_authority(graph.component_lock_path)
+            selection = select_latest_completed_session(
+                authority,
+                mic=replayed_security.decision.exchange,
+                cutoff_date=date.fromisoformat(snapshot.data_cutoff_date),
+                observed_at=_timestamp(
+                    context.market_reference_request.request_started_at,
+                    "request start",
+                ),
+            )
+        except (AttributeError, OSError, TypeError, ValueError) as exc:
+            raise ValuationHandoffValidationError(
+                "Reviewed-file authority replay failed"
+            ) from exc
+        authorization = loaded.handoffs[-1]
+        expected_selection_fingerprint = canonical_sha256(
+            {
+                "calendar_id": selection.calendar_id,
+                "trading_date": replayed_quote.trading_date,
+                "dataset_sha256": selection.dataset_sha256,
+                "review_receipt_sha256": replayed_quote.review_receipt_sha256,
+            }
+        )
+        source_retrieved = _timestamp(
+            replayed_quote.source_retrieved_at,
+            "source retrieval time",
+        )
+        reviewed_at = _timestamp(replayed_quote.reviewed_at, "review time")
+        request_started = _timestamp(
+            context.market_reference_request.request_started_at,
+            "request start",
+        )
+        retrieved_at = _timestamp(receipt.retrieved_at, "retrieval time")
+        if (
+            replayed_quote != context.reviewed_quote
+            or raw["content_type"] != replayed_quote.raw_content_type
+            or loaded.artifact != context.price_blind_artifact
+            or replayed_security != context.security_compilation_result
+            or authorization.handoff_id != snapshot.authorization_handoff_id
+            or authorization.fingerprint != snapshot.authorization_handoff_fingerprint
+            or selection.dataset_sha256 != governed.calendar_dataset_sha256
+            or selection.calendar_id != receipt.trading_calendar_id
+            or selection.session.trading_date != snapshot.trading_date
+            or selection.session.closed_at != snapshot.quote_timestamp
+            or expected_selection_fingerprint
+            != governed.calendar_selection_fingerprint
+            or replayed_quote.review_receipt_sha256
+            != context.provider_evidence_sha256
+            or context.authorization_consumption.authorization_handoff_id
+            != authorization.handoff_id
+            or context.authorization_reservation.authorization_handoff_id
+            != authorization.handoff_id
+            or context.authorization_reservation.authorization_handoff_fingerprint
+            != authorization.fingerprint
+            or context.authorization_reservation.price_blind_input_fingerprint
+            != loaded.artifact.fingerprint
+            or context.authorization_reservation.request_fingerprint
+            != context.market_reference_request.request_fingerprint
+            or context.authorization_consumption.reservation_fingerprint
+            != context.authorization_reservation.fingerprint
+            or context.authorization_consumption.authorization_handoff_fingerprint
+            != authorization.fingerprint
+            or context.authorization_consumption.price_blind_input_fingerprint
+            != loaded.artifact.fingerprint
+            or context.authorization_consumption.request_fingerprint
+            != context.market_reference_request.request_fingerprint
+            or context.authorization_consumption.market_access_result_fingerprint
+            != context.market_access_result.fingerprint
+            or context.authorization_consumption.quote_fingerprint
+            != replayed_quote.fingerprint
+            or not (
+                _timestamp(authorization.transitioned_at, "authorization transition")
+                <= source_retrieved
+                <= reviewed_at
+                <= request_started
+                <= retrieved_at
+            )
+            or _timestamp(replayed_quote.quote_timestamp, "quote timestamp")
+            > source_retrieved
+            or not (
+                date.fromisoformat(replayed_quote.trading_date)
+                <= date.fromisoformat(replayed_quote.source_published_date)
+                <= source_retrieved.date()
+            )
+        ):
+            raise ValuationHandoffValidationError(
+                "Reviewed-file evidence replay changed its governed identity"
+            )
+        return
+    authority = load_market_access_authority(graph.component_lock_path)
     registration = next(
         (
             item
@@ -921,8 +1240,95 @@ def _validate_raw_evidence(graph: Any, snapshot: MarketReferenceSnapshot, contex
         ),
         None,
     )
-    if registration is None or registration.content_type != raw["content_type"]:
+    if (
+        registration is None
+        or registration.content_type != raw["content_type"]
+        or registration.evidence_mode != governed.evidence_mode
+        or registration.adapter_sha256 != governed.adapter_sha256
+        or registration.parser_sha256 != governed.parser_sha256
+        or registration.price_basis != receipt.price_basis
+        or registration.session_kind != receipt.session_kind
+        or registration.endpoint_id != receipt.endpoint
+        or receipt.trading_calendar_id not in registration.trading_calendar_ids
+        or snapshot.security["mic"] not in registration.supported_mics
+        or authority.authority_sha256 != governed.authority_sha256
+        or authority.provider_registry.fingerprint
+        != governed.provider_registry_sha256
+        or canonical_sha256(authority.calendar_registry.to_dict())
+        != governed.calendar_registry_sha256
+    ):
         raise ValuationHandoffValidationError("Raw evidence content type is not registered")
+    if raw_bytes is None:
+        raise ValuationHandoffValidationError("Raw market evidence is unavailable for replay")
+    from .valuation_market_authority_types import RawMarketResponse
+    from .valuation_market_runtime import parse_locked_raw_response
+
+    try:
+        replayed_quote, replayed_sha256 = parse_locked_raw_response(
+            RawMarketResponse(
+                raw_response=raw_bytes,
+                content_type=raw["content_type"],
+                transport_metadata={
+                    "adapter_kind": registration.adapter_kind,
+                    "endpoint_id": registration.endpoint_id,
+                },
+            ),
+            registration=registration,
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValuationHandoffValidationError("Locked market parser replay failed") from exc
+    expected_quote = {
+        "security_id": receipt.security_id,
+        "ticker": receipt.ticker,
+        "exchange": receipt.exchange,
+        "share_class": receipt.share_class,
+        "trading_calendar_id": receipt.trading_calendar_id,
+        "trading_date": receipt.trading_date,
+        "quote_timestamp": receipt.quote_timestamp,
+        "session_kind": receipt.session_kind,
+        "session_status": receipt.session_status,
+        "instrument_status": receipt.instrument_status,
+        "price_basis": receipt.price_basis,
+        "quote_price": receipt.quote_price,
+        "quote_currency": receipt.quote_currency,
+    }
+    if (
+        replayed_sha256 != raw["raw_response_sha256"]
+        or replayed_quote.to_dict() != expected_quote
+    ):
+        raise ValuationHandoffValidationError(
+            "Locked market parser replay changed the governed quote"
+        )
+    request = context.market_access_result.request
+    if request is None:
+        raise ValuationHandoffValidationError("Market calendar replay lacks its Request")
+    from .valuation_market_calendar import (
+        MarketCalendarError,
+        select_latest_completed_session,
+    )
+
+    try:
+        selection = select_latest_completed_session(
+            authority,
+            mic=snapshot.security["mic"],
+            cutoff_date=date.fromisoformat(snapshot.data_cutoff_date),
+            observed_at=datetime.fromisoformat(
+                request.request_started_at.replace("Z", "+00:00")
+            ),
+        )
+    except (MarketCalendarError, TypeError, ValueError) as exc:
+        raise ValuationHandoffValidationError("Locked market calendar replay failed") from exc
+    if (
+        selection.calendar_id != receipt.trading_calendar_id
+        or selection.dataset_sha256 != governed.calendar_dataset_sha256
+        or selection.fingerprint != governed.calendar_selection_fingerprint
+        or selection.session.trading_date != receipt.trading_date
+        or selection.session.trading_date != receipt.latest_completed_session_date
+        or selection.session.closed_at != receipt.quote_timestamp
+    ):
+        raise ValuationHandoffValidationError(
+            "Locked market calendar replay changed the governed session"
+        )
 
 
 def _validate_market_snapshot(
@@ -993,6 +1399,9 @@ def _validate_market_snapshot(
         "calendar_registry_sha256": governed.calendar_registry_sha256,
         "calendar_dataset_sha256": governed.calendar_dataset_sha256,
         "calendar_selection_fingerprint": governed.calendar_selection_fingerprint,
+        "provider_evidence_sha256": (
+            context.provider_evidence_sha256 or governed.fingerprint
+        ),
     }
     if dict(snapshot.authority_lineage) != expected_authority:
         raise ValuationHandoffValidationError("Snapshot market authority lineage mismatch")
@@ -1022,10 +1431,37 @@ def _validate_market_snapshot(
     ):
         raise ValuationHandoffValidationError("Market quote timestamp or retrieval time mismatch")
     if snapshot.evidence_mode in {"recorded_fixture", "loopback_fixture"}:
-        if snapshot.usage_scope != "test_only":
+        if (
+            snapshot.usage_scope != "test_only"
+            or snapshot.source_authority_kind != "human_reviewed_file"
+        ):
             raise ValuationHandoffValidationError("Fixture market evidence is test-only")
-    elif snapshot.usage_scope != "valuation_eligible":
-        raise ValuationHandoffValidationError("Live market evidence usage scope is invalid")
+    elif snapshot.evidence_mode == "human_reviewed_file":
+        if (
+            snapshot.usage_scope != "release_candidate"
+            or snapshot.source_authority_kind != "human_reviewed_file"
+        ):
+            raise ValuationHandoffValidationError(
+                "Reviewed-file evidence is release-candidate only"
+            )
+    elif (
+        snapshot.evidence_mode != "governed_vendor"
+        or snapshot.usage_scope != "production"
+        or snapshot.source_authority_kind != "governed_vendor"
+    ):
+        raise ValuationHandoffValidationError("Governed-vendor evidence usage is invalid")
+    numeric = snapshot.numeric_evidence
+    if (
+        numeric["authoritative_decimal"] != snapshot.quote_price_decimal
+        or (
+            snapshot.source_authority_kind == "human_reviewed_file"
+            and (
+                numeric["encoding"] != "canonical_decimal"
+                or numeric["binary64_hex"] is not None
+            )
+        )
+    ):
+        raise ValuationHandoffValidationError("Market numeric evidence does not replay")
     _validate_raw_evidence(graph, snapshot, context)
     if snapshot.raw_evidence[
         "raw_response_sha256"
@@ -1047,17 +1483,63 @@ def _validate_market_snapshot(
         quote_document is None
         or quote_document.authority_level != "market_reference"
         or quote_document.content_sha256 != governed.raw_response_sha256
-        or quote_document.retrieved_at != snapshot.quote_retrieved_at
+        or quote_document.issuer_id != snapshot.issuer_id
+        or quote_document.document_type != "market-quote"
+        or dict(quote_document.period)
+        != {"start": None, "end": snapshot.trading_date}
     ):
         raise ValuationHandoffValidationError("Quote source is not a market reference")
-    if date.fromisoformat(quote_document.published_date) > date.fromisoformat(
-        snapshot.data_cutoff_date
+    expected_source_retrieved_at = (
+        context.reviewed_quote.source_retrieved_at
+        if snapshot.evidence_mode == "human_reviewed_file"
+        and context.reviewed_quote is not None
+        else receipt.retrieved_at
+    )
+    if quote_document.retrieved_at != expected_source_retrieved_at:
+        raise ValuationHandoffValidationError(
+            "Quote SourceDocument retrieval does not replay its evidence mode"
+        )
+    if snapshot.evidence_mode == "human_reviewed_file":
+        reviewed_quote = context.reviewed_quote
+        if (
+            reviewed_quote is None
+            or quote_document.document_id
+            != f"doc:{snapshot.issuer_id}:reviewed-market:{governed.raw_response_sha256[:24]}"
+            or quote_document.issuer_id != reviewed_quote.issuer_id
+            or quote_document.document_type != "market-quote"
+            or dict(quote_document.period)
+            != {"start": None, "end": reviewed_quote.trading_date}
+            or quote_document.published_date != reviewed_quote.source_published_date
+            or quote_document.retrieved_at != reviewed_quote.source_retrieved_at
+            or quote_document.source_url != reviewed_quote.source_url
+        ):
+            raise ValuationHandoffValidationError(
+                "Reviewed quote SourceDocument is not an exact receipt projection"
+            )
+    quote_retrieved_date = datetime.fromisoformat(
+        quote_document.retrieved_at.replace("Z", "+00:00")
+    ).date()
+    if not (
+        date.fromisoformat(snapshot.trading_date)
+        <= date.fromisoformat(quote_document.published_date)
+        <= quote_retrieved_date
     ):
-        raise ValuationHandoffValidationError("Market source follows the data cutoff")
+        raise ValuationHandoffValidationError(
+            "Market source publication does not match its quote chronology"
+        )
     if quote_fact is None or current_share_fact is None or calculation is None:
         raise ValuationHandoffValidationError("Market reference has dangling numeric evidence")
+    if snapshot.evidence_mode == "human_reviewed_file" and quote_fact.fact_id != (
+        f"fact:{snapshot.issuer_id}:reviewed-close:{snapshot.trading_date}:"
+        f"{governed.raw_response_sha256[:16]}"
+    ):
+        raise ValuationHandoffValidationError(
+            "Reviewed quote Fact identity is not deterministic"
+        )
     if (
-        quote_fact.source_document_id != quote_document.document_id
+        quote_fact.issuer_id != snapshot.issuer_id
+        or quote_fact.concept != "market_quote_close"
+        or quote_fact.source_document_id != quote_document.document_id
         or quote_fact.source_locator != snapshot.quote_source_locator
         or quote_fact.value_type != "number"
         or quote_fact.unit != "currency_per_share"
@@ -1126,8 +1608,13 @@ def _validate_market_snapshot(
         security_compilation_result=security_compilation,
         share_basis_decision=share_decision,
         claim_control_authority=context.claim_control_authority,
+        expected_closure=context.current_share_compilation_result.evidence_closure,
     )
-    share_roots = set(share_evidence.numeric_root_fact_ids)
+    share_roots = set(
+        share_evidence.ultimate_numeric_root_fact_ids
+        if isinstance(share_evidence, CurrentShareEvidenceClosureV2)
+        else share_evidence.numeric_root_fact_ids
+    )
     authority = context.claim_control_authority
     claim_roots = set(
         (
@@ -1174,23 +1661,53 @@ def _validate_market_snapshot(
     ):
         raise ValuationHandoffValidationError("Future kernel request-v2 mapping does not replay")
 
+    if snapshot.evidence_mode == "human_reviewed_file" and (
+        calculation.calculation_id
+        != (
+            f"calc:{snapshot.issuer_id}:market-equity:{snapshot.trading_date}:"
+            f"{governed.raw_response_sha256[:16]}"
+        )
+        or calculation.calculator_id != "reviewed-close-times-current-common-shares"
+        or calculation.calculator_version != "1.0.0"
+        or calculation.generated_at != receipt.retrieved_at
+    ):
+        raise ValuationHandoffValidationError(
+            "Reviewed market-equity CalculationResult identity changed"
+        )
     if (
-        calculation.concept != "market_equity_value"
+        calculation.issuer_id != snapshot.issuer_id
+        or calculation.concept != "market_equity_value"
         or calculation.value_type != "number"
         or calculation.input_assumption_ids
         or calculation.input_calculation_ids
+        or calculation.input_period_ids
         or set(calculation.input_fact_ids) != {quote_fact.fact_id, current_share_fact.fact_id}
         or dict(calculation.input_bindings)
         != {"current_common_shares": current_share_fact.fact_id, "quote": quote_fact.fact_id}
         or calculation.currency != market_equity["currency"]
         or calculation.unit != market_equity["unit"]
         or calculation.calculation_id != market_equity["calculation_id"]
+        or dict(calculation.period)
+        != {"start": None, "end": snapshot.trading_date}
     ):
         raise ValuationHandoffValidationError("Market-equity CalculationResult is not canonical")
+    from .valuation_market_snapshot import _calculation_code_sha256
+
+    if (
+        snapshot.evidence_mode == "human_reviewed_file"
+        and calculation.code_sha256 != _calculation_code_sha256()
+    ):
+        raise ValuationHandoffValidationError(
+            "Market-equity CalculationResult code identity changed"
+        )
     if market_equity["currency"] != snapshot.quote_currency:
         raise ValuationHandoffValidationError("Market-equity currency mismatch")
-    expected_units = Decimal(snapshot.quote_price_decimal) * normalize_value(
-        current_share_fact.value, current_share_fact.unit
+    from .valuation_market_provider import exact_decimal_product
+
+    normalized_shares = normalize_value(current_share_fact.value, current_share_fact.unit)
+    expected_units = exact_decimal_product(
+        snapshot.quote_price_decimal,
+        format(normalized_shares, "f"),
     )
     snapshot_units = Decimal(market_equity["value_decimal"])
     calculation_units = normalize_value(calculation.value, calculation.unit)

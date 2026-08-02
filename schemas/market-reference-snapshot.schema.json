@@ -26,8 +26,10 @@
     "quote_price_decimal",
     "quote_unit",
     "quote_currency",
+    "source_authority_kind",
     "evidence_mode",
     "usage_scope",
+    "numeric_evidence",
     "raw_evidence",
     "quote_source_document_id",
     "quote_source_locator",
@@ -42,13 +44,13 @@
     "snapshot_fingerprint"
   ],
   "properties": {
-    "schema_version": {"const": "3.0.0"},
+    "schema_version": {"const": "4.0.0"},
     "snapshot_id": {"type": "string", "minLength": 1},
     "issuer_id": {"type": "string", "minLength": 1},
     "data_cutoff_date": {"type": "string", "format": "date"},
     "status": {"const": "validated"},
     "market_policy_id": {"const": "market-reference"},
-    "market_policy_version": {"const": "3.0.0"},
+    "market_policy_version": {"const": "4.0.0"},
     "authorization_handoff_id": {"type": "string", "minLength": 1},
     "authorization_handoff_fingerprint": {"$ref": "#/$defs/sha256"},
     "component_lock_sha256": {"$ref": "#/$defs/sha256"},
@@ -63,8 +65,10 @@
     "quote_price_decimal": {"$ref": "#/$defs/positiveDecimal"},
     "quote_unit": {"const": "currency_per_share"},
     "quote_currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
-    "evidence_mode": {"enum": ["recorded_fixture", "loopback_fixture", "live_official"]},
-    "usage_scope": {"enum": ["test_only", "valuation_eligible"]},
+    "source_authority_kind": {"enum": ["human_reviewed_file", "governed_vendor"]},
+    "evidence_mode": {"enum": ["recorded_fixture", "loopback_fixture", "human_reviewed_file", "governed_vendor"]},
+    "usage_scope": {"enum": ["test_only", "release_candidate", "production"]},
+    "numeric_evidence": {"$ref": "#/$defs/numericEvidence"},
     "raw_evidence": {"$ref": "#/$defs/rawEvidence"},
     "quote_source_document_id": {"type": "string", "minLength": 1},
     "quote_source_locator": {"type": "string", "minLength": 1},
@@ -86,8 +90,12 @@
         },
         "required": ["evidence_mode"]
       },
-      "then": {"properties": {"usage_scope": {"const": "test_only"}}},
-      "else": {"properties": {"usage_scope": {"const": "valuation_eligible"}}}
+      "then": {"properties": {"usage_scope": {"const": "test_only"}, "source_authority_kind": {"const": "human_reviewed_file"}}},
+      "else": {
+        "if": {"properties": {"evidence_mode": {"const": "human_reviewed_file"}}},
+        "then": {"properties": {"usage_scope": {"const": "release_candidate"}, "source_authority_kind": {"const": "human_reviewed_file"}}},
+        "else": {"properties": {"usage_scope": {"const": "production"}, "source_authority_kind": {"const": "governed_vendor"}}}
+      }
     }
   ],
   "$defs": {
@@ -95,6 +103,28 @@
     "positiveDecimal": {
       "type": "string",
       "pattern": "^(?:[1-9][0-9]*(?:\\.[0-9]+)?|0\\.[0-9]*[1-9][0-9]*)$"
+    },
+    "numericEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["encoding", "authoritative_decimal", "binary64_hex"],
+      "properties": {
+        "encoding": {"enum": ["canonical_decimal", "ieee754_binary64"]},
+        "authoritative_decimal": {"$ref": "#/$defs/positiveDecimal"},
+        "binary64_hex": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "string", "pattern": "^[a-f0-9]{16}$"}
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"encoding": {"const": "canonical_decimal"}}},
+          "then": {"properties": {"binary64_hex": {"type": "null"}}},
+          "else": {"properties": {"binary64_hex": {"type": "string"}}}
+        }
+      ]
     },
     "requestReference": {
       "type": "object",
@@ -125,7 +155,8 @@
         "parser_sha256",
         "calendar_registry_sha256",
         "calendar_dataset_sha256",
-        "calendar_selection_fingerprint"
+        "calendar_selection_fingerprint",
+        "provider_evidence_sha256"
       ],
       "properties": {
         "authority_sha256": {"$ref": "#/$defs/sha256"},
@@ -135,7 +166,8 @@
         "parser_sha256": {"$ref": "#/$defs/sha256"},
         "calendar_registry_sha256": {"$ref": "#/$defs/sha256"},
         "calendar_dataset_sha256": {"$ref": "#/$defs/sha256"},
-        "calendar_selection_fingerprint": {"$ref": "#/$defs/sha256"}
+        "calendar_selection_fingerprint": {"$ref": "#/$defs/sha256"},
+        "provider_evidence_sha256": {"$ref": "#/$defs/sha256"}
       }
     },
     "security": {
@@ -169,7 +201,7 @@
         "parser_replay_fingerprint"
       ],
       "properties": {
-        "store_kind": {"enum": ["repository_fixture", "content_addressed_store"]},
+        "store_kind": {"enum": ["repository_fixture", "content_addressed_store", "reviewed_file"]},
         "locator": {"type": "string", "minLength": 1},
         "content_type": {"type": "string", "minLength": 1},
         "raw_response_sha256": {"$ref": "#/$defs/sha256"},
@@ -189,7 +221,11 @@
               }
             }
           },
-          "else": {"properties": {"locator": {"pattern": "^cas://sha256/[a-f0-9]{64}$"}}}
+          "else": {
+            "if": {"properties": {"store_kind": {"const": "reviewed_file"}}},
+            "then": {"properties": {"locator": {"pattern": "^reviewed://sha256/[a-f0-9]{64}$"}}},
+            "else": {"properties": {"locator": {"pattern": "^cas://sha256/[a-f0-9]{64}$"}}}
+          }
         }
       ]
     },

@@ -1,19 +1,19 @@
 {
   "name": "owner-equity-research",
-  "version": "0.5.0-dev.11",
-  "description": "Auditable research contracts with governed price-blind and market-execution policies",
+  "version": "0.6.0-dev.1",
+  "description": "Auditable owner research with a reviewed market-reference valuation path",
   "author": {
     "name": "mingjiconnect-ctrl",
     "url": "https://github.com/mingjiconnect-ctrl"
   },
-  "homepage": "https://github.com/mingjiconnect-ctrl/owner-equity-research",
-  "repository": "https://github.com/mingjiconnect-ctrl/owner-equity-research",
+  "homepage": "https://github.com/mingjiconnect-ctrl/owner-equity-research-public",
+  "repository": "https://github.com/mingjiconnect-ctrl/owner-equity-research-public",
   "keywords": ["equity-research", "evidence", "audit", "contracts"],
   "skills": "./skills/",
   "interface": {
     "displayName": "Owner Equity Research",
-    "shortDescription": "Auditable equity-research contracts and gates",
-    "longDescription": "Build source-linked SEC evidence packages, deterministic management and capital-allocation ledgers, governed business-quality evidence, and a validated ResearchBundle. Phase 5E-2B.1-2A defines internal contracts for canonical share-event evidence, exactly-once roll-forward lineage, coverage, claim transitions, and recursive closure; production integration and all market, request, kernel, reporting, and publishing surfaces remain unavailable.",
+    "shortDescription": "Auditable owner research and valuation preparation",
+    "longDescription": "Build source-linked SEC evidence, deterministic research ledgers, a price-blind valuation freeze, quote-date current common shares, and a reviewed-file market reference. Market data enters only after explicit valuation authorization; final kernel execution remains unavailable until the next vertical slice.",
     "developerName": "mingjiconnect-ctrl",
     "category": "Productivity",
     "capabilities": [],

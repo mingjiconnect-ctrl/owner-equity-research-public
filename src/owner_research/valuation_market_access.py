@@ -127,7 +127,10 @@ class MarketProviderQuery:
         date.fromisoformat(self.expected_trading_date)
         if self.quote_currency != self.reporting_currency:
             raise ValueError("market query currency must equal reporting currency")
-        if self.price_basis != "official_unadjusted_close" or self.session_kind != "regular":
+        if self.price_basis not in {
+            "official_unadjusted_close",
+            "reviewed_unadjusted_regular_session_close",
+        } or self.session_kind != "regular":
             raise ValueError("market query is outside the registered quote policy")
 
     def to_dict(self) -> dict[str, Any]:
@@ -175,7 +178,12 @@ class GovernedMarketQuoteReceipt:
             _sha256(getattr(self, name), name)
         if self.receipt.raw_response_sha256 != self.raw_response_sha256:
             raise ValueError("governed Receipt raw-response SHA mismatch")
-        if self.evidence_mode not in {"recorded_fixture", "loopback_fixture"}:
+        if self.evidence_mode not in {
+            "recorded_fixture",
+            "loopback_fixture",
+            "human_reviewed_file",
+            "governed_vendor",
+        }:
             raise ValueError("governed Receipt evidence mode is not registered")
 
     def to_dict(self) -> dict[str, Any]:
@@ -243,6 +251,55 @@ class MarketAccessResult:
                 or issues
             ):
                 raise ValueError("eligible market access lacks its exact governed Receipt")
+            request = self.request
+            governed = self.receipt
+            query = self.query
+            receipt = governed.receipt
+            request_query_pairs = (
+                (request.authorization_handoff_id, query.authorization_handoff_id),
+                (request.issuer_id, query.issuer_id),
+                (request.data_cutoff_date, query.data_cutoff_date),
+                (request.security_id, query.security_id),
+                (request.ticker, query.ticker),
+                (request.exchange, query.exchange),
+                (request.share_class, query.share_class),
+                (request.quote_currency, query.quote_currency),
+                (request.reporting_currency, query.reporting_currency),
+                (request.trading_calendar_id, query.trading_calendar_id),
+                (request.price_basis, query.price_basis),
+                (request.session_kind, query.session_kind),
+            )
+            request_receipt_pairs = (
+                (request.request_id, receipt.request_id),
+                (request.request_fingerprint, receipt.request_fingerprint),
+                (request.authorization_handoff_id, receipt.authorization_handoff_id),
+                (request.authorization_transitioned_at, receipt.authorization_transitioned_at),
+                (request.issuer_id, receipt.issuer_id),
+                (request.data_cutoff_date, receipt.data_cutoff_date),
+                (request.security_id, receipt.security_id),
+                (request.ticker, receipt.ticker),
+                (request.exchange, receipt.exchange),
+                (request.share_class, receipt.share_class),
+                (request.provider_id, receipt.provider_id),
+                (request.provider_version, receipt.provider_version),
+                (request.endpoint, receipt.endpoint),
+                (request.trading_calendar_id, receipt.trading_calendar_id),
+                (request.request_started_at, receipt.request_started_at),
+                (request.price_basis, receipt.price_basis),
+                (request.session_kind, receipt.session_kind),
+                (request.quote_currency, receipt.quote_currency),
+                (query.expected_trading_date, receipt.trading_date),
+            )
+            if (
+                any(left != right for left, right in request_query_pairs)
+                or any(left != right for left, right in request_receipt_pairs)
+                or request.provider_registration_sha256
+                != governed.provider_registration_sha256
+                or self.authorization_handoff_id != request.authorization_handoff_id
+                or self.issuer_id != request.issuer_id
+                or self.data_cutoff_date != request.data_cutoff_date
+            ):
+                raise ValueError("eligible market access Request and Receipt do not replay")
         elif self.status == "specialist_required":
             if (
                 self.provider_call_count

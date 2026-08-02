@@ -64,6 +64,10 @@ def resign_snapshot(
 ) -> MarketReferenceSnapshot:
     payload = snapshot.to_dict()
     payload.update(changes)
+    if "quote_price_decimal" in changes and "numeric_evidence" not in changes:
+        numeric = dict(payload["numeric_evidence"])
+        numeric["authoritative_decimal"] = changes["quote_price_decimal"]
+        payload["numeric_evidence"] = numeric
     payload["snapshot_fingerprint"] = _snapshot_fingerprint(payload)
     return MarketReferenceSnapshot(**payload)
 
@@ -336,13 +340,16 @@ def valid_snapshot_graph(sample_payloads, monkeypatch, tmp_path: Path):
         ),
     }
     payload = {
-        "schema_version": "3.0.0",
-        "snapshot_id": "market-reference:acme:2026-06-30:v3",
+        "schema_version": "4.0.0",
+        "snapshot_id": (
+            f"market-reference:issuer:acme:{receipt.trading_date}:"
+            f"{governed.raw_response_sha256[:20]}"
+        ),
         "issuer_id": "issuer:acme",
         "data_cutoff_date": access.data_cutoff_date,
         "status": "validated",
         "market_policy_id": "market-reference",
-        "market_policy_version": "3.0.0",
+        "market_policy_version": "4.0.0",
         "authorization_handoff_id": access.authorization_handoff_id,
         "authorization_handoff_fingerprint": freeze.handoffs[-1].fingerprint,
         "component_lock_sha256": freeze.artifact.to_dict()["component_lock_sha256"],
@@ -364,6 +371,7 @@ def valid_snapshot_graph(sample_payloads, monkeypatch, tmp_path: Path):
             "calendar_registry_sha256": governed.calendar_registry_sha256,
             "calendar_dataset_sha256": governed.calendar_dataset_sha256,
             "calendar_selection_fingerprint": governed.calendar_selection_fingerprint,
+            "provider_evidence_sha256": governed.fingerprint,
         },
         "security": {
             "security_id": security.decision.security_id,
@@ -379,8 +387,14 @@ def valid_snapshot_graph(sample_payloads, monkeypatch, tmp_path: Path):
         "quote_price_decimal": receipt.quote_price,
         "quote_unit": "currency_per_share",
         "quote_currency": receipt.quote_currency,
+        "source_authority_kind": "human_reviewed_file",
         "evidence_mode": governed.evidence_mode,
         "usage_scope": "test_only",
+        "numeric_evidence": {
+            "encoding": "canonical_decimal",
+            "authoritative_decimal": receipt.quote_price,
+            "binary64_hex": None,
+        },
         "raw_evidence": {
             "store_kind": "repository_fixture",
             "locator": RAW_LOCATOR,

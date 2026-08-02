@@ -118,7 +118,7 @@ def test_phase4a_audit_manifest_requires_machine_findings(tmp_path: Path) -> Non
 
 
 def test_ci_runs_current_audit_in_no_remote_readonly_clone() -> None:
-    workflow_path = ROOT / ".github" / "workflows" / "phase5e2b12a-acceptance-gate.yml"
+    workflow_path = ROOT / "legacy_governance" / "phase5e2b12a-acceptance-gate.yml"
     workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
     job = workflow["jobs"]["phase5e-readonly-audit"]
     text = workflow_path.read_text(encoding="utf-8")

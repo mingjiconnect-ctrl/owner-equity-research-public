@@ -2,6 +2,19 @@
 
 ## Phase boundary
 
+- Current product label: `Phase 5 v1 market-reference vertical slice`.
+- `docs/phase5-v1-status.json` is the current authority; the phase is `in_progress`, and only
+  `PR1 market-reference vertical slice` is authorized.
+- ADR 0041 retires the recursive G1-G5 and acceptance-only path from required governance.
+  `docs/phase-status.json` and the former recursive controller remain frozen as
+  `legacy_governance`; their closeouts are historical evidence, not current authorization.
+
+### Historical phase record
+
+The phase bullets below through Phase 5E-2B.1-2A record the authority and constraints that applied
+at each closeout. Present-tense wording inside this historical record has no current normative
+force; ADR 0041 and `docs/phase5-v1-status.json` supersede it.
+
 - Phase 1 is frozen at `v0.1.0-alpha.1`.
 - Phase 2 is frozen at `v0.2.0-alpha.1` / `feac934`.
 - Phase 3 is frozen at `v0.3.0-alpha.1` / `41dcb27`.
@@ -33,7 +46,7 @@
   modes, and acceptance gates. It adds no public Schema, production adapter, market access,
   valuation request/result, kernel invocation, Score, report, PDF, or Publisher.
 - Phase 5P is accepted and closed when its single PR is on `main` with passing main CI and exact-head
-  read-only audit `1.8.0`. Only Phase 5A contract work is then authorized.
+  read-only audit `1.8.0`. At that closeout, only Phase 5A contract work was authorized.
 - Phase 5A is accepted/closed when its single PR is on `main` with passing CI and exact-head
   read-only audit `1.9.0`. It contains four public contracts and validation-only ContractGraph
   gates, with no builder, market access, or kernel execution.
@@ -55,7 +68,7 @@
   assumption, request/result, kernel-execution, Score, report, PDF, or Publisher capability.
 - Phase 5C-0 is accepted/closed through the Phase 5C-0.1 governance closeout. PR #35, its merge,
   main CI, and the exact-head `2.1.0` audit are recorded in `docs/phase-status.json`; audit gate
-  `2.1.0.1` enforces P0-P3 all zero. Phase 5C-1 accounting reconciliation work is authorized.
+  `2.1.0.1` enforces P0-P3 all zero. Phase 5C-1 accounting reconciliation work was then authorized.
 - Phase 5C-1 may add only the internal `compile_accounting_reformulation` entrypoint. It must
   strictly reload the canonical Bundle pair, replay Phase 5B, classify registered accounting
   evidence, derive common equity/NOA/NFO/invested capital/owner distributions, and recompute the
@@ -72,17 +85,17 @@
   CI `29273390412`, and exact-head audit `2.1.4` with P0-P3 all zero.
 - Phase 5C-5 successor-readiness and replay closeout is accepted/closed through PR #42, merge
   `0ad92bb3206b...`, main CI `29274820514`, and exact-head audit `2.1.5` with P0-P3 all zero.
-  Phase 5C is accepted/closed. Only Phase 5D assumption governance and price-blind freeze work is
-  authorized. Phase 5E through Phase 5F and Phase 6 through Phase 9 remain prohibited until
-  separately authorized.
+  At that closeout, Phase 5C was accepted/closed; only Phase 5D assumption governance and
+  price-blind freeze work was authorized, while later phases remained prohibited pending separate
+  authorization.
 - Phase 5D-0 is accepted/closed through PR #44, merge `4814029d9c5a...`, main CI
   `29295736044`, and exact-head audit `2.2.0` with P0-P3 all zero. It adds only
   `ValuationAssumptionCandidate 2.0.0`, `ValuationHandoff 2.0.0`, the
   internal immutable `PriceBlindReferenceClosure`, closed slot/evidence/freeze policies, and
   validation-only ContractGraph gates. It must not add a Candidate compiler, AssumptionLedger
   compiler, market client, price-blind artifact writer, valuation request/result, kernel execution,
-  Score, report, PDF, or Publisher. Only Phase 5D-1 Candidate compilation is now authorized;
-  Phase 5D-2, Phase 5E through Phase 5F, and Phase 6 through Phase 9 remain prohibited.
+  Score, report, PDF, or Publisher. At that closeout, only Phase 5D-1 Candidate compilation was
+  authorized; later phases remained prohibited.
 - Phase 5D-1 is accepted/closed through implementation PR #46, acceptance PR #47, merge
   `7c13073aa70a...`, main CI `29297468611`, and exact-head audit `2.2.1` with P0-P3 all zero.
   It adds only the internal, keyword-only `compile_valuation_assumption_candidates`
@@ -154,16 +167,10 @@
   credential-partitioned gate; only candidate execution is secret-isolated,
   the gate introduction itself requires independent review and only subsequent closeout use is
   base-owned. It creates no
-  production Fact or compiler. This file is intentionally dual-state: before the validated
-  two-file closeout exists, only the 2A acceptance closeout is authorized and Phase 5E-2B.1-2B is
-  prohibited; after the base-owned gate validates that exact closeout, 2A is accepted/closed and
-  only `feature/phase5e2b12b-canonical-rollforward` may change the compiler, its dedicated test,
-  and machine state. The complete 2B verifier, trust snapshot, semantic oracle, and gate tests are
-  preinstalled and frozen by 2A; 2B may not install or modify its own judge. Phase 5E-2B.1-2C,
-  Phase 5E-2C through Phase 5E-2F, and every later phase remain explicitly prohibited.
-  This explicitly includes Phase 5E-3 and Phase 5F until their mapped gate is accepted. Phase 6
-  through Phase 9 require a separate reviewed control-plane authorization after Phase 5 and cannot
-  be manufactured by the Phase 5 recursive gate.
+  production Fact or compiler. The former two-file closeout, special branch, preinstalled judge,
+  and successor prohibitions are retained in `legacy_governance` only; they no longer authorize or
+  block current Phase 5 v1 work. Phase 6 through Phase 9 still require separate reviewed
+  authorization after Phase 5.
 - Phase 5D-2 may add only the internal, keyword-only `compile_reviewed_assumption_ledger`
   entrypoint and immutable review/result types. It must replay the exact Candidate compilation,
   derive Decision and reserved assumption IDs, accept only `human:<name>` reviewers, augment only
@@ -191,6 +198,9 @@
   verification, and Phase 5D acceptance governance. It may not add market access, a
   MarketReferenceSnapshot, valuation request/result construction, kernel execution, a public API,
   CLI, report, Publisher, or release tag.
+
+### Current repository constraints
+
 - Do not copy source code, prompts, personas, templates, or valuation logic from the legacy repository.
 - Treat `/Users/mingji/Documents/New project/institutional-value-investing-legacy` and `/Users/mingji/Documents/New project/owner-valuation-kernel` as read-only dependencies.
 
@@ -206,8 +216,23 @@
 ## Verification
 
 - Use Python 3.11 or newer.
-- Run `python scripts/verify_all.py` before committing.
-- CI must remain offline; live SEC access is limited to explicit shadow runs.
+- Run `python scripts/verify_phase5_v1.py --mode verify` for the current non-legacy suite.
+- The exact required contexts are `verify (3.11)`, `verify (3.12)`, `verify (3.13)`, and
+  `phase5/semantic-audit`. The Actions context runs deterministic candidate replay once at the
+  exact PR head and must not be represented as an independent review.
+- A separate fresh-context reviewer must bind the exact commit/tree, test counts, P0-P3 counts and
+  report SHA in PR evidence. Pull requests require P0 and P1 equal to zero in both gates. Release
+  candidates require P0, P1, P2, and P3 equal to zero. Merged `main` runs smoke and deterministic
+  replay.
+- Canonical audit summaries stay outside the repository and may be uploaded as CI artifacts. Do
+  not write new CI run IDs into product state.
+- CI may resolve dependencies before verification; candidate tests and audit execution must remain
+  netless. The only private dependency authority is the one-repository, read-only Kernel Reader
+  App in the `phase5e-private-kernel-readonly` environment: CI must revoke its installation token
+  and remove the kernel remote before candidate code runs. Only reviewed Phase 5 v1 branch
+  families may enter that environment, and adding a new write-capable collaborator requires a
+  security review. Controller and Gate Author credentials remain forbidden. Live SEC access is
+  limited to explicit shadow runs.
 - Phase 4E-2 requires P0, P1, P2, and P3 equal to zero. Its annotated release tag is
   `v0.4.0-alpha.1` and must point to the audited main merge commit.
 - Phase 5B is the accepted deterministic FactLedger-mapping and dual-method readiness boundary.
@@ -222,23 +247,16 @@
   is accepted/closed under audit `2.3.2.2.1`; Phase 5E-2B passed its original governance closeout
   under audit `2.3.2.3`, while Phase 5E-2B.1-0 is frozen under audit `2.3.2.3.1` and the
   Phase 5E-2B.1-1 production grouping is accepted/closed under audit `2.3.2.3.2`. Phase
-  5E-2B.1-2A uses the dual-state closeout rule above under audit `2.3.2.3.3`: before the validated
-  closeout only acceptance is authorized; afterward 2A is accepted/closed and only 2B is
-  authorized. Phase 5E-2C and later remain prohibited in both states. Every Phase
-  5D and Phase 5E audit gate requires P0, P1, P2, and P3 equal to zero.
+  5E-2B.1-2A used the now-retired dual-state closeout rule under audit `2.3.2.3.3`. Those P0-P3
+  closeout requirements remain historical evidence and do not replace the ADR 0041 thresholds.
 
-## Recursive Phase 5 successor authority
+## Phase 5 v1 vertical-slice authority
 
-- After legacy state S3, every remaining subsection advances through the protected-base recursive
-  cycle G1 (inert gate pending acceptance), G2 (gate accepted), G3 (successor pending acceptance),
-  G4 (successor accepted), and G5 (total closeout accepted and the exact next inert gate seeded).
-- `Phase 5E-2B.1-2C` is the current-share coverage/Claim-transition/recursive-closure subsection;
-  `Phase 5E-2C` is the later exact market-evidence phase. They are distinct names.
-- Dynamic audit profiles come from the deepest validated gate. Candidate oracle files remain inert
-  manifests and cannot replace the independent protected-base oracle.
-- The public canonical repository uses three pinned, single-repository GitHub Apps: Controller,
-  private-kernel Reader, and external Gate Author. App creation alone is not acceptance:
-  protected environments, exact branch protection, CI, and zero P0-P3 audit findings remain
-  mandatory before any acceptance-only PR or G1-G5 transition.
-
-Phase 5 current authority: S3 -> G1 -> G2 -> G3 -> G4 -> G5 -> external 2C-P; after feasibility a new protected gate is required; Phase 6-9 require separate reviewed control-plane authorization; Phase 5E-2B.1-2C != Phase 5E-2C.
+- Advance Phase 5 through complete, bounded vertical slices governed by ADR 0041 and
+  `docs/phase5-v1-status.json`.
+- The PR1 slice must keep market-reference evidence, current-share lineage, provider review, and
+  preparation behavior deterministic and fail closed; it still cannot invoke valuation
+  mathematics, scoring, reporting, or publishing unless separately authorized.
+- The old G1-G5 controller, acceptance-only branches, dynamic successor profiles, protected status
+  publication, and next-gate seeding are `legacy_governance`. The legacy workflow is manual only
+  and its checks must not be required by branch protection.
