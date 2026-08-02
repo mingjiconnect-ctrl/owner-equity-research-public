@@ -19,6 +19,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 STATUS_PATH = ROOT / "docs/phase5-v1-status.json"
 CI_WORKFLOW_PATH = ROOT / ".github/workflows/ci.yml"
+WORKFLOW_DIRECTORY = ROOT / ".github/workflows"
 LEGACY_WORKFLOW_PATH = ROOT / ".github/workflows/phase5e2b12a-acceptance-gate.yml"
 LEGACY_ARCHIVE_PATH = ROOT / "legacy_governance/phase5e2b12a-acceptance-gate.yml"
 LEGACY_ARCHIVE_SHA256 = "51d3e43dffb66b507fe6a1718cd85b1e21dfac77938cb44c6a4045afeb29cf08"
@@ -34,6 +35,14 @@ REQUIRED_CHECKS = [
 ]
 PRIORITIES = ("P0", "P1", "P2", "P3")
 VERIFY_JOB_CANONICAL_SHA256 = "2f1e67040b42d4706447b5a25ca5a169ddd2a43814accc24605dd31eb53538bc"
+CI_WORKFLOW_SHA256 = "c18a6e80ab5a21f13780003a4274385640b0846a49c34832dfa3d575b02f0a6d"
+ACTIVE_WORKFLOW_NAMES = {"ci.yml", "phase5e2b12a-acceptance-gate.yml"}
+ACTIVE_WORKFLOW_SHA256 = {
+    "ci.yml": CI_WORKFLOW_SHA256,
+    "phase5e2b12a-acceptance-gate.yml": (
+        "d9bbb3ad9ea6018efa4b7c3188afcb3c6c1e592c7dc258492495472638da1cb9"
+    ),
+}
 
 # These tests preserve the retired recursive/acceptance-only controller. They remain runnable from
 # the manual legacy workflow at the frozen legacy commit, but cannot enter a current required check.
@@ -230,6 +239,15 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
         steps = verify["steps"]
     except (KeyError, TypeError, yaml.YAMLError) as exc:
         return [Finding("P1", code, f"kernel-reader workflow shape is invalid: {exc}")]
+    if (
+        not isinstance(parsed, dict)
+        or set(parsed) != {"name", True, "permissions", "env", "concurrency", "jobs"}
+        or not isinstance(parsed.get("jobs"), dict)
+        or set(parsed["jobs"]) != {"verify", "semantic-audit"}
+        or "defaults" in parsed
+        or "environment" in parsed["jobs"].get("semantic-audit", {})
+    ):
+        return [Finding("P1", code, "active workflow or job boundary drifted")]
     verify_projection = json.dumps(
         verify,
         sort_keys=True,
@@ -331,18 +349,55 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
         return [Finding("P1", code, "candidate verification is not pinned and netless")]
     if any("continue-on-error" in step for step in steps):
         return [Finding("P1", code, "kernel-reader steps may not continue on error")]
-    secret_marker = "${{ secrets.PHASE5E_KERNEL_READER_PRIVATE_KEY }}"
     token_marker = "${{ steps.kernel-reader-token.outputs.token }}"
     scalar_paths = _scalar_paths(parsed)
-    secret_paths = {path for path, item in scalar_paths if secret_marker in item}
+    secret_paths = {
+        path
+        for path, item in scalar_paths
+        if re.search(r"\bsecrets\s*(?:\.|\[)", item)
+    }
+    variable_paths = {
+        path
+        for path, item in scalar_paths
+        if re.search(r"\bvars\s*(?:\.|\[)", item)
+    }
     token_paths = {path for path, item in scalar_paths if token_marker in item}
     if secret_paths != {("jobs", "verify", "steps", 1, "with", "private-key")}:
-        return [Finding("P1", code, "kernel-reader private key escaped its token action")]
+        return [Finding("P1", code, "an Actions secret escaped the exact token input")]
+    if variable_paths != {("jobs", "verify", "steps", 1, "with", "app-id")}:
+        return [Finding("P1", code, "an Actions variable escaped the exact token input")]
     if token_paths != {
         ("jobs", "verify", "steps", 2, "with", "token"),
         ("jobs", "verify", "steps", 4, "env", "GH_TOKEN"),
     }:
         return [Finding("P1", code, "kernel-reader token escaped checkout or revocation")]
+    return []
+
+
+def _active_workflow_findings(workflow_directory: Path = WORKFLOW_DIRECTORY) -> list[Finding]:
+    names = {
+        path.name
+        for path in workflow_directory.iterdir()
+        if path.is_file() and path.suffix in {".yml", ".yaml"}
+    }
+    if names != ACTIVE_WORKFLOW_NAMES:
+        return [
+            Finding(
+                "P1",
+                "P5V1-WORKFLOW-INVENTORY",
+                f"active workflow inventory drifted: {sorted(names)}",
+            )
+        ]
+    for name, expected_sha256 in ACTIVE_WORKFLOW_SHA256.items():
+        actual = hashlib.sha256((workflow_directory / name).read_bytes()).hexdigest()
+        if actual != expected_sha256:
+            return [
+                Finding(
+                    "P1",
+                    "P5V1-WORKFLOW-PROJECTION",
+                    f"active workflow bytes drifted: {name}",
+                )
+            ]
     return []
 
 
@@ -499,6 +554,11 @@ def _governance_findings(expected_commit: str | None) -> list[Finding]:
         )
 
     ci_text = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
+    if hashlib.sha256(ci_text.encode("utf-8")).hexdigest() != CI_WORKFLOW_SHA256:
+        findings.append(
+            Finding("P1", "P5V1-CI-PROJECTION", "active CI workflow bytes drifted")
+        )
+    findings.extend(_active_workflow_findings())
     ci_events = _workflow_events(CI_WORKFLOW_PATH)
     expected_ci_triggers = (
         "  pull_request:",

@@ -78,8 +78,9 @@ while merged `main` needs a fast smoke and deterministic replay rather than a se
     the checkout persists no credential, its remote is removed, and the installation token is
     revoked before project installation or candidate code executes. The test process then runs
     without network access. Its key and ID remain in the `phase5e-private-kernel-readonly`
-    environment, whose deployment policy admits only `main` and the reviewed Phase 5 v1 branch
-    families. No Controller or Gate Author credential is part of current CI.
+    environment, whose deployment policy admits only `main`, `refs/pull/*/merge`, the reviewed
+    Phase 5 v1 branch families, and `v*-rc*` tags. Fork pull requests still receive no secret. No
+    Controller or Gate Author credential is part of current CI.
 14. This public repository currently has exactly one write-capable collaborator, the owner. A
     same-repository writer can change an Actions workflow and therefore already belongs to the
     Kernel Reader secret trust boundary; the static verifier closes the token step, checkout,
