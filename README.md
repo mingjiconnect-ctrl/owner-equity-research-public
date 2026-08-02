@@ -278,9 +278,11 @@ python scripts/verify_component_lock.py \
   --require-clean --require-pinned-head
 ```
 
-Current pull-request CI receives no private-kernel credential; after dependency installation, its
-verification runs without network access. It uploads only canonical, credential-free verification
-summaries. The former protected-base Controller, external Gate Author, Kernel Reader, recursive
-status publication, and merged-main acceptance audit remain frozen under `legacy_governance` and
-do not publish current acceptance. Phase 6 through Phase 9 still require a separate reviewed
+Current pull-request CI uses only the dedicated Kernel Reader App to check out the exact private
+rc.2 source. That installation token is read-only, scoped to one repository, revoked before
+candidate code runs, and never persisted in the checkout; verification then runs without network
+access. CI uploads only canonical, credential-free verification summaries. The former
+protected-base Controller, external Gate Author, recursive status publication, and merged-main
+acceptance audit remain frozen under `legacy_governance`; the narrowly scoped Kernel Reader is the
+only retained App authority. Phase 6 through Phase 9 still require a separate reviewed
 authorization after Phase 5.

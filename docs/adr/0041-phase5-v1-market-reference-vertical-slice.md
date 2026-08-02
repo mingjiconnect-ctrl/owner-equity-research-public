@@ -73,6 +73,11 @@ while merged `main` needs a fast smoke and deterministic replay rather than a se
     V2 authority merely by sharing infrastructure. A partial or drifted receipt inside the
     reserved namespace fails closed; the exact V2 ledger consumes only the registered version and
     endpoint set. Historical policy identities remain reproducible at their original commits.
+13. The three verify jobs may use only the dedicated Kernel Reader GitHub App to obtain the exact
+    private rc.2 checkout. The App is restricted to contents/metadata read on that one repository;
+    the checkout persists no credential, its remote is removed, and the installation token is
+    revoked before project installation or candidate code executes. The test process then runs
+    without network access. No Controller or Gate Author credential is part of current CI.
 
 ## Consequences
 

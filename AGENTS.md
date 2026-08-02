@@ -227,7 +227,10 @@ force; ADR 0041 and `docs/phase5-v1-status.json` supersede it.
 - Canonical audit summaries stay outside the repository and may be uploaded as CI artifacts. Do
   not write new CI run IDs into product state.
 - CI may resolve dependencies before verification; candidate tests and audit execution must remain
-  netless. Live SEC access is limited to explicit shadow runs.
+  netless. The only private dependency authority is the one-repository, read-only Kernel Reader
+  App: CI must revoke its installation token and remove the kernel remote before candidate code
+  runs. Controller and Gate Author credentials remain forbidden. Live SEC access is limited to
+  explicit shadow runs.
 - Phase 4E-2 requires P0, P1, P2, and P3 equal to zero. Its annotated release tag is
   `v0.4.0-alpha.1` and must point to the audited main merge commit.
 - Phase 5B is the accepted deterministic FactLedger-mapping and dual-method readiness boundary.

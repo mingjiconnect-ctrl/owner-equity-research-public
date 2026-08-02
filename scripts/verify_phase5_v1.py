@@ -177,10 +177,8 @@ def _top_level_blocks(text: str, key: str) -> list[tuple[str, ...]]:
 
 def _has_credential_or_write_surface(text: str) -> bool:
     forbidden_markers = (
-        "secrets.",
         "github.token",
         "GITHUB_TOKEN",
-        "actions/create-github-app-token",
         "id-token:",
     )
     return any(marker in text for marker in forbidden_markers) or bool(
@@ -376,7 +374,7 @@ def _governance_findings(expected_commit: str | None) -> list[Finding]:
     if (
         _top_level_blocks(ci_text, "permissions") != [("  contents: read",)]
         or ci_text.count("permissions:") != 1
-        or ci_text.count("persist-credentials: false") != 2
+        or ci_text.count("persist-credentials: false") != 3
         or _has_credential_or_write_surface(ci_text)
     ):
         findings.append(
@@ -384,6 +382,35 @@ def _governance_findings(expected_commit: str | None) -> list[Finding]:
                 "P1",
                 "P5V1-CI-CREDENTIAL-SURFACE",
                 "current CI gained a credential or write-permission surface",
+            )
+        )
+    allowed_secret_references = re.findall(
+        r"\$\{\{\s*secrets\.([A-Z0-9_]+)\s*\}\}",
+        ci_text,
+    )
+    kernel_reader_requirements = (
+        ci_text.count("actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1")
+        == 1,
+        allowed_secret_references == ["PHASE5E_KERNEL_READER_PRIVATE_KEY"],
+        ci_text.count("${{ vars.PHASE5E_KERNEL_READER_APP_ID }}") == 1,
+        ci_text.count("repository: mingjiconnect-ctrl/owner-valuation-kernel") == 1,
+        ci_text.count("repositories: owner-valuation-kernel") == 1,
+        ci_text.count("permission-contents: read") == 1,
+        ci_text.count("permission-metadata: read") == 1,
+        ci_text.count("skip-token-revoke: true") == 1,
+        "gh api --method DELETE /installation/token" in ci_text,
+        "OWNER_VALUATION_REPO: ${{ github.workspace }}/_kernel_source" in ci_text,
+        'env OWNER_VALUATION_REPO="$OWNER_VALUATION_REPO"' in ci_text,
+        "KERNEL_COMMIT: be9b0773d5a78f5f8a33ba982494512668df85fe" in ci_text,
+        "KERNEL_TAG: v2.0.0-rc.2" in ci_text,
+        "KERNEL_TAG_OBJECT: 4e19ce6a59bc4321ebcd368e807ed764f4e8abde" in ci_text,
+    )
+    if not all(kernel_reader_requirements):
+        findings.append(
+            Finding(
+                "P1",
+                "P5V1-KERNEL-READER-CI",
+                "verify jobs do not use the exact scoped, revoked private-kernel reader",
             )
         )
     for check in REQUIRED_CHECKS:
