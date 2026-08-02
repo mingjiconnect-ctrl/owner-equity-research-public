@@ -14,6 +14,8 @@ from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[1]
 STATUS_PATH = ROOT / "docs/phase5-v1-status.json"
 CI_WORKFLOW_PATH = ROOT / ".github/workflows/ci.yml"
@@ -31,6 +33,7 @@ REQUIRED_CHECKS = [
     "phase5/semantic-audit",
 ]
 PRIORITIES = ("P0", "P1", "P2", "P3")
+VERIFY_JOB_CANONICAL_SHA256 = "2f1e67040b42d4706447b5a25ca5a169ddd2a43814accc24605dd31eb53538bc"
 
 # These tests preserve the retired recursive/acceptance-only controller. They remain runnable from
 # the manual legacy workflow at the frozen legacy commit, but cannot enter a current required check.
@@ -200,6 +203,147 @@ def _contains_ci_run_id(value: object) -> bool:
     elif isinstance(value, list):
         return any(_contains_ci_run_id(item) for item in value)
     return False
+
+
+def _scalar_paths(
+    value: object,
+    *,
+    path: tuple[object, ...] = (),
+) -> list[tuple[tuple[object, ...], str]]:
+    found: list[tuple[tuple[object, ...], str]] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            found.extend(_scalar_paths(item, path=(*path, key)))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            found.extend(_scalar_paths(item, path=(*path, index)))
+    elif isinstance(value, str):
+        found.append((path, value))
+    return found
+
+
+def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
+    code = "P5V1-KERNEL-READER-CI"
+    try:
+        parsed = yaml.safe_load(ci_text)
+        verify = parsed["jobs"]["verify"]
+        steps = verify["steps"]
+    except (KeyError, TypeError, yaml.YAMLError) as exc:
+        return [Finding("P1", code, f"kernel-reader workflow shape is invalid: {exc}")]
+    verify_projection = json.dumps(
+        verify,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    if hashlib.sha256(verify_projection).hexdigest() != VERIFY_JOB_CANONICAL_SHA256:
+        return [Finding("P1", code, "kernel-reader verify job is not the exact closed projection")]
+    expected_step_names = [
+        "Check out the exact current candidate",
+        "Mint the scoped private-kernel reader token",
+        "Check out the exact private-kernel source without persisted credentials",
+        "Verify the pinned kernel and remove its remote",
+        "Revoke the private-kernel reader token before candidate code runs",
+        "Set up Python",
+        "Install current project and verification dependencies",
+        "Run the non-legacy suite without network access",
+        "Upload the canonical verification summary",
+    ]
+    if (
+        not isinstance(verify, dict)
+        or verify.get("environment") != "phase5e-private-kernel-readonly"
+        or "env" in verify
+        or not isinstance(steps, list)
+        or [step.get("name") for step in steps if isinstance(step, dict)]
+        != expected_step_names
+        or any(not isinstance(step, dict) for step in steps)
+    ):
+        return [Finding("P1", code, "kernel-reader job boundary or step order drifted")]
+    workflow_env = parsed.get("env")
+    if workflow_env != {
+        "KERNEL_COMMIT": "be9b0773d5a78f5f8a33ba982494512668df85fe",
+        "KERNEL_TAG": "v2.0.0-rc.2",
+        "KERNEL_TAG_OBJECT": "4e19ce6a59bc4321ebcd368e807ed764f4e8abde",
+    }:
+        return [Finding("P1", code, "kernel identity environment drifted")]
+    token_step = steps[1]
+    kernel_checkout = steps[2]
+    verify_kernel = steps[3]
+    revoke = steps[4]
+    run_tests = steps[7]
+    if set(token_step) != {"name", "id", "uses", "with"} or token_step != {
+        "name": expected_step_names[1],
+        "id": "kernel-reader-token",
+        "uses": "actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1",
+        "with": {
+            "app-id": "${{ vars.PHASE5E_KERNEL_READER_APP_ID }}",
+            "private-key": "${{ secrets.PHASE5E_KERNEL_READER_PRIVATE_KEY }}",
+            "owner": "mingjiconnect-ctrl",
+            "repositories": "owner-valuation-kernel",
+            "permission-contents": "read",
+            "permission-metadata": "read",
+            "skip-token-revoke": True,
+        },
+    }:
+        return [Finding("P1", code, "kernel-reader token step is not the closed projection")]
+    if set(kernel_checkout) != {"name", "uses", "with"} or kernel_checkout != {
+        "name": expected_step_names[2],
+        "uses": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+        "with": {
+            "repository": "mingjiconnect-ctrl/owner-valuation-kernel",
+            "ref": "${{ env.KERNEL_COMMIT }}",
+            "fetch-depth": 0,
+            "path": "_kernel_source",
+            "token": "${{ steps.kernel-reader-token.outputs.token }}",
+            "persist-credentials": False,
+            "submodules": False,
+            "lfs": False,
+        },
+    }:
+        return [Finding("P1", code, "private-kernel checkout is not the closed projection")]
+    verify_run = verify_kernel.get("run") if isinstance(verify_kernel, dict) else None
+    if (
+        set(verify_kernel) != {"name", "shell", "run"}
+        or verify_kernel.get("shell") != "bash"
+        or not isinstance(verify_run, str)
+        or "git -C _kernel_source remote remove origin" not in verify_run
+        or 'test -z "$(git -C _kernel_source remote)"' not in verify_run
+        or "rev-parse \"$KERNEL_TAG^{}\"" not in verify_run
+    ):
+        return [Finding("P1", code, "kernel identity or remote-removal step drifted")]
+    if revoke != {
+        "name": expected_step_names[4],
+        "if": "always() && steps.kernel-reader-token.outputs.token != ''",
+        "env": {"GH_TOKEN": "${{ steps.kernel-reader-token.outputs.token }}"},
+        "run": "gh api --method DELETE /installation/token",
+    }:
+        return [Finding("P1", code, "kernel-reader revocation step is not fail-closed")]
+    test_run = run_tests.get("run") if isinstance(run_tests, dict) else None
+    if (
+        set(run_tests) != {"name", "shell", "env", "run"}
+        or run_tests.get("shell") != "bash"
+        or run_tests.get("env")
+        != {"OWNER_VALUATION_REPO": "${{ github.workspace }}/_kernel_source"}
+        or not isinstance(test_run, str)
+        or "sudo unshare --net --" not in test_run
+        or 'env OWNER_VALUATION_REPO="$OWNER_VALUATION_REPO"' not in test_run
+    ):
+        return [Finding("P1", code, "candidate verification is not pinned and netless")]
+    if any("continue-on-error" in step for step in steps):
+        return [Finding("P1", code, "kernel-reader steps may not continue on error")]
+    secret_marker = "${{ secrets.PHASE5E_KERNEL_READER_PRIVATE_KEY }}"
+    token_marker = "${{ steps.kernel-reader-token.outputs.token }}"
+    scalar_paths = _scalar_paths(parsed)
+    secret_paths = {path for path, item in scalar_paths if secret_marker in item}
+    token_paths = {path for path, item in scalar_paths if token_marker in item}
+    if secret_paths != {("jobs", "verify", "steps", 1, "with", "private-key")}:
+        return [Finding("P1", code, "kernel-reader private key escaped its token action")]
+    if token_paths != {
+        ("jobs", "verify", "steps", 2, "with", "token"),
+        ("jobs", "verify", "steps", 4, "env", "GH_TOKEN"),
+    }:
+        return [Finding("P1", code, "kernel-reader token escaped checkout or revocation")]
+    return []
 
 
 def _has_exact_keys(value: object, expected: set[str]) -> bool:
@@ -384,35 +528,7 @@ def _governance_findings(expected_commit: str | None) -> list[Finding]:
                 "current CI gained a credential or write-permission surface",
             )
         )
-    allowed_secret_references = re.findall(
-        r"\$\{\{\s*secrets\.([A-Z0-9_]+)\s*\}\}",
-        ci_text,
-    )
-    kernel_reader_requirements = (
-        ci_text.count("actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1")
-        == 1,
-        allowed_secret_references == ["PHASE5E_KERNEL_READER_PRIVATE_KEY"],
-        ci_text.count("${{ vars.PHASE5E_KERNEL_READER_APP_ID }}") == 1,
-        ci_text.count("repository: mingjiconnect-ctrl/owner-valuation-kernel") == 1,
-        ci_text.count("repositories: owner-valuation-kernel") == 1,
-        ci_text.count("permission-contents: read") == 1,
-        ci_text.count("permission-metadata: read") == 1,
-        ci_text.count("skip-token-revoke: true") == 1,
-        "gh api --method DELETE /installation/token" in ci_text,
-        "OWNER_VALUATION_REPO: ${{ github.workspace }}/_kernel_source" in ci_text,
-        'env OWNER_VALUATION_REPO="$OWNER_VALUATION_REPO"' in ci_text,
-        "KERNEL_COMMIT: be9b0773d5a78f5f8a33ba982494512668df85fe" in ci_text,
-        "KERNEL_TAG: v2.0.0-rc.2" in ci_text,
-        "KERNEL_TAG_OBJECT: 4e19ce6a59bc4321ebcd368e807ed764f4e8abde" in ci_text,
-    )
-    if not all(kernel_reader_requirements):
-        findings.append(
-            Finding(
-                "P1",
-                "P5V1-KERNEL-READER-CI",
-                "verify jobs do not use the exact scoped, revoked private-kernel reader",
-            )
-        )
+    findings.extend(_kernel_reader_ci_findings(ci_text))
     for check in REQUIRED_CHECKS:
         if f"name: {check}" not in ci_text and check not in {
             "verify (3.11)",

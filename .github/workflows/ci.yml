@@ -24,6 +24,7 @@ jobs:
   verify:
     name: verify (${{ matrix.python-version }})
     runs-on: ubuntu-24.04
+    environment: phase5e-private-kernel-readonly
     timeout-minutes: 30
     strategy:
       fail-fast: false

@@ -77,7 +77,15 @@ while merged `main` needs a fast smoke and deterministic replay rather than a se
     private rc.2 checkout. The App is restricted to contents/metadata read on that one repository;
     the checkout persists no credential, its remote is removed, and the installation token is
     revoked before project installation or candidate code executes. The test process then runs
-    without network access. No Controller or Gate Author credential is part of current CI.
+    without network access. Its key and ID remain in the `phase5e-private-kernel-readonly`
+    environment, whose deployment policy admits only `main` and the reviewed Phase 5 v1 branch
+    families. No Controller or Gate Author credential is part of current CI.
+14. This public repository currently has exactly one write-capable collaborator, the owner. A
+    same-repository writer can change an Actions workflow and therefore already belongs to the
+    Kernel Reader secret trust boundary; the static verifier closes the token step, checkout,
+    revocation order and scalar-use paths, while the separate fresh-context review checks the exact
+    head. Fork pull requests receive no environment secret and fail closed. Adding another writer
+    requires a new security review before that writer may use a Phase 5 v1 deployment branch.
 
 ## Consequences
 
