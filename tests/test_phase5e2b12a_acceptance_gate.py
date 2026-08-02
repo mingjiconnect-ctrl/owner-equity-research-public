@@ -501,6 +501,100 @@ def _successor_event_trust_scope_recovery_repository(
     return repository, _git(repository, "rev-parse", "HEAD"), predecessor
 
 
+def _successor_event_trigger_evidence_recovery_repository(
+    tmp_path: Path,
+) -> tuple[Path, str, str]:
+    repository = tmp_path / "successor-event-trigger-evidence-recovery"
+    repository.mkdir()
+    subprocess.run(["git", "-C", str(repository), "init", "-b", "main"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repository), "config", "user.email", "audit@example.com"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repository), "config", "user.name", "Audit Fixture"],
+        check=True,
+    )
+    for path, content in {
+        "docs/phase-status.json": json.dumps(
+            {"status": "accepted_closed"},
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        "scripts/phase5e2b12a-acceptance-trust.json": "trust-v1\n",
+        "scripts/verify_phase5e2b12a_acceptance_gate.py": "controller-v1\n",
+        "tests/test_phase5e2b12a_acceptance_gate.py": "controller-tests-v1\n",
+    }.items():
+        target = repository / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+    predecessor = _commit(repository, "finalized trust-scope recovery")
+    subprocess.run(
+        ["git", "-C", str(repository), "checkout", "-b", "trigger-recovery"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    authority = {
+        "finalized_predecessor_commit": predecessor,
+        "reason_code": "live-pull-request-trigger-evidence-was-mutable",
+        "recovery_id": "phase5e-successor-event-trigger-evidence-finalization-v1",
+        "schema_version": "1.0.0",
+    }
+    authority_path = (
+        repository / acceptance_gate.SUCCESSOR_EVENT_TRIGGER_EVIDENCE_RECOVERY_AUTHORITY_PATH
+    )
+    authority_path.write_text(
+        json.dumps(authority, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    for path in (
+        "scripts/phase5e2b12a-acceptance-trust.json",
+        "scripts/verify_phase5e2b12a_acceptance_gate.py",
+        "tests/test_phase5e2b12a_acceptance_gate.py",
+    ):
+        target = repository / path
+        target.write_text(target.read_text(encoding="utf-8") + "recovery\n", encoding="utf-8")
+    bootstrap = _commit(repository, "bootstrap trigger-evidence finalization")
+    seal_path = repository / acceptance_gate.SUCCESSOR_EVENT_TRIGGER_EVIDENCE_RECOVERY_SEAL_PATH
+    seal_path.write_text(
+        json.dumps(
+            {
+                "authority_sha256": hashlib.sha256(authority_path.read_bytes()).hexdigest(),
+                "bootstrap_commit": bootstrap,
+                "reason_code": "sealed-one-time-successor-event-trigger-evidence-finalization",
+                "recovery_id": "phase5e-successor-event-trigger-evidence-finalization-v1",
+                "schema_version": "1.0.0",
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    _commit(repository, "seal trigger-evidence finalization")
+    subprocess.run(
+        ["git", "-C", str(repository), "checkout", "main"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repository),
+            "merge",
+            "--no-ff",
+            "trigger-recovery",
+            "-m",
+            "merge trigger-evidence finalization",
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    return repository, _git(repository, "rev-parse", "HEAD"), predecessor
+
+
 def _protected_test_overlay_recovery_repository(
     tmp_path: Path,
 ) -> tuple[Path, str, str]:
@@ -2390,6 +2484,28 @@ def test_sealed_base_audit_recovery_has_exact_two_commit_topology(
     assert _git(trust_repository, "rev-parse", f"{trust_base}^2^") == (
         trust_context["bootstrap_commit"]
     )
+    trigger_repository, trigger_base, trigger_predecessor = (
+        _successor_event_trigger_evidence_recovery_repository(tmp_path)
+    )
+    monkeypatch.setattr(
+        acceptance_gate,
+        "SUCCESSOR_EVENT_TRIGGER_EVIDENCE_RECOVERY_PREDECESSOR",
+        trigger_predecessor,
+    )
+    trigger_context = acceptance_gate._successor_event_trigger_evidence_recovery_context(
+        trigger_repository,
+        trigger_base,
+    )
+    assert trigger_context is not None
+    assert trigger_context["topology"] == "merged"
+    assert _git(trigger_repository, "rev-parse", f"{trigger_base}^2^") == (
+        trigger_context["bootstrap_commit"]
+    )
+    trust_remote_source = inspect.getsource(
+        acceptance_gate._verify_successor_event_trust_scope_recovery
+    )
+    assert "/pulls/{authority['triggering_pull_request']}" not in trust_remote_source
+    assert 'triggering_run.get("pull_requests")' in trust_remote_source
     monkeypatch.setattr(
         acceptance_gate,
         "STATIC_CONTROL_FILES",
@@ -2449,6 +2565,11 @@ def test_base_finalization_uses_only_validated_recovery_fallback(
     monkeypatch.setattr(acceptance_gate, "_api_paginated_items", lambda *args, **kwargs: [])
     monkeypatch.setattr(
         acceptance_gate,
+        "_verify_successor_event_trigger_evidence_recovery",
+        lambda **kwargs: calls.append("trigger:" + str(kwargs["base"])) or False,
+    )
+    monkeypatch.setattr(
+        acceptance_gate,
         "_verify_successor_event_trust_scope_recovery",
         lambda **kwargs: calls.append("trust-scope:" + str(kwargs["base"])) or False,
     )
@@ -2500,6 +2621,7 @@ def test_base_finalization_uses_only_validated_recovery_fallback(
         controller_app_id=98765,
     )
     assert calls == [
+        "trigger:" + "d" * 40,
         "trust-scope:" + "d" * 40,
         "transport:" + "d" * 40,
         "semantic:" + "d" * 40,

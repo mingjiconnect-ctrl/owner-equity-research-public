@@ -1,0 +1,6 @@
+{
+  "finalized_predecessor_commit": "0c25c56dd4b952c213288536fc57689f020d2e2a",
+  "reason_code": "live-pull-request-trigger-evidence-was-mutable",
+  "recovery_id": "phase5e-successor-event-trigger-evidence-finalization-v1",
+  "schema_version": "1.0.0"
+}
