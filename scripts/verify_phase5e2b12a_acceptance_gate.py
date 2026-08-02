@@ -547,6 +547,8 @@ REQUIRED_AUDITED_PATHS = frozenset(
         "scripts/phase5e-successor-gate-bundle.schema.json",
         "scripts/phase5e-successor-event-transport-recovery-seal-v1.json",
         "scripts/phase5e-successor-event-transport-recovery-v1.json",
+        "scripts/phase5e-successor-event-run-identity-recovery-seal-v1.json",
+        "scripts/phase5e-successor-event-run-identity-recovery-v1.json",
         "scripts/phase5e-successor-event-trigger-evidence-recovery-seal-v1.json",
         "scripts/phase5e-successor-event-trigger-evidence-recovery-v1.json",
         "scripts/phase5e-successor-event-trust-scope-recovery-seal-v1.json",
@@ -706,6 +708,24 @@ SUCCESSOR_EVENT_TRIGGER_EVIDENCE_RECOVERY_PREDECESSOR = (
 )
 SUCCESSOR_EVENT_TRIGGER_EVIDENCE_RECOVERY_BOOTSTRAP_PATHS = {
     SUCCESSOR_EVENT_TRIGGER_EVIDENCE_RECOVERY_AUTHORITY_PATH: "A",
+    "scripts/phase5e2b12a-acceptance-trust.json": "M",
+    "scripts/verify_phase5e2b12a_acceptance_gate.py": "M",
+    "tests/test_phase5e2b12a_acceptance_gate.py": "M",
+}
+SUCCESSOR_EVENT_RUN_IDENTITY_RECOVERY_AUTHORITY_PATH = (
+    "scripts/phase5e-successor-event-run-identity-recovery-v1.json"
+)
+SUCCESSOR_EVENT_RUN_IDENTITY_RECOVERY_SEAL_PATH = (
+    "scripts/phase5e-successor-event-run-identity-recovery-seal-v1.json"
+)
+SUCCESSOR_EVENT_RUN_IDENTITY_RECOVERY_BRANCH = (
+    "fix/phase5e-successor-event-run-identity-finalization-v1"
+)
+SUCCESSOR_EVENT_RUN_IDENTITY_RECOVERY_PREDECESSOR = (
+    "20632317a43eecb6cc4db2fff4071743e62bc1a7"
+)
+SUCCESSOR_EVENT_RUN_IDENTITY_RECOVERY_BOOTSTRAP_PATHS = {
+    SUCCESSOR_EVENT_RUN_IDENTITY_RECOVERY_AUTHORITY_PATH: "A",
     "scripts/phase5e2b12a-acceptance-trust.json": "M",
     "scripts/verify_phase5e2b12a_acceptance_gate.py": "M",
     "tests/test_phase5e2b12a_acceptance_gate.py": "M",
@@ -3985,6 +4005,122 @@ def _successor_event_trigger_evidence_recovery_context(
     }
 
 
+def _successor_event_run_identity_recovery_context(
+    repository: Path,
+    base: str,
+) -> dict[str, Any] | None:
+    """Validate the sealed immutable completed-run identity correction."""
+
+    if not _path_exists(
+        repository,
+        base,
+        SUCCESSOR_EVENT_RUN_IDENTITY_RECOVERY_SEAL_PATH,
+    ):
+        return None
+    seal = _read_json(repository, base, SUCCESSOR_EVENT_RUN_IDENTITY_RECOVERY_SEAL_PATH)
+    if (
+        set(seal)
+        != {
+            "authority_sha256",
+            "bootstrap_commit",
+            "reason_code",
+            "recovery_id",
+            "schema_version",
+        }
+        or seal.get("schema_version") != "1.0.0"
+        or seal.get("recovery_id")
+        != "phase5e-successor-event-run-identity-finalization-v1"
+        or seal.get("reason_code")
+        != "sealed-one-time-successor-event-run-identity-finalization"
+        or not _git_oid(seal.get("bootstrap_commit"))
+        or not _sha256(seal.get("authority_sha256"))
+    ):
+        raise SystemExit("successor-event run-identity recovery seal is malformed")
+    authority = _read_json(
+        repository,
+        base,
+        SUCCESSOR_EVENT_RUN_IDENTITY_RECOVERY_AUTHORITY_PATH,
+    )
+    if (
+        set(authority)
+        != {
+            "finalized_predecessor_commit",
+            "reason_code",
+            "recovery_id",
+            "schema_version",
+        }
+        or authority.get("schema_version") != "1.0.0"
+        or authority.get("recovery_id") != seal["recovery_id"]
+        or authority.get("reason_code")
+        != "completed-run-pull-request-association-was-mutable"
+        or authority.get("finalized_predecessor_commit")
+        != SUCCESSOR_EVENT_RUN_IDENTITY_RECOVERY_PREDECESSOR
+    ):
+        raise SystemExit("successor-event run-identity recovery authority is malformed")
+    bootstrap = str(seal["bootstrap_commit"])
+    authority_raw = _git(
+        repository,
+        "show",
+        f"{bootstrap}:{SUCCESSOR_EVENT_RUN_IDENTITY_RECOVERY_AUTHORITY_PATH}",
+        text=False,
+    )
+    if (
+        not isinstance(authority_raw, bytes)
+        or hashlib.sha256(authority_raw).hexdigest() != seal["authority_sha256"]
+        or _read_json(
+            repository,
+            bootstrap,
+            SUCCESSOR_EVENT_RUN_IDENTITY_RECOVERY_AUTHORITY_PATH,
+        )
+        != authority
+    ):
+        raise SystemExit("successor-event run-identity recovery authority hash drifted")
+    predecessor = str(authority["finalized_predecessor_commit"])
+    base_parents = _commit_parents(repository, base)
+    if len(base_parents) == 1:
+        branch_head = base
+        if base_parents != (bootstrap,):
+            raise SystemExit("successor-event run-identity candidate topology drifted")
+    elif len(base_parents) == 2:
+        branch_head = base_parents[1]
+        if (
+            base_parents[0] != predecessor
+            or _tree(repository, base) != _tree(repository, branch_head)
+            or _commit_parents(repository, branch_head) != (bootstrap,)
+        ):
+            raise SystemExit("successor-event run-identity merged topology drifted")
+    else:
+        raise SystemExit("successor-event run-identity topology drifted")
+    if _commit_parents(repository, bootstrap) != (predecessor,):
+        raise SystemExit("successor-event run-identity bootstrap topology drifted")
+    bootstrap_entries = {
+        path: status for status, path in _diff_entries(repository, predecessor, bootstrap)
+    }
+    seal_entries = {
+        path: status for status, path in _diff_entries(repository, bootstrap, branch_head)
+    }
+    if (
+        bootstrap_entries != SUCCESSOR_EVENT_RUN_IDENTITY_RECOVERY_BOOTSTRAP_PATHS
+        or seal_entries != {SUCCESSOR_EVENT_RUN_IDENTITY_RECOVERY_SEAL_PATH: "A"}
+        or _read_json(repository, predecessor, STATUS_PATH)
+        != _read_json(repository, base, STATUS_PATH)
+    ):
+        raise SystemExit(
+            "successor-event run-identity recovery changed unauthorized bytes or phase state"
+        )
+    for commit, entries in ((bootstrap, bootstrap_entries), (branch_head, seal_entries)):
+        if any(_mode(repository, commit, path) != "100644" for path in entries):
+            raise SystemExit(
+                "successor-event run-identity recovery contains a non-regular control file"
+            )
+    return {
+        "authority": authority,
+        "branch_head": branch_head,
+        "bootstrap_commit": bootstrap,
+        "topology": "candidate" if len(base_parents) == 1 else "merged",
+    }
+
+
 def _inventory_parity_context(
     repository: Path,
     base: str,
@@ -5585,12 +5721,14 @@ def _verify_successor_event_trust_scope_recovery(
         f"{authority['triggering_controller_run_id']}",
         token,
     )
-    embedded_pull_requests = triggering_run.get("pull_requests")
+    triggering_candidate = _api_json(
+        f"https://api.github.com/repos/{repository_slug}/commits/"
+        f"{authority['triggering_candidate_head']}",
+        token,
+    )
+    candidate_parents = triggering_candidate.get("parents")
     if (
-        not isinstance(embedded_pull_requests, list)
-        or len(embedded_pull_requests) != 1
-        or not isinstance(embedded_pull_requests[0], dict)
-        or triggering_run.get("id") != authority["triggering_controller_run_id"]
+        triggering_run.get("id") != authority["triggering_controller_run_id"]
         or triggering_run.get("head_sha") != authority["triggering_candidate_head"]
         or triggering_run.get("head_branch")
         != "feature/phase5e2b12c-gate-bootstrap"
@@ -5601,14 +5739,11 @@ def _verify_successor_event_trust_scope_recovery(
         != "phase5e2b12a-base-owned-acceptance-gate"
         or triggering_run.get("path")
         != ".github/workflows/phase5e2b12a-acceptance-gate.yml"
-        or embedded_pull_requests[0].get("number")
-        != authority["triggering_pull_request"]
-        or embedded_pull_requests[0].get("base", {}).get("ref") != "main"
-        or embedded_pull_requests[0].get("base", {}).get("sha") != predecessor
-        or embedded_pull_requests[0].get("head", {}).get("ref")
-        != "feature/phase5e2b12c-gate-bootstrap"
-        or embedded_pull_requests[0].get("head", {}).get("sha")
-        != authority["triggering_candidate_head"]
+        or triggering_candidate.get("sha") != authority["triggering_candidate_head"]
+        or not isinstance(candidate_parents, list)
+        or len(candidate_parents) != 1
+        or not isinstance(candidate_parents[0], dict)
+        or candidate_parents[0].get("sha") != predecessor
     ):
         raise SystemExit("recorded trust-scope triggering controller run drifted")
 
@@ -5726,6 +5861,80 @@ def _verify_successor_event_trigger_evidence_recovery(
     if len(successful) != 1:
         raise SystemExit(
             "successor-event trigger-evidence recovery lacks one successful main CI run"
+        )
+    _verify_run(
+        repository_slug=repository_slug,
+        token=token,
+        run_id=str(successful[0]["id"]),
+        expected_head=base,
+        expected_event="push",
+        expected_head_branch="main",
+    )
+    return True
+
+
+def _verify_successor_event_run_identity_recovery(
+    *,
+    repository: Path,
+    base: str,
+    repository_slug: str,
+    token: str,
+    controller_app_id: int,
+) -> bool:
+    context = _successor_event_run_identity_recovery_context(repository, base)
+    if context is None:
+        return False
+    authority = context["authority"]
+    predecessor = str(authority["finalized_predecessor_commit"])
+    _verify_base_merged_main_finalized(
+        repository=repository,
+        base=predecessor,
+        repository_slug=repository_slug,
+        token=token,
+        controller_app_id=controller_app_id,
+    )
+    recovery_pull_requests = _api_list(
+        f"https://api.github.com/repos/{repository_slug}/commits/{base}/pulls",
+        token,
+    )
+    matching_recovery = [
+        item
+        for item in recovery_pull_requests
+        if isinstance(item, dict)
+        and item.get("state") == "closed"
+        and item.get("merged_at") is not None
+        and item.get("merge_commit_sha") == base
+        and item.get("head", {}).get("sha") == context["branch_head"]
+        and item.get("head", {}).get("ref")
+        == SUCCESSOR_EVENT_RUN_IDENTITY_RECOVERY_BRANCH
+        and item.get("base", {}).get("sha") == predecessor
+        and item.get("base", {}).get("ref") == "main"
+    ]
+    if len(matching_recovery) != 1:
+        raise SystemExit("successor-event run-identity recovery pull request is ambiguous")
+    ci_runs = _api_paginated_items(
+        (
+            f"https://api.github.com/repos/{repository_slug}/actions/workflows/ci.yml/runs"
+            f"?event=push&status=completed&head_sha={base}"
+        ),
+        key="workflow_runs",
+        token=token,
+    )
+    successful = [
+        item
+        for item in ci_runs
+        if item.get("head_sha") == base
+        and item.get("head_branch") == "main"
+        and item.get("event") == "push"
+        and item.get("conclusion") == "success"
+        and item.get("name") == "owner-research-ci"
+        and item.get("path") == ".github/workflows/ci.yml"
+        and type(item.get("id")) is int
+        and item["id"] > 0
+    ]
+    if len(successful) != 1:
+        raise SystemExit(
+            "successor-event run-identity recovery lacks one successful main CI run"
         )
     _verify_run(
         repository_slug=repository_slug,
@@ -5875,6 +6084,14 @@ def _verify_base_merged_main_finalized(
         and run["id"] > 0
     ]
     if len(matching_gate_runs) != 1:
+        if _verify_successor_event_run_identity_recovery(
+            repository=repository,
+            base=base,
+            repository_slug=repository_slug,
+            token=token,
+            controller_app_id=controller_app_id,
+        ):
+            return
         if _verify_successor_event_trigger_evidence_recovery(
             repository=repository,
             base=base,
@@ -7104,6 +7321,10 @@ def main() -> int:
         action="store_true",
     )
     parser.add_argument(
+        "--verify-successor-event-run-identity-recovery-topology-only",
+        action="store_true",
+    )
+    parser.add_argument(
         "--verify-inventory-parity-topology-only",
         action="store_true",
     )
@@ -7202,6 +7423,22 @@ def main() -> int:
             raise SystemExit("successor-event trigger-evidence recovery seal is absent")
         print(
             "Phase 5E sealed successor-event trigger-evidence recovery "
+            f"{context['topology']} topology passed"
+        )
+        return 0
+    if args.verify_successor_event_run_identity_recovery_topology_only:
+        if not args.base:
+            raise SystemExit(
+                "successor-event run-identity recovery topology verification requires --base"
+            )
+        context = _successor_event_run_identity_recovery_context(
+            args.repository.resolve(),
+            args.base,
+        )
+        if context is None:
+            raise SystemExit("successor-event run-identity recovery seal is absent")
+        print(
+            "Phase 5E sealed successor-event run-identity recovery "
             f"{context['topology']} topology passed"
         )
         return 0

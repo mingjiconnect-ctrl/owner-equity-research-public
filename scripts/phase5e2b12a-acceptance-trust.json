@@ -195,6 +195,8 @@
     "scripts/phase5e-futu-market-authority-policy-v1.json",
     "scripts/phase5e-successor-event-transport-recovery-seal-v1.json",
     "scripts/phase5e-successor-event-transport-recovery-v1.json",
+    "scripts/phase5e-successor-event-run-identity-recovery-seal-v1.json",
+    "scripts/phase5e-successor-event-run-identity-recovery-v1.json",
     "scripts/phase5e-successor-event-trigger-evidence-recovery-seal-v1.json",
     "scripts/phase5e-successor-event-trigger-evidence-recovery-v1.json",
     "scripts/phase5e-successor-event-trust-scope-recovery-seal-v1.json",
