@@ -1,0 +1,266 @@
+{
+  "accepted_gate_state": {
+    "authorized_next": [
+      "Phase 5E-2B.1-2C coverage, claim-transition, and recursive-closure implementation"
+    ],
+    "current_phase": "Phase 5E-2B.1-2C-gate",
+    "prohibited": [
+      "Phase 5E-2B.1-3",
+      "Phase 5E-2C",
+      "Phase 5E-2D",
+      "Phase 5E-2E",
+      "Phase 5E-2F",
+      "Phase 5E-3",
+      "Phase 5E-4",
+      "Phase 5E-5",
+      "Phase 5E-6",
+      "Phase 5F",
+      "Phase 6",
+      "Phase 7",
+      "Phase 8",
+      "Phase 9"
+    ],
+    "release_tag": null,
+    "status": "accepted_closed"
+  },
+  "adversarial_cases": {
+    "path": "governance/phase5e-gates/phase5e2b12c/adversarial-cases.json",
+    "sha256": "c536345ee04a5120ae7f01631cfd007d8178a0e77facdf0c5cf32092db440cb7"
+  },
+  "audit": {
+    "audit_version": "2.3.2.3.5",
+    "expected_added_test_nodeids": [
+      "tests/test_phase5e2b12c_coverage_claim_closure.py::test_bundle_closure_rejects_cross_issuer_or_security_evidence",
+      "tests/test_phase5e2b12c_coverage_claim_closure.py::test_bundle_closure_rejects_dangling_or_cyclic_parent_lineage",
+      "tests/test_phase5e2b12c_coverage_claim_closure.py::test_bundle_closure_rejects_future_or_outside_bundle_evidence",
+      "tests/test_phase5e2b12c_coverage_claim_closure.py::test_canonical_group_coverage_consumes_each_occurrence_once",
+      "tests/test_phase5e2b12c_coverage_claim_closure.py::test_claim_transition_is_bound_to_one_canonical_group",
+      "tests/test_phase5e2b12c_coverage_claim_closure.py::test_conflicting_remaining_claim_blocks_entire_lineage",
+      "tests/test_phase5e2b12c_coverage_claim_closure.py::test_cross_directory_replay_is_byte_identical",
+      "tests/test_phase5e2b12c_coverage_claim_closure.py::test_exact_recursive_closure_contains_all_typed_evidence",
+      "tests/test_phase5e2b12c_coverage_claim_closure.py::test_input_order_does_not_change_current_share_result",
+      "tests/test_phase5e2b12c_coverage_claim_closure.py::test_no_event_rollforward_requires_complete_zero_or_na_coverage",
+      "tests/test_phase5e2b12c_coverage_claim_closure.py::test_option_group_triggers_one_reviewed_transition",
+      "tests/test_phase5e2b12c_coverage_claim_closure.py::test_warrant_and_convertible_transitions_route_specialist"
+    ],
+    "expected_check_ids": [
+      "audit-controller-integrity",
+      "audited-files-present",
+      "clean-after",
+      "exact-head-no-remote",
+      "fixed-baselines",
+      "full-verification",
+      "independent-market-authority-oracle",
+      "independent-test-manifest-replay",
+      "kernel-exact-head-no-remote",
+      "os-sandbox-boundary",
+      "phase5e-successor-independent-semantic-oracle",
+      "phase5e-successor-repository-wide-changed-path-boundary",
+      "phase5e2b11-frozen-acceptance",
+      "read-only-checkout",
+      "tracked-bytes-immutable"
+    ],
+    "predecessor_nodeid_sha256": "78d7d6114a9b600a3f66ce9d092e66c0003a8a40eb7d2b88258c99e6adc9c438",
+    "predecessor_test_count": 1392,
+    "profile_id": "phase5e-2b12c",
+    "protected_oracle_path": "scripts/verify_phase5e2b12c_semantic_oracle.py",
+    "protected_oracle_sha256": "e55690d7905c3b3b407f1fe7955f39e878a3c74e731157c7a4f9155b54281a95"
+  },
+  "component_lock_sha256": "b70a6518134502849fbefb45fe8cd1b51fbe51ceb8118a5c8152a69e259b40d2",
+  "execution_mode": "protected_base_only_after_gate_acceptance",
+  "forbidden_prefixes": [
+    ".github",
+    "plugins",
+    "schemas",
+    "scripts"
+  ],
+  "frozen_paths": [
+    "component-lock.json",
+    "docs/phase5-completion-overlay-v3.md",
+    "pyproject.toml",
+    "schemas/market-reference-snapshot.schema.json",
+    "scripts/phase5e-futu-market-authority-policy-v1.json",
+    "scripts/verify_phase5e2c0_semantic_oracle.py",
+    "tests/test_phase5e2b12a_acceptance_gate.py",
+    "tests/test_phase5e2b12b_acceptance_gate.py",
+    "tests/test_phase5e_audit.py",
+    "tests/test_phase5e_successor_gate.py"
+  ],
+  "gate_acceptance_branch": "feature/phase5e2b12c-gate-acceptance-closeout",
+  "gate_acceptance_diff": {
+    "docs/phase-status.json": "M",
+    "docs/phase5e2b12c-gate-acceptance-closeout.json": "A"
+  },
+  "gate_bootstrap_branch": "feature/phase5e2b12c-gate-bootstrap",
+  "gate_bootstrap_diff": {
+    "docs/phase-status.json": "M",
+    "governance/phase5e-gates/phase5e2b12c/adversarial-cases.json": "A",
+    "governance/phase5e-gates/phase5e2b12c/bundle.json": "A",
+    "governance/phase5e-gates/phase5e2b12c/semantic-oracle.py.txt": "A"
+  },
+  "gate_id": "phase5e2b12c",
+  "kernel_release": {
+    "commit": "be9b0773d5a78f5f8a33ba982494512668df85fe",
+    "schema_sha256": {
+      "schemas/assumption-ledger.schema.json": "2232642332dc6444c784e21746cbd16bf8d4cd74fc483a0a345d95f98fc97a7a",
+      "schemas/fact-ledger.schema.json": "55be5aadad21629db1cdbe7fce386656eb930b52af8644d1314ba7404e384706",
+      "schemas/sec-company-profile.schema.json": "539b76ad7974162ba36b513c029d7d8377d352de4e150425c19c4dea620fbf06",
+      "schemas/sec-company-review.schema.json": "24dfa87fa94c0362569979e454cd1f536eef7c7845473567e4e88df872335205",
+      "schemas/sec-evidence-pack.schema.json": "3cf634214584d54d83b0d397da3139ca30815a44e99e7ecc24c3258b25a7b91a",
+      "schemas/sec-scenario-policy.schema.json": "74c0b0cce146891825fcf4599658f99a20fa66924cf07655895dcece00010065",
+      "schemas/valuation-request.schema.json": "67e991484943897585a79a8a1d3d0d52ebb36ec0ba4245cad9b17972877cca3d",
+      "schemas/valuation-result.schema.json": "bbfed2049ed258b767002b74ff45fb6847eb5723ffd6c1d31c53cf119625a683"
+    },
+    "tag": "v2.0.0-rc.2",
+    "tag_object": "4e19ce6a59bc4321ebcd368e807ed764f4e8abde",
+    "wheel_sha256": "fb27d01b1ee75fbd542371510150e890516d306218d33f3608f2aa3caa0e55a5"
+  },
+  "next_gate_seed": null,
+  "owner_phase": "Phase 5E-2B.1-2C",
+  "pending_gate_state": {
+    "authorized_next": [
+      "Phase 5E-2B.1-2C successor-gate acceptance closeout"
+    ],
+    "current_phase": "Phase 5E-2B.1-2C-gate",
+    "prohibited": [
+      "Phase 5E-2B.1-2C",
+      "Phase 5E-2B.1-3",
+      "Phase 5E-2C",
+      "Phase 5E-2D",
+      "Phase 5E-2E",
+      "Phase 5E-2F",
+      "Phase 5E-3",
+      "Phase 5E-4",
+      "Phase 5E-5",
+      "Phase 5E-6",
+      "Phase 5F",
+      "Phase 6",
+      "Phase 7",
+      "Phase 8",
+      "Phase 9"
+    ],
+    "release_tag": null,
+    "status": "implementation_complete_pending_acceptance"
+  },
+  "post_successor_closeout": {
+    "accepted_state": {
+      "authorized_next": [
+        "Phase 5E-2C-P Futu feasibility gate"
+      ],
+      "current_phase": "Phase 5E-2B.1-2C",
+      "prohibited": [
+        "Phase 5E-2C",
+        "Phase 5E-2D",
+        "Phase 5E-2E",
+        "Phase 5E-2F",
+        "Phase 5E-3",
+        "Phase 5E-4",
+        "Phase 5E-5",
+        "Phase 5E-6",
+        "Phase 5F",
+        "Phase 6",
+        "Phase 7",
+        "Phase 8",
+        "Phase 9"
+      ],
+      "release_tag": null,
+      "status": "accepted_closed"
+    },
+    "branch": "feature/phase5e2b13-total-corrective-closeout",
+    "closeout_path": "docs/phase5e2b13-acceptance-closeout.json",
+    "diff": {
+      "docs/phase-status.json": "M",
+      "docs/phase5e2b13-acceptance-closeout.json": "A"
+    },
+    "expected_nodeid_sha256": "e7533bf2a46699f1d52588517bdc61ebd8df5d39332334cf614606938361c48f",
+    "expected_test_count": 1404,
+    "implementation_audit_profile": "phase5e-2b12c",
+    "implementation_audit_version": "2.3.2.3.5",
+    "transition_audit_profile": "phase5e-2b13-closeout",
+    "transition_audit_version": "2.3.2.3.6",
+    "transition_check_ids": [
+      "audit-controller-integrity",
+      "audited-files-present",
+      "clean-after",
+      "exact-head-no-remote",
+      "fixed-baselines",
+      "full-verification",
+      "independent-market-authority-oracle",
+      "independent-test-manifest-replay",
+      "kernel-exact-head-no-remote",
+      "os-sandbox-boundary",
+      "phase5e-successor-independent-semantic-oracle",
+      "phase5e-successor-repository-wide-changed-path-boundary",
+      "phase5e2b11-frozen-acceptance",
+      "read-only-checkout",
+      "tracked-bytes-immutable"
+    ]
+  },
+  "predecessor_state_fingerprint": "eeda81fbaae895409521d323a2b38338bc78dfd0ca024a8a59593cea53e9b28c",
+  "public_schema_count": 43,
+  "public_schema_set_sha256": "5647eae0d2512a98f14245dd01e59f59ef5a7491513d13082946dacb448a262a",
+  "schema_version": "2.0.0",
+  "semantic_oracle": {
+    "path": "governance/phase5e-gates/phase5e2b12c/semantic-oracle.py.txt",
+    "sha256": "6c526b593fd73ff8f8456586e6936d4bfbbbca5bb660b41076df23cec6b03388"
+  },
+  "successor_acceptance_branch": "feature/phase5e2b12c-acceptance-closeout",
+  "successor_acceptance_diff": {
+    "docs/phase-status.json": "M",
+    "docs/phase5e2b12c-acceptance-closeout.json": "A"
+  },
+  "successor_accepted_state": {
+    "authorized_next": [
+      "Phase 5E-2B.1-3 total corrective closeout"
+    ],
+    "current_phase": "Phase 5E-2B.1-2C",
+    "prohibited": [
+      "Phase 5E-2C",
+      "Phase 5E-2D",
+      "Phase 5E-2E",
+      "Phase 5E-2F",
+      "Phase 5E-3",
+      "Phase 5E-4",
+      "Phase 5E-5",
+      "Phase 5E-6",
+      "Phase 5F",
+      "Phase 6",
+      "Phase 7",
+      "Phase 8",
+      "Phase 9"
+    ],
+    "release_tag": null,
+    "status": "accepted_closed"
+  },
+  "successor_implementation_branch": "feature/phase5e2b12c-coverage-closure",
+  "successor_implementation_diff": {
+    "docs/phase-status.json": "M",
+    "src/owner_research/valuation_current_share_compiler.py": "M",
+    "tests/test_phase5e2b12c_coverage_claim_closure.py": "A"
+  },
+  "successor_pending_state": {
+    "authorized_next": [
+      "Phase 5E-2B.1-2C acceptance closeout"
+    ],
+    "current_phase": "Phase 5E-2B.1-2C",
+    "prohibited": [
+      "Phase 5E-2B.1-3",
+      "Phase 5E-2C",
+      "Phase 5E-2D",
+      "Phase 5E-2E",
+      "Phase 5E-2F",
+      "Phase 5E-3",
+      "Phase 5E-4",
+      "Phase 5E-5",
+      "Phase 5E-6",
+      "Phase 5F",
+      "Phase 6",
+      "Phase 7",
+      "Phase 8",
+      "Phase 9"
+    ],
+    "release_tag": null,
+    "status": "implementation_complete_pending_acceptance"
+  },
+  "successor_production_authorized_by_bundle": false
+}
