@@ -84,7 +84,7 @@ from .valuation_share_event_identity import (
 )
 
 CURRENT_SHARE_INTEGRATION_POLICY_ID = "canonical-share-event-current-share-integration"
-CURRENT_SHARE_INTEGRATION_POLICY_VERSION = "2.0.0"
+CURRENT_SHARE_INTEGRATION_POLICY_VERSION = "2.1.0"
 CURRENT_SHARE_INTEGRATION_STATUSES = frozenset({"eligible", "blocked", "specialist_required"})
 CURRENT_SHARE_INTEGRATION_ISSUES = frozenset(
     {
@@ -279,8 +279,9 @@ def _validate_official_occurrence_collision_domain(
 if set(GRAPH_OBJECT_ID_ATTRIBUTE) != set(GRAPH_DOMAIN_TYPES.values()):
     raise RuntimeError("typed current-share graph ID registry is not closed")
 COVERAGE_SEARCH_AUTHORITY_ID = "current-share-source-search-authority"
-COVERAGE_SEARCH_AUTHORITY_VERSION = "1.0.0"
-COVERAGE_SEARCH_TOOL_VERSION = "owner-research-source-search/1.0.0"
+COVERAGE_SEARCH_AUTHORITY_VERSION = "2.0.0"
+COVERAGE_SEARCH_TOOL_NAMESPACE = "owner-research-current-share-coverage/"
+COVERAGE_SEARCH_TOOL_VERSION = f"{COVERAGE_SEARCH_TOOL_NAMESPACE}1.0.0"
 COVERAGE_SEARCH_ENDPOINTS = {
     family: ("authority:issuer-official-ir" if family == "official_ir" else "authority:sec-edgar",)
     for family in SOURCE_FAMILIES
@@ -685,7 +686,7 @@ def _integer_decimal(
     label: str,
     *,
     positive: bool = False,
-) -> Decimal:
+) -> int:
     if not isinstance(value, str) or _CANONICAL_SHARE_INTEGER.fullmatch(value) is None:
         qualifier = "positive " if positive else "non-negative "
         raise ValueError(f"{label} must be a canonical {qualifier}integer string")
@@ -700,10 +701,10 @@ def _integer_decimal(
     ):
         qualifier = "positive " if positive else "non-negative "
         raise ValueError(f"{label} must be a canonical {qualifier}integer")
-    return parsed
+    return int(parsed)
 
 
-def _fact_share_integer(value: Any, label: str, *, positive: bool = False) -> Decimal:
+def _fact_share_integer(value: Any, label: str, *, positive: bool = False) -> int:
     if type(value) is not int:
         raise ValueError(f"{label} must be represented as an exact JSON integer")
     return _integer_decimal(str(value), label, positive=positive)
@@ -2753,8 +2754,11 @@ def _phase5c_review_object_bindings(
 
         if binding["economic_identity"] == "option_or_dilution_claim":
             option_value = sum(
-                (Decimal(str(facts[root_id].value)) for root_id in binding["root_fact_ids"]),
-                start=Decimal(0),
+                _fact_share_integer(
+                    facts[root_id].value,
+                    "option-or-dilution root Fact value",
+                )
+                for root_id in binding["root_fact_ids"]
             )
             if (
                 binding["diluted_share_treatment"] == "not_applicable"
@@ -4020,7 +4024,7 @@ class CurrentShareEvidenceClosureV2:
         )
         expected_output = opening_value + sum(
             (
-                COMPLETED_SHARE_EVENT_SIGNS[item.event_concept]
+                int(COMPLETED_SHARE_EVENT_SIGNS[item.event_concept])
                 * _integer_decimal(
                     item.canonical_share_magnitude,
                     "canonical share magnitude",

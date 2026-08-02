@@ -1876,6 +1876,7 @@ def _accepted_context(
     *,
     sample_payloads: dict[str, dict],
     corroborating_count: int = 1,
+    opening_value: int = 100_000_000,
     output_value: int = 95_000_000,
     event_concept: str = "common_shares_repurchased_completed",
 ) -> tuple[CurrentShareEvidenceClosureV2, ContractGraph]:
@@ -1896,7 +1897,7 @@ def _accepted_context(
     opening_fact = _fact(
         fact_id="fact:shares:opening",
         concept="common_shares_outstanding",
-        value=100_000_000,
+        value=opening_value,
         source=opening_source,
         end=OPENING_DATE,
     )
@@ -2761,7 +2762,7 @@ def test_policy_and_adversarial_fixture_are_closed() -> None:
     policy = json.loads(policy_path.read_text(encoding="utf-8"))
     fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
     assert hashlib.sha256(policy_path.read_bytes()).hexdigest() == (
-        "78538fe7b76ac12eeadbd9298fcf46d67b87e4a86718694233fd445de152ddb5"
+        "815fbbd41f8ae307b6b758fd210830deb777a9e952e171b09e61e1a2b68fb16b"
     )
     assert hashlib.sha256(fixture_path.read_bytes()).hexdigest() == (
         "7f8ba762df20c51fbea5edee89e440ec7205c546416676211090ca950f65ec0d"
@@ -2785,13 +2786,13 @@ def test_exact_type_module_ast_and_raw_bytes_reject_surface_and_body_mutations()
     path = ROOT / "src/owner_research/valuation_share_event_integration_types.py"
     source = path.read_text(encoding="utf-8")
     expected_ast = {
-        (3, 11): "0b298e1d5bba64e7a03218f001dc7f34daa68909bccb0f45d8133b3fd002b086",
-        (3, 12): "cca66107f6d33ac1398850816f7ebd799fc542385df7ded79aaeca0624996c40",
-        (3, 13): "a88f78bec3e0c076388b366c647deae23da0cc9fe2bd51fac35ecd7aba83e659",
-        (3, 14): "a88f78bec3e0c076388b366c647deae23da0cc9fe2bd51fac35ecd7aba83e659",
+        (3, 11): "d242cf697494f21377f3260a25f5e6f3d2cacdaedeca65034dc5b448e5761a1c",
+        (3, 12): "e18d6d9c55fd19392a6009252710865d9676d825186704dab7254fdafb6c629c",
+        (3, 13): "78c8f6e361f62cbbefe10834517d5dcaba9fd43258e2507b7dcb9f7655dc0411",
+        (3, 14): "78c8f6e361f62cbbefe10834517d5dcaba9fd43258e2507b7dcb9f7655dc0411",
     }
     assert hashlib.sha256(path.read_bytes()).hexdigest() == (
-        "401b283f18ffd5e5f990a7a756e89804c9803cbdfc711cf19d5f877792b56865"
+        "003dfad8e1da2d07bddeaaf39310ad5a7529643e9a2aedbaffaa6d552683051d"
     )
     assert _independent_ast_sha256(source) == expected_ast[sys.version_info[:2]]
 
@@ -2848,7 +2849,7 @@ def test_policy_loader_rejects_duplicate_unknown_numeric_and_nonfinite_json() ->
     policy = load(raw)
     assert isinstance(policy, dict)
     assert hashlib.sha256(path.read_bytes()).hexdigest() == (
-        "78538fe7b76ac12eeadbd9298fcf46d67b87e4a86718694233fd445de152ddb5"
+        "815fbbd41f8ae307b6b758fd210830deb777a9e952e171b09e61e1a2b68fb16b"
     )
     canonical = json.dumps(
         policy,
@@ -2857,7 +2858,7 @@ def test_policy_loader_rejects_duplicate_unknown_numeric_and_nonfinite_json() ->
         separators=(",", ":"),
     ).encode()
     assert hashlib.sha256(canonical).hexdigest() == (
-        "3c0b97cd2145efaf35b92fb28c65ba7bf0ab76a2a097ad59dd103b01c3014da4"
+        "332ba7d4cf4370126119fdc172082f5f3b19a82da8f65fe3a1e811fa726dc96f"
     )
     with pytest.raises(ValueError, match="duplicate JSON key"):
         load('{"schema_version":"1.0.0","schema_version":"2.0.0"}')

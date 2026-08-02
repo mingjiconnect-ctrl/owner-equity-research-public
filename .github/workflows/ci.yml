@@ -2,28 +2,34 @@ name: owner-research-ci
 
 on:
   pull_request:
+    branches: [main]
   push:
     branches: [main]
-    tags: ["v*"]
+    tags: ["v*-rc*"]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
-# Candidate CI receives no Actions/environment secret or private-kernel credential. It uses only
-# the ephemeral read-only checkout token and is feedback, not acceptance authority. A separately
-# protected base workflow owns acceptance-grade private-interface verification.
+concurrency:
+  group: phase5-v1-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   verify:
+    name: verify (${{ matrix.python-version }})
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
-      - name: Check out exact research candidate without credentials
+      - name: Check out the exact current candidate
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
           persist-credentials: false
           submodules: false
           lfs: false
@@ -33,30 +39,90 @@ jobs:
           python-version: ${{ matrix.python-version }}
           check-latest: false
           cache: pip
-      - name: Run netless candidate feedback without private dependencies
+      - name: Install current project and verification dependencies
+        run: python -m pip install --disable-pip-version-check -e '.[dev]'
+      - name: Run the non-legacy suite without network access
         shell: bash
         run: |
-          candidate_python=$(command -v python)
-          sudo unshare --mount --net --ipc --uts --pid --fork --kill-child --mount-proc \
-            bash -ceu '
-              repository=$1
-              candidate_python=$2
-              reviewed_commit=$3
-              scratch=$4
-              mount --make-rprivate /
-              mount --bind "$repository" "$repository"
-              mount -o remount,ro,bind "$repository"
-              cd "$repository"
-              exec setpriv --no-new-privs env -i \
-                HOME="$scratch" \
-                LANG=C.UTF-8 \
-                LC_ALL=C.UTF-8 \
-                PATH=/usr/bin:/bin \
-                PYTHONDONTWRITEBYTECODE=1 \
-                PYTHONHASHSEED=0 \
-                PYTHONPYCACHEPREFIX="$scratch/pycache" \
-                PYTHONSAFEPATH=1 \
-                "$candidate_python" -I scripts/verify_phase5e_candidate_surface.py \
-                  --repository . \
-                  --reviewed-commit "$reviewed_commit"
-              ' bash "$GITHUB_WORKSPACE" "$candidate_python" "$GITHUB_SHA" "$RUNNER_TEMP"
+          runner_python=$(command -v python)
+          sudo unshare --net -- \
+            env PYTHONHASHSEED=0 PYTHONDONTWRITEBYTECODE=1 \
+              "$runner_python" -I scripts/verify_phase5_v1.py \
+              --mode verify \
+              --output "$RUNNER_TEMP/phase5-v1-verify.json"
+      - name: Upload the canonical verification summary
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: >-
+            phase5-v1-verify-${{ matrix.python-version }}-${{
+            github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/phase5-v1-verify.json
+          retention-days: 30
+          if-no-files-found: error
+
+  semantic-audit:
+    name: phase5/semantic-audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out the exact reviewed commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+          lfs: false
+      - name: Set up deterministic semantic-replay Python
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: "3.11"
+          check-latest: false
+          cache: pip
+      - name: Install current project and verification dependencies
+        run: python -m pip install --disable-pip-version-check -e '.[dev]'
+      - name: Select the audit mode and severity gate
+        id: policy
+        shell: bash
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            mode=semantic-audit
+            require_zero=P0,P1
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            mode=semantic-audit
+            require_zero=P0,P1,P2,P3
+          elif [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            mode=main-smoke
+            require_zero=P0,P1
+          else
+            mode=semantic-audit
+            require_zero=P0,P1,P2,P3
+          fi
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "require_zero=$require_zero" >> "$GITHUB_OUTPUT"
+      - name: Run candidate replay at the exact PR head or replay merged main
+        shell: bash
+        env:
+          AUDIT_MODE: ${{ steps.policy.outputs.mode }}
+          REQUIRED_ZERO: ${{ steps.policy.outputs.require_zero }}
+          REVIEWED_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          runner_python=$(command -v python)
+          sudo unshare --net -- \
+            env PYTHONHASHSEED=0 PYTHONDONTWRITEBYTECODE=1 \
+              "$runner_python" -I scripts/verify_phase5_v1.py \
+              --mode "$AUDIT_MODE" \
+              --require-zero "$REQUIRED_ZERO" \
+              --expected-commit "$REVIEWED_COMMIT" \
+              --output "$RUNNER_TEMP/phase5-v1-semantic-candidate.json"
+      - name: Upload the deterministic candidate-replay summary
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: >-
+            phase5-v1-semantic-candidate-${{
+            github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/phase5-v1-semantic-candidate.json
+          retention-days: 90
+          if-no-files-found: error

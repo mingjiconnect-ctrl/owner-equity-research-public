@@ -9,6 +9,25 @@ data and does not by itself grant an open-source license.
 
 Private, engineering-grade foundations for auditable public-equity research.
 
+## Current Phase 5 authority
+
+`Phase 5 v1 market-reference vertical slice` is `in_progress` under ADR 0041 and
+`docs/phase5-v1-status.json`. Only `PR1 market-reference vertical slice` is authorized. The former
+recursive G1-G5 controller, acceptance-only branches, and `docs/phase-status.json` are retained as
+`legacy_governance`; they are historical evidence rather than the current required path.
+
+Pull requests require exactly `verify (3.11)`, `verify (3.12)`, `verify (3.13)`, and
+`phase5/semantic-audit`. That Actions context is a deterministic candidate replay at the exact
+pull-request head; it is not an independent review. Before merge, a separate fresh-context review
+must bind the exact commit/tree, test counts, P0-P3 counts and report SHA in pull-request evidence.
+Both gates require P0=P1=0. Release candidates require P0=P1=P2=P3=0, while merged `main` runs smoke
+and deterministic replay. Canonical summaries stay outside product state.
+
+## Historical phase record
+
+The chronology below records constraints and authority at each closeout; it does not override the
+current Phase 5 v1 authority above.
+
 Phase 4E-0 and Phase 4E-1 are accepted/closed. Phase 4E-2 closes and freezes the Phase 4
 integration layer at `v0.4.0-alpha.1`. Phase 5P fixes the valuation-handoff plan and pinned
 interface audit without adding production capability. Phase 5A adds four closed, validation-only
@@ -72,13 +91,9 @@ objects, duplicate typed-evidence rejection, and option-only standard Claim auth
 convertible/warrant specialist deferral. The boundary also blocks one official occurrence split by
 economic-key drift, nonofficial or non-high-confidence opening roots, multi-root Claims without an
 aggregate balance, generated-ID collisions, and non-single review chains. Exact source-byte code
-identity and independent regression replay bootstrap the credential-partitioned gate without claiming that
-the gate retroactively certifies its own introduction. Only the later closeout is base-owned. This text
-is dual-state: before the validated two-file closeout exists, only the 2A acceptance closeout is
-authorized and 2B is prohibited; after the base-owned gate validates it, 2A is accepted/closed and
-only `feature/phase5e2b12b-canonical-rollforward` may make the exact compiler/test/state change.
-The 2B gate, trust snapshot, oracle, and gate tests are already frozen in 2A, so 2B cannot select
-or replace its own judge. Phase 5E-2B.1-2C, Phase 5E-2C through Phase 5E-2F, and later work remain prohibited.
+identity and independent regression replay bootstrapped the historical credential-partitioned
+gate. That gate, its two-file closeout, special branch, trust snapshot, oracle, and successor
+prohibitions are retained as `legacy_governance`; ADR 0041 supersedes them as current authority.
 
 Phase 1 is frozen at `v0.1.0-alpha.1`; Phase 2 is frozen at
 `v0.2.0-alpha.1` / `feac934`; Phase 3 is frozen at `v0.3.0-alpha.1` / `41dcb27`.
@@ -204,11 +219,8 @@ Phase 5E-0 policy hardening and Phase 5E-1.1 authority closeout are accepted/clo
 Phase 5E-2A.1, Phase 5E-2A.2, and Phase 5E-2A.2.1 are accepted/closed. Phase 5E-2B passed its
 original implementation and governance audit `2.3.2.3`, but independent semantic review found a
 P0 cross-source share-event identity gap. Phase 5E-2B.1-0 is frozen under audit `2.3.2.3.1`;
-production grouping is accepted/closed under audit `2.3.2.3.2`. Phase 5E-2B.1-2A is the internal
-contract-only integration successor under audit `2.3.2.3.3` and follows the dual-state rule above.
-Before the validated two-file closeout only acceptance is authorized; afterward 2A is
-accepted/closed and only 2B is authorized. Phase 5E-2C and all later phases remain prohibited in
-both states.
+production grouping is accepted/closed under audit `2.3.2.3.2`, and the contract-only successor
+remains historical under audit `2.3.2.3.3`. Its former dual-state authorization is retired.
 None of these phases asserts complete valuation-request
 data, invokes the kernel, or writes valuation artifacts. The system does
 **not** implement company or management grading,
@@ -221,14 +233,17 @@ publishing.
 python3.11 -m venv .venv
 . .venv/bin/activate
 python -m pip install -e '.[dev]'
-python scripts/verify_all.py
+python scripts/verify_phase5_v1.py --mode verify
 ```
 
-Live shadow runs are explicit; CI never performs network access. Raw caches are outside the
-repository. The fixed-date metadata-only runners are `scripts/sec_shadow_run.py`,
-`scripts/management_shadow_run.py`, and `scripts/business_quality_shadow_run.py`; they write only
-source/accession metadata with explicitly scoped hashes, object IDs, coverage, blocked reasons,
-and manifests.
+The current verifier excludes the retired recursive-governance tests. Those tests can be replayed
+only through the manual `legacy-governance-phase5-recursive` workflow at its frozen baseline.
+
+Live shadow runs are explicit; after dependency installation, CI verification executes without
+network access. Raw caches are outside the repository. The fixed-date metadata-only runners are
+`scripts/sec_shadow_run.py`, `scripts/management_shadow_run.py`, and
+`scripts/business_quality_shadow_run.py`; they write only source/accession metadata with explicitly
+scoped hashes, object IDs, coverage, blocked reasons, and manifests.
 
 ```bash
 OWNER_RESEARCH_SEC_USER_AGENT='Your firm name contact@example.com' \
@@ -263,22 +278,9 @@ python scripts/verify_component_lock.py \
   --require-clean --require-pinned-head
 ```
 
-Candidate-owned pull-request CI never receives a private-kernel credential. A protected-base job
-uses the separately verified Kernel Reader GitHub App installed only on the pinned private kernel
-repository. Its short-lived token is limited to `contents: read` and `metadata: read`; the bounded
-kernel interface is consumed inside that credentialed job and is never uploaded to the public
-repository. Public artifacts are restricted to hash-locked dependency wheels and a normalized,
-credential-free audit manifest.
-
-### Recursive Phase 5 gate
-
-After legacy S3, remaining Phase 5 work uses a protected-base recursive G1 → G2 → G3 → G4 → G5 cycle:
-an inert gate, accepted gate, successor pending acceptance, accepted successor, then total closeout
-and the exact next inert seed. `Phase 5E-2B.1-2C` means current-share recursive closure;
-`Phase 5E-2C` means exact market evidence. Dynamic audit profiles come from the deepest validated
-gate, while candidate oracle text stays inert. The public canonical repository has three pinned,
-single-repository GitHub Apps; acceptance still requires their protected environments, exact
-branch protection, CI success, and zero P0-P3 findings.
-Phase 6 through Phase 9 are outside this map and require a separate reviewed authorization.
-
-Phase 5 current authority: S3 -> G1 -> G2 -> G3 -> G4 -> G5 -> external 2C-P; after feasibility a new protected gate is required; Phase 6-9 require separate reviewed control-plane authorization; Phase 5E-2B.1-2C != Phase 5E-2C.
+Current pull-request CI receives no private-kernel credential; after dependency installation, its
+verification runs without network access. It uploads only canonical, credential-free verification
+summaries. The former protected-base Controller, external Gate Author, Kernel Reader, recursive
+status publication, and merged-main acceptance audit remain frozen under `legacy_governance` and
+do not publish current acceptance. Phase 6 through Phase 9 still require a separate reviewed
+authorization after Phase 5.

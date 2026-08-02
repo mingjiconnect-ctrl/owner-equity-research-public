@@ -285,4 +285,4 @@ __all__ = [
     "write_research_bundle_artifacts",
 ]
 
-__version__ = "0.5.0.dev11"
+__version__ = "0.6.0.dev1"

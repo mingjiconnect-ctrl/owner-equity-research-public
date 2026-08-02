@@ -1,19 +1,14 @@
 ---
 name: owner-research-audit
-description: Use only when explicitly invoked with $owner-research-audit to audit the completed Phase 1 through the active Phase 5E-2B.1-2A boundary, including canonical price-blind replay, governed market-access authority, current-share evidence, component locks, stage gates, and forbidden outputs.
+description: Use only when explicitly invoked with $owner-research-audit to audit the completed research and price-blind chain plus the active Phase 5 v1 vertical slice, including current-share evidence, reviewed market references, component locks, determinism, and forbidden outputs.
 ---
 
 # Owner Research Audit
 
-This is the explicit read-only Phase 1 through Phase 5E-2B.1-2A audit workflow. Phase 5B,
-Phase 5C, and Phase 5D-0 through Phase 5D-6 are accepted/closed; Phase 5D is frozen under audit
-`2.2.6`. Phase 5E has advanced only through the contract-only 2B.1-2A boundary; Phase 5E-2C,
-Phase 5F, and later phases remain prohibited. Governance audit `2.1.0.1`,
-implementation audit `2.1.1`, audit `2.1.2`, audit `2.1.3`, audit `2.1.4`, audit `2.1.5`, and final
-governance audit `2.1.5.1` require P0-P3 all zero.
-
-The workflow retains complete Phase 1-5D coverage while applying the stricter protected-controller
-boundary to the active Phase 5E work.
+This is the explicit read-only audit workflow for the Phase 1-5D evidence and price-blind chain and
+the Phase 5 v1 vertical slices. Historical recursive controller, recovery-seal, G1-G5, and
+acceptance-only PR records are evidence, not active workflow. Normal implementation PRs block on
+P0/P1; release audits block on P0/P1/P2/P3.
 
 ## Audit
 
@@ -197,92 +192,24 @@ boundary to the active Phase 5E work.
     remains independent of input order and unrelated history, preserves both protected hashes and
     immutable Handoff versions, and adds no market, request/result, valuation, public API, CLI,
     report, Publisher, marketplace, or release capability.
-52. Verify Phase 5E-0 contains only five closed market/request/execution policies, six internal
-    immutable record types, explicit post-authorization timing, single-security and point-in-time
-    share-basis gates, split-factor-one fail-closed semantics, protected-byte preservation, and
-    isolated pinned-wheel requirements. Confirm no network client, Snapshot builder, final-request
-    compiler, kernel invocation, writer, public contract, or implicit Skill entry point exists.
-53. Verify Phase 5E-1.1 reloads the price-blind artifact, replays the evidence-bound security
-    compiler, independently rehashes the component-locked Provider/adapter/parser/calendar
-    resources, owns both timestamps, invokes the exact adapter once, parses raw bytes only, and
-    returns a governed Receipt or hash-only quarantine. Confirm audit `2.3.1.1`, secret scanning,
-    canonical Decimal rejection, and the continued absence of Snapshot/Fact/Calculation builders,
-    final request, kernel execution, writer, package-root API, CLI, or implicit Skill entry point.
-54. Verify Phase 5E-2A changes exactly one public Schema, rejects Snapshot v1 at runtime, binds the
-    complete governed market-evidence closure, replays canonical decimal multiplication, and
-    prevents duplicate v4 authorization consumption under audit `2.3.2`. For Phase 5E-2A.1,
-    independently confirm the
-    frozen Phase 5C option-root/consumption replay, Schema/Python positive-decimal parity, audit
-    `2.3.2.1`, and the absence of a
-    share-basis compiler, market-evidence generator, Snapshot builder, final request, or kernel call.
-55. Verify Phase 5E-2A.2 pins the complete annotated rc.2 kernel release, changes exactly the
-    Snapshot Schema to current-common-share v3 semantics, separates numeric share lineage from
-    dilution Claim control, replays all three registered evidence paths, and exposes no compiler,
-    writer, market-evidence generator, final request, or kernel execution surface under audit
-    `2.3.2.2`.
-56. Verify Phase 5E-2A.2.1 derives every current-share ultimate root and SourceDocument from the
-    exact graph; requires raw, high-confidence, cutoff-safe evidence for one security; closes all
-    corporate-action categories with all-family SourceSearchReceipts; reconciles completed claim
-    transitions; and rejects the legacy `repurched` spelling.
-57. Verify the sole Phase 5E-2B internal compiler strictly reloads the frozen price-blind artifact,
-    replays security and governed market access, derives Phase 5C dilution authority, owns the
-    direct/issued-less-treasury/roll-forward selection, blocks duplicate or cross-path conflicts,
-    preserves recursive lineage, and replaces caller-provided ShareBasisDecision in the Snapshot
-    validation context. Confirm audit `2.3.2.3` and the absence of package-root, CLI, Skill,
-    market-evidence, Snapshot-builder, request, kernel, writer, report, or Publisher surfaces.
-58. Verify Phase 5E-2B.1-0 preserves the historical PR #69/#70 closeout, records and independently
-    reproduces the cross-source duplicate-event P0, defines only the five immutable identity/group
-    records and closed `cross-source-share-event-grouping/1.0.0` policy, and prohibits Phase
-    5E-2C. Confirm audit `2.3.2.3.1` and the absence of production grouping.
-59. Verify Phase 5E-2B.1-1 replays one cutoff-safe Fact-to-Event-to-Candidate-to-named-human
-    Decision chain, derives legal identity only from governed security and reviewed event fields,
-    groups corroborating official sources exactly once, blocks semantic conflicts, and only
-    reserves a derived event Fact ID. Confirm audit `2.3.2.3.2`, no current-share integration,
-    and continued prohibition of Phase 5E-2B.1-2 and Phase 5E-2C.
-60. Verify Phase 5E-2B.1-2A independently binds the exact accepted grouping result, canonical
-    derived-event Fact shape, exactly-once numeric consumption, all eight source-family receipts,
-    reviewed zero/N/A coverage, group-bound Claim transitions, the strict ResearchBundle pair,
-    and an acyclic recursive closure. Require exactly one entry per category, a unique
-    category/security-specific named-human N/A review chain, direct-Fact and cutoff-safe evidence,
-    exact graph-byte binding of all typed coverage/transition objects, exact typed-evidence
-    cardinality, and standard Claim-transition authority limited to option events; convertible and
-    warrant events must fail closed for specialist handling. Confirm exact source-byte code identity,
-    independent JUnit and node-ID replay, an independently reviewed one-time trust bootstrap, and
-    the subsequent base-owned acceptance/successor-gate handoff. Confirm audit `2.3.2.3.3`, use an independent arithmetic and hash
-    oracle, and confirm that no builder/compiler, market evidence, Snapshot, request, kernel,
-    writer, report, or Publisher surface exists. Apply the dual-state authorization rule: before
-    the validated two-file closeout exists, only the 2A acceptance closeout is authorized and 2B
-    is prohibited; after the base-owned gate validates that exact closeout, only
-    `feature/phase5e2b12b-canonical-rollforward` may make the exact compiler/test/state change
-    under the preinstalled frozen 2B gate. Phase 5E-2B.1-2C and Phase 5E-2C through Phase 5E-2F remain
-    prohibited. Also reject official-occurrence key drift,
-    nonofficial or non-high opening/output evidence, multi-root Claims without an aggregate root,
-    generated-Fact ID collisions, and transition chains other than exactly one Candidate,
-    named-human Decision, and Claim.
+52. Verify the v1 current-share compiler consumes each canonical legal event exactly once, retains
+    all corroborating sources, closes the twelve event categories and eight source families, and
+    blocks occurrence drift, conflicting amounts/dates/securities, dangling lineage, or duplicate
+    claim transitions.
+53. Verify the reviewed-file Provider is invoked only after `market_reference_allowed`, rejects
+    symlinks and non-regular files, recomputes content hashes, requires the named-human review and a
+    credential-free HTTPS source, and has no network or trading-account capability.
+54. Independently recompute the authoritative Decimal close-times-current-shares arithmetic and
+    validate `MarketReferenceSnapshot 4.0.0`, its source/security/current-share lineage, protected
+    hashes, component lock, release-candidate usage scope, and single-authorization consumption.
+55. Confirm ordinary research remains price-blind and that the current slice exposes no
+    package-root/CLI market entry, final FactLedger/request, kernel invocation, archive, Score,
+    recommendation, report, PDF, or Publisher.
+56. Treat the exact PR-head Actions semantic profile as deterministic candidate replay, not as an
+    independent review. Separately perform a fresh-context review, bind its exact commit/tree,
+    test counts, P0-P3 counts and report SHA in PR evidence, and do not use a production parser,
+    selector, builder, or compiler as its sole oracle. Normal PR acceptance requires P0=P1=0 in
+    both gates; an RC or stable release requires P0=P1=P2=P3=0.
 
-Do not edit files, repair findings, generate research, or publish artifacts. Every P0, P1, P2, or
-P3 finding blocks the active Phase 5E audit gate. Phase 5D-0 contract and policy hardening, Phase 5D-1
-Candidate compilation, Phase 5D-2 AssumptionLedger compilation, Phase 5D-3 McKinsey inputs,
-Phase 5D-4 Penman inputs, Phase 5D-5 canonical freeze, and Phase 5D-6 deterministic replay are
-accepted/closed under audits `2.2.0`, `2.2.1`, `2.2.2`, `2.2.3`, `2.2.4`, `2.2.5`, and `2.2.6`.
-Phase 5E-0 policy hardening, the original Phase 5E-1 engineering boundary, and Phase 5E-1.1
-authority closeout are accepted under audits `2.3.0`, `2.3.1`, and `2.3.1.1`. Phase 5E-2A.1 is
-accepted/closed under audit `2.3.2.1`. Phase 5E-2A.2 is accepted/closed as the validation-only
-boundary under audit `2.3.2.2`; Phase 5E-2A.2.1 is accepted/closed under audit `2.3.2.2.1`.
-Phase 5E-2B implementation and its separate acceptance closeout remain historical records under
-audit `2.3.2.3`. Phase 5E-2B.1-0 is frozen under audit `2.3.2.3.1`; Phase 5E-2B.1-1 production
-grouping is accepted/closed under audit `2.3.2.3.2`. Phase 5E-2B.1-2A is contract-only under
-audit `2.3.2.3.3` and uses a dual-state rule: before the validated two-file closeout only
-acceptance is authorized and 2B is prohibited; afterward 2A is accepted/closed and only 2B is
-authorized. Phase 5E-2C and later capabilities remain prohibited in both states.
-
-For every post-S3 subsection, audit the protected-base recursive G1/G2/G3/G4/G5 sequence: inert
-gate, accepted gate, successor pending acceptance, accepted successor, and total closeout with the
-exact next inert seed. Recompute the dynamic audit profile from the deepest validated gate and
-never execute a candidate oracle. Keep `Phase 5E-2B.1-2C` (current-share recursive closure)
-distinct from `Phase 5E-2C` (exact market evidence). Phase 6 through Phase 9 are outside this map
-and require a separate reviewed authorization. The public canonical repository has pinned
-Controller, Gate Author, and kernel-only Reader Apps; verify their protected environments, exact
-main protection, CI, and P0-P3-zero audits before accepting a transition.
-
-Phase 5 current authority: S3 -> G1 -> G2 -> G3 -> G4 -> G5 -> external 2C-P; after feasibility a new protected gate is required; Phase 6-9 require separate reviewed control-plane authorization; Phase 5E-2B.1-2C != Phase 5E-2C.
+Do not edit files, repair findings, generate research, or publish artifacts. Historical recursive
+gate/controller workflows may be inspected as evidence but must not be treated as active authority.

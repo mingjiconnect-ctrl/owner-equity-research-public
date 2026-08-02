@@ -32,15 +32,15 @@ def test_phase5e2a2_pins_rc2_and_closes_current_share_policy() -> None:
     )
 
 
-def test_market_reference_snapshot_v3_rejects_v2_and_fully_diluted_fields(
+def test_market_reference_snapshot_v4_rejects_v3_and_fully_diluted_fields(
     sample_payloads,
 ) -> None:
     payload = sample_payloads["market-reference-snapshot"]
-    assert payload["schema_version"] == "3.0.0"
+    assert payload["schema_version"] == "4.0.0"
     validate_payload("market-reference-snapshot", payload)
 
     legacy = dict(payload)
-    legacy["schema_version"] = "2.0.0"
+    legacy["schema_version"] = "3.0.0"
     with pytest.raises(ValidationError):
         validate_payload("market-reference-snapshot", legacy)
 

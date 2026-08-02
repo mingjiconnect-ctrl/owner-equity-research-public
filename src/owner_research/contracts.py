@@ -294,8 +294,10 @@ class MarketReferenceSnapshot(Contract):
     quote_price_decimal: str
     quote_unit: str
     quote_currency: str
+    source_authority_kind: str
     evidence_mode: str
     usage_scope: str
+    numeric_evidence: FrozenMap
     raw_evidence: FrozenMap
     quote_source_document_id: str
     quote_source_locator: str
@@ -315,6 +317,23 @@ class MarketReferenceSnapshot(Contract):
         validate_unit_currency(self.share_basis["share_unit"], None)
         validate_unit_currency(self.market_equity["unit"], self.market_equity["currency"])
         _positive_market_decimal(self.quote_price_decimal, "quote price")
+        if self.source_authority_kind not in {
+            "human_reviewed_file",
+            "governed_vendor",
+        }:
+            raise ValueError("market-reference source authority is not registered")
+        if self.numeric_evidence["encoding"] == "canonical_decimal":
+            if (
+                self.numeric_evidence["authoritative_decimal"]
+                != self.quote_price_decimal
+                or self.numeric_evidence["binary64_hex"] is not None
+            ):
+                raise ValueError("canonical-decimal evidence does not replay the quote")
+        elif self.numeric_evidence["encoding"] == "ieee754_binary64":
+            if self.numeric_evidence["binary64_hex"] is None:
+                raise ValueError("binary64 evidence lacks its wire representation")
+        else:
+            raise ValueError("market numeric encoding is not registered")
         _positive_market_decimal(
             self.share_basis["current_common_shares_outstanding_decimal"],
             "current common shares outstanding",

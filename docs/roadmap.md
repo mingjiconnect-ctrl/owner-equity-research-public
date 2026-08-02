@@ -1,4 +1,20 @@
-# Deferred roadmap
+# Roadmap
+
+## Active authority
+
+- `Phase 5 v1 market-reference vertical slice` is `in_progress` under ADR 0041 and
+  `docs/phase5-v1-status.json`.
+- Only `PR1 market-reference vertical slice` is authorized. It must deliver one bounded,
+  end-to-end market-reference slice without adding valuation execution, scoring, reporting, or
+  publishing.
+- Required pull-request checks are exactly `verify (3.11)`, `verify (3.12)`, `verify (3.13)`, and
+  `phase5/semantic-audit`. Pull requests require P0=P1=0; release candidates require
+  P0=P1=P2=P3=0; merged `main` runs smoke and deterministic replay.
+- The former recursive G1-G5 and acceptance-only path is retired as `legacy_governance`. Its
+  status, closeouts, and tests remain frozen historical evidence and run only by explicit manual
+  replay.
+
+## Historical phase record
 
 - Phase 1: public research contracts, frozen at `v0.1.0-alpha.1`.
 - Phase 2: quarterly vertical slice, frozen at `v0.2.0-alpha.1` / `feac934`.
@@ -145,13 +161,8 @@
   roots, multi-root-Claim blocking, generated-ID reservations, exact one-chain transitions, and a
   credential-partitioned acceptance gate whose candidate execution is secret-isolated and whose
   introduction is independently audited before it becomes
-  base-owned. It is
-  implementation-complete pending a separate acceptance closeout. This roadmap is intentionally
-  dual-state: before the validated two-file closeout exists, only that acceptance closeout is
-  authorized and Step 2B is prohibited; after the base-owned gate validates the exact closeout,
-  Step 2A is accepted/closed and only `feature/phase5e2b12b-canonical-rollforward` may make its
-  exact compiler/test/state change under the 2B gate preinstalled by 2A. Phase 5E-2B.1-2C,
-  Phase 5E-2C through Phase 5E-2F, and later work remain prohibited.
+  base-owned. The resulting two-file closeout, special branch, and successor prohibitions are
+  retained as historical `legacy_governance`; ADR 0041 supersedes them as current authority.
 - Phase 5F: strict handoff archive, Shadow, final audit, and proposed `v0.5.0-alpha.1` release.
 - Phase 6: Buffett-Munger-style scoring, always marked `PROJECT_EXTENSION`.
 - Phase 7: Publisher consuming only validated research and valuation outputs.
@@ -166,21 +177,8 @@ Phase 4E-1 builds and validates Bundles. Phase 4E-2 writes and reloads only the 
 two-file pair; it does not publish, orchestrate, value, score, or report. Phase 5P is planning and
 interface audit only. Phase 5A, Phase 5B, Phase 5C, and Phase 5D-0 through Phase 5D-6 are
 accepted/closed. Phase 5D is accepted/frozen; Phase 5E-0 and Phase 5E-1.1 are accepted/closed.
-Phase 5E-2A.1, Phase 5E-2A.2, and Phase 5E-2A.2.1 are accepted/closed. Phase 5E-2B retains its
-original governance evidence but is subject to Phase 5E-2B.1 semantic closeout. Phase
-5E-2B.1-1 is accepted/closed. Phase 5E-2B.1-2A is contract-only under audit `2.3.2.3.3` and uses
-a dual-state gate: before the validated two-file closeout, only acceptance is authorized and 2B is
-prohibited; after the base-owned gate validates it, 2A is accepted/closed and only 2B is
-authorized. Phase 5E-2C and later phases remain prohibited in both states.
-
-After legacy S3, remaining Phase 5 work advances through the protected-base recursive cycle G1
-(inert gate), G2 (accepted gate), G3 (successor pending acceptance), G4 (successor accepted), and
-G5 (total closeout plus the exact next-gate seed). Dynamic audit profiles follow the deepest
-validated gate and candidate oracle files stay inert. `Phase 5E-2B.1-2C` is current-share
-coverage/Claim-transition/recursive closure; `Phase 5E-2C` is the later exact market-evidence
-phase. Phase 6 through Phase 9 are outside this map and require a separate reviewed control-plane
-authorization. The public canonical repository now has pinned Controller, external Gate Author,
-and kernel-only read-only Reader Apps. No G1-G5 remote acceptance may be claimed until their
-protected environments, exact branch protection, CI, and P0-P3-zero audit gates are verified.
-
-Phase 5 current authority: S3 -> G1 -> G2 -> G3 -> G4 -> G5 -> external 2C-P; after feasibility a new protected gate is required; Phase 6-9 require separate reviewed control-plane authorization; Phase 5E-2B.1-2C != Phase 5E-2C.
+Phase 5E-2A.1, Phase 5E-2A.2, and Phase 5E-2A.2.1 are accepted/closed. Phase 5E-2B and its
+Phase 5E-2B.1 corrections retain their original governance evidence. The former dual-state gate,
+G1-G5 progression, dynamic successor profiles, and acceptance-only branches are now historical
+`legacy_governance`; none can authorize or block the current Phase 5 v1 slice. Phase 6 through
+Phase 9 still require separate reviewed authorization after Phase 5.

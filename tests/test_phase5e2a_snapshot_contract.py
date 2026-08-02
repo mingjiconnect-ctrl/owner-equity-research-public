@@ -25,6 +25,9 @@ from owner_research.valuation_current_share_evidence import COMPLETED_SHARE_EVEN
 from owner_research.valuation_handoff_validation import (
     ValuationHandoffValidationError,
     _validate_current_share_lineage,
+    _validate_raw_evidence,
+    market_evidence_closure_sha256,
+    parser_replay_fingerprint,
 )
 from owner_research.valuation_market_reference_types import (
     MarketReferenceValidationContext,
@@ -32,15 +35,39 @@ from owner_research.valuation_market_reference_types import (
 )
 
 
-def test_market_reference_snapshot_v3_schema_is_closed_and_v2_is_a_hard_break(
+def _resign_snapshot_for_graph(graph, snapshot, context):
+    payload = snapshot.to_dict()
+    governed = context.market_access_result.receipt
+    assert governed is not None
+    authorization = next(
+        item
+        for item in graph.valuation_handoffs
+        if item.handoff_id == snapshot.authorization_handoff_id
+    )
+    payload["raw_evidence"]["parser_replay_fingerprint"] = parser_replay_fingerprint(
+        payload,
+        governed.receipt,
+    )
+    payload["market_evidence_closure_sha256"] = market_evidence_closure_sha256(
+        graph,
+        payload,
+        authorization,
+        context,
+    )
+    payload.pop("snapshot_fingerprint")
+    payload["snapshot_fingerprint"] = canonical_sha256(payload)
+    return type(snapshot)(**payload)
+
+
+def test_market_reference_snapshot_v4_schema_is_closed_and_v3_is_a_hard_break(
     sample_payloads,
 ) -> None:
     payload = sample_payloads["market-reference-snapshot"]
     validate_payload("market-reference-snapshot", payload)
-    assert payload["schema_version"] == "3.0.0"
+    assert payload["schema_version"] == "4.0.0"
 
     legacy = {
-        "schema_version": "2.0.0",
+        "schema_version": "3.0.0",
         "snapshot_id": "legacy-market-reference",
         "issuer_id": "issuer:acme",
     }
@@ -139,7 +166,7 @@ def test_validation_context_is_internal_closed_and_has_no_builder_surface() -> N
             assert not hasattr(module, forbidden)
 
 
-def test_valid_v3_snapshot_replays_the_entire_contract_graph(
+def test_valid_v4_snapshot_replays_the_entire_contract_graph(
     sample_payloads,
     monkeypatch,
     tmp_path,
@@ -157,6 +184,112 @@ def test_valid_v3_snapshot_replays_the_entire_contract_graph(
         context.share_basis_decision.fingerprint
     )
     assert calculation.input_assumption_ids == ()
+
+
+def test_market_access_result_rejects_request_receipt_cross_binding_drift(
+    sample_payloads,
+    monkeypatch,
+    tmp_path,
+) -> None:
+    _, _, _, access, _ = valid_snapshot_graph(
+        sample_payloads,
+        monkeypatch,
+        tmp_path,
+    )
+    assert access.request is not None
+    payload = access.request.to_dict()
+    payload["provider_registration_sha256"] = "9" * 64
+    payload.pop("request_fingerprint")
+    payload["request_fingerprint"] = canonical_sha256(payload)
+    forged_request = type(access.request)(**payload)
+
+    with pytest.raises(ValueError, match="Request and Receipt"):
+        replace(access, request=forged_request)
+
+
+def test_recorded_fixture_replays_locked_parser_instead_of_self_signed_quote(
+    sample_payloads,
+    monkeypatch,
+    tmp_path,
+) -> None:
+    graph, snapshot, context, access, _ = valid_snapshot_graph(
+        sample_payloads,
+        monkeypatch,
+        tmp_path,
+    )
+    assert access.receipt is not None
+    receipt_payload = access.receipt.receipt.to_dict()
+    receipt_payload["quote_price"] = "99"
+    forged_receipt = type(access.receipt.receipt)(**receipt_payload)
+    forged_governed = replace(access.receipt, receipt=forged_receipt)
+    forged_access = replace(access, receipt=forged_governed)
+    forged_context = replace(context, market_access_result=forged_access)
+
+    with pytest.raises(
+        ValuationHandoffValidationError,
+        match="parser replay changed",
+    ):
+        _validate_raw_evidence(graph, snapshot, forged_context)
+
+
+def test_recorded_fixture_endpoint_must_match_locked_registration(
+    sample_payloads,
+    monkeypatch,
+    tmp_path,
+) -> None:
+    graph, snapshot, context, access, _ = valid_snapshot_graph(
+        sample_payloads,
+        monkeypatch,
+        tmp_path,
+    )
+    assert access.request is not None and access.receipt is not None
+    request_payload = access.request.to_dict()
+    request_payload["endpoint"] = "endpoint:forged"
+    request_payload.pop("request_fingerprint")
+    request_payload["request_fingerprint"] = canonical_sha256(request_payload)
+    forged_request = type(access.request)(**request_payload)
+    receipt_payload = access.receipt.receipt.to_dict()
+    receipt_payload["endpoint"] = forged_request.endpoint
+    receipt_payload["request_fingerprint"] = forged_request.request_fingerprint
+    forged_receipt = type(access.receipt.receipt)(**receipt_payload)
+    forged_governed = replace(access.receipt, receipt=forged_receipt)
+    forged_access = replace(
+        access,
+        request=forged_request,
+        receipt=forged_governed,
+    )
+    forged_context = replace(context, market_access_result=forged_access)
+
+    with pytest.raises(
+        ValuationHandoffValidationError,
+        match="content type is not registered",
+    ):
+        _validate_raw_evidence(graph, snapshot, forged_context)
+
+
+def test_recorded_fixture_replays_locked_calendar_selection(
+    sample_payloads,
+    monkeypatch,
+    tmp_path,
+) -> None:
+    graph, snapshot, context, access, _ = valid_snapshot_graph(
+        sample_payloads,
+        monkeypatch,
+        tmp_path,
+    )
+    assert access.receipt is not None
+    forged_governed = replace(
+        access.receipt,
+        calendar_selection_fingerprint="9" * 64,
+    )
+    forged_access = replace(access, receipt=forged_governed)
+    forged_context = replace(context, market_access_result=forged_access)
+
+    with pytest.raises(
+        ValuationHandoffValidationError,
+        match="calendar replay changed",
+    ):
+        _validate_raw_evidence(graph, snapshot, forged_context)
 
 
 @pytest.mark.parametrize(
@@ -211,6 +344,21 @@ def test_one_v4_authorization_cannot_be_consumed_twice(
         replace_graph(graph, market_reference_snapshots=(snapshot, duplicate)).validate()
 
 
+def test_recorded_snapshot_identity_is_deterministic(
+    sample_payloads,
+    monkeypatch,
+    tmp_path,
+) -> None:
+    graph, snapshot, _, _, _ = valid_snapshot_graph(
+        sample_payloads,
+        monkeypatch,
+        tmp_path,
+    )
+    renamed = resign_snapshot(snapshot, snapshot_id=f"{snapshot.snapshot_id}:renamed")
+    with pytest.raises(ContractGraphError, match="Snapshot identity does not replay"):
+        replace_graph(graph, market_reference_snapshots=(renamed,)).validate()
+
+
 def test_raw_repository_locator_and_source_hash_are_replayed(
     sample_payloads,
     monkeypatch,
@@ -239,6 +387,95 @@ def test_raw_repository_locator_and_source_hash_are_replayed(
     )
     with pytest.raises(ContractGraphError, match="Quote source"):
         replace_graph(graph, documents=documents).validate()
+
+
+def test_recorded_fixture_cannot_be_resigned_as_unavailable_cas_evidence(
+    sample_payloads,
+    monkeypatch,
+    tmp_path,
+) -> None:
+    graph, snapshot, context, _, _ = valid_snapshot_graph(
+        sample_payloads,
+        monkeypatch,
+        tmp_path,
+    )
+    raw = dict(snapshot.raw_evidence)
+    raw["store_kind"] = "content_addressed_store"
+    raw["locator"] = f"cas://sha256/{raw['raw_response_sha256']}"
+    forged_context = replace(context, raw_evidence_locator=raw["locator"])
+    staged = resign_snapshot(snapshot, raw_evidence=raw)
+    forged_graph = replace_graph(
+        graph,
+        market_reference_snapshots=(staged,),
+        market_reference_validation_contexts=(forged_context,),
+    )
+    forged_snapshot = _resign_snapshot_for_graph(
+        forged_graph,
+        staged,
+        forged_context,
+    )
+    forged_graph = replace_graph(
+        forged_graph,
+        market_reference_snapshots=(forged_snapshot,),
+    )
+
+    with pytest.raises(ContractGraphError, match="no active replay authority"):
+        forged_graph.validate()
+
+
+def test_recorded_fixture_source_document_projection_is_mode_bound(
+    sample_payloads,
+    monkeypatch,
+    tmp_path,
+) -> None:
+    graph, snapshot, context, _, _ = valid_snapshot_graph(
+        sample_payloads,
+        monkeypatch,
+        tmp_path,
+    )
+    market_document = next(
+        item for item in graph.documents if item.document_id == snapshot.quote_source_document_id
+    )
+    forged_document = replace(
+        market_document,
+        document_type="press-release",
+        period={"start": "2026-01-01", "end": snapshot.trading_date},
+        retrieved_at="2026-07-10T00:00:00Z",
+        source_url="https://unrelated.example.invalid/press-release",
+    )
+    forged_graph = replace_graph(
+        graph,
+        documents=tuple(
+            forged_document if item.document_id == forged_document.document_id else item
+            for item in graph.documents
+        ),
+    )
+    forged_snapshot = _resign_snapshot_for_graph(
+        forged_graph,
+        snapshot,
+        context,
+    )
+    forged_graph = replace_graph(
+        forged_graph,
+        market_reference_snapshots=(forged_snapshot,),
+    )
+
+    with pytest.raises(ContractGraphError, match="Quote source"):
+        forged_graph.validate()
+
+
+def test_recorded_fixture_context_rejects_reviewed_authority_injection(
+    sample_payloads,
+    monkeypatch,
+    tmp_path,
+) -> None:
+    graph, _, context, _, _ = valid_snapshot_graph(
+        sample_payloads,
+        monkeypatch,
+        tmp_path,
+    )
+    with pytest.raises(ValueError, match="cannot carry reviewed-file"):
+        replace(context, provider_evidence_sha256="9" * 64)
 
 
 def test_point_in_time_share_fact_cannot_be_weighted_average_or_wrong_date(

@@ -18,8 +18,8 @@ ROOT = Path(__file__).parents[1]
 def test_component_lock_has_exact_pinned_identity() -> None:
     lock = load_component_lock(ROOT / "component-lock.json")
     assert lock["lock_version"] == "1.2.0"
-    assert lock["owner_equity_research"]["plugin_version"] == "0.5.0-dev.11"
-    assert __version__ == "0.5.0.dev11"
+    assert lock["owner_equity_research"]["plugin_version"] == "0.6.0-dev.1"
+    assert __version__ == "0.6.0.dev1"
     kernel = lock["valuation_kernel"]
     assert kernel["repository"] == "mingjiconnect-ctrl/owner-valuation-kernel"
     assert kernel["tag"] == "v2.0.0-rc.2"
@@ -38,7 +38,16 @@ def test_component_lock_has_exact_pinned_identity() -> None:
         "secret_policy",
         "adapter_code",
         "parser_code",
+        "reviewed_file_provider",
+        "authorization_consumption_store",
     }
+    reviewed = authority["reviewed_file_provider"]
+    assert reviewed["provider_id"] == "provider:human-reviewed-file"
+    assert reviewed["authority_kind"] == "human_reviewed_file"
+    assert reviewed["endpoint_id"] == "reviewed-file"
+    store = authority["authorization_consumption_store"]
+    assert store["policy_id"] == "handoff-global-filesystem-reservation"
+    assert store["root_policy"] == "module_import_user_state_home"
 
 
 def test_component_lock_matches_pinned_local_checkout() -> None:
