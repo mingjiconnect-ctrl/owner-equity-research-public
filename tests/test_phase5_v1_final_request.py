@@ -610,6 +610,7 @@ def _request_ready_case(
             "receipt_fingerprint": "7" * 64,
         },
         authorization_handoff_id="valuation-handoff:SYNTH:run:v4",
+        authorization_handoff_fingerprint="a" * 64,
         share_basis={
             "shares_outstanding_fact_id": current.fact_id,
             "current_common_shares_outstanding_decimal": str(current_share_count),
@@ -639,6 +640,8 @@ def _request_ready_case(
     )
     receipt = SimpleNamespace(
         receipt_id=snapshot.governed_market_quote_receipt["receipt_id"],
+        request_id=request.request_id,
+        request_fingerprint=request.request_fingerprint,
         provider_id=request.provider_id,
         security_id=request.security_id,
         authorization_handoff_id=request.authorization_handoff_id,
@@ -675,6 +678,8 @@ def _request_ready_case(
     )
     handoff = SimpleNamespace(
         handoff_id=snapshot.authorization_handoff_id,
+        state="market_reference_allowed",
+        fingerprint=snapshot.authorization_handoff_fingerprint,
         issuer_id="SYNTH",
         data_cutoff_date="2026-07-10",
         research_bundle_id=bundle.bundle_id,
@@ -1060,6 +1065,36 @@ def test_company_and_market_authority_are_evidence_bound() -> None:
     with pytest.raises(ValueError, match="provider identity"):
         _compile_from_artifact(
             prepared=mismatched_provider,
+            artifact=artifact,
+            kernel_repository=KERNEL,
+        )
+
+    _artifact, mismatched_request, _example = _request_ready_case()
+    mismatched_receipt = mismatched_request.graph.market_reference_validation_contexts[
+        0
+    ].market_access_result.receipt.receipt
+    mismatched_receipt.request_fingerprint = "f" * 64
+    with pytest.raises(ValueError, match="provider identity"):
+        _compile_from_artifact(
+            prepared=mismatched_request,
+            artifact=artifact,
+            kernel_repository=KERNEL,
+        )
+
+    _artifact, stale_authorization, _example = _request_ready_case()
+    stale_authorization.graph.valuation_handoffs[0].state = "price_blind_input_frozen"
+    with pytest.raises(ValueError, match="ResearchBundle binding"):
+        _compile_from_artifact(
+            prepared=stale_authorization,
+            artifact=artifact,
+            kernel_repository=KERNEL,
+        )
+
+    _artifact, forged_authorization, _example = _request_ready_case()
+    forged_authorization.graph.valuation_handoffs[0].fingerprint = "b" * 64
+    with pytest.raises(ValueError, match="ResearchBundle binding"):
+        _compile_from_artifact(
+            prepared=forged_authorization,
             artifact=artifact,
             kernel_repository=KERNEL,
         )

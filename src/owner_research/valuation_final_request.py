@@ -389,6 +389,8 @@ def _governed_market_authority(prepared: PreparedMarketReference) -> dict[str, s
         or request.request_fingerprint != snapshot_request["request_fingerprint"]
         or receipt.receipt_id != snapshot_receipt["receipt_id"]
         or governed.fingerprint != snapshot_receipt["receipt_fingerprint"]
+        or receipt.request_id != request.request_id
+        or receipt.request_fingerprint != request.request_fingerprint
         or request.provider_id != receipt.provider_id
         or request.security_id != snapshot.security["security_id"]
         or receipt.security_id != snapshot.security["security_id"]
@@ -731,7 +733,9 @@ def _bound_research_bundle_closure(
         raise FinalRequestCompilationError("company identity lacks one bound ResearchBundle")
     bundle = bundles[0]
     if (
-        handoff.issuer_id != snapshot.issuer_id
+        handoff.state != "market_reference_allowed"
+        or handoff.fingerprint != snapshot.authorization_handoff_fingerprint
+        or handoff.issuer_id != snapshot.issuer_id
         or handoff.data_cutoff_date != snapshot.data_cutoff_date
         or bundle.issuer_id != snapshot.issuer_id
         or bundle.data_cutoff_date != snapshot.data_cutoff_date
