@@ -256,6 +256,7 @@ def verify_kernel_runtime_lock(lock_path: Path | None = None) -> VerificationRes
         "python_implementations",
         "result_schema",
         "container",
+        "trusted_workflow",
         "python_minors",
         "request_transport",
         "result_transport",
@@ -304,8 +305,6 @@ def verify_kernel_runtime_lock(lock_path: Path | None = None) -> VerificationRes
         "tmpfs",
         "ulimits",
         "read_only_mounts",
-        "trusted_attestation_path_env",
-        "trusted_attestation_sha256_env",
     }
     expected_container_identity = {
         "engine": "docker",
@@ -335,6 +334,30 @@ def verify_kernel_runtime_lock(lock_path: Path | None = None) -> VerificationRes
         errors.append("Kernel runtime container authority shape mismatch")
     elif any(container.get(key) != value for key, value in expected_container_identity.items()):
         errors.append("Kernel runtime container identity drifted")
+    expected_trusted_workflow = {
+        "attestation_path": "/run/owner-research/trusted-container-attestation.json",
+        "attestation_mount_target": "/run/owner-research",
+        "attestation_sha256_env": (
+            "OWNER_RESEARCH_TRUSTED_CONTAINER_ATTESTATION_SHA256"
+        ),
+        "read_only_mounts": [
+            {"role": "candidate_workspace", "target": "/workspace"},
+            {"role": "private_kernel_checkout", "target": "/private-kernel"},
+            {"role": "binary_supply_wheelhouse", "target": "/supply"},
+            {"role": "binary_supply_lock", "target": "/supply.lock"},
+            {"role": "verified_research_wheel", "target": "/research-wheel"},
+            {"role": "runtime_cas", "target": "/runtime-cas"},
+            {
+                "role": "trusted_attestation_directory",
+                "target": "/run/owner-research",
+            },
+        ],
+        "writable_mounts": [
+            {"role": "canonical_summary_output", "target": "/output"}
+        ],
+    }
+    if authority_runtime.get("trusted_workflow") != expected_trusted_workflow:
+        errors.append("Kernel trusted-workflow authority drifted")
     if (
         authority_runtime.get("platform") != "linux_x86_64"
         or authority_runtime.get("python_implementations") != ["cpython"]
