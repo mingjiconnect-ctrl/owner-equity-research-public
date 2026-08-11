@@ -975,7 +975,15 @@ def compile_final_valuation_request(
             artifact=artifact,
             kernel_repository=kernel_repository,
         )
-    except (FinalRequestCompilationError, InvalidOperation, KeyError, ValueError) as exc:
+    except (
+        FinalRequestCompilationError,
+        InvalidOperation,
+        IndexError,
+        KeyError,
+        StopIteration,
+        TypeError,
+        ValueError,
+    ) as exc:
         return _noncompiled(
             preparation=preparation,
             status="blocked",
