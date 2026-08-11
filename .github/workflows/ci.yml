@@ -827,6 +827,56 @@ jobs:
                   "tree": report["tree"],
               }
 
+          def write_exact(directory, name, value):
+              descriptor = os.open(
+                  name,
+                  os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW,
+                  0o600,
+                  dir_fd=directory,
+              )
+              try:
+                  remaining = memoryview(value)
+                  while remaining:
+                      try:
+                          written = os.write(descriptor, remaining)
+                      except InterruptedError:
+                          continue
+                      if written <= 0 or written > len(remaining):
+                          raise ValueError("canonical summary write was incomplete")
+                      remaining = remaining[written:]
+                  os.fsync(descriptor)
+                  written_stat = os.fstat(descriptor)
+                  if (
+                      not stat.S_ISREG(written_stat.st_mode)
+                      or written_stat.st_nlink != 1
+                      or written_stat.st_size != len(value)
+                  ):
+                      raise ValueError("canonical summary metadata changed")
+              finally:
+                  os.close(descriptor)
+
+              descriptor = os.open(
+                  name,
+                  os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                  dir_fd=directory,
+              )
+              try:
+                  reopened_stat = os.fstat(descriptor)
+                  chunks = []
+                  while chunk := os.read(descriptor, 64 * 1024):
+                      chunks.append(chunk)
+                  if (
+                      (reopened_stat.st_dev, reopened_stat.st_ino)
+                      != (written_stat.st_dev, written_stat.st_ino)
+                      or not stat.S_ISREG(reopened_stat.st_mode)
+                      or reopened_stat.st_nlink != 1
+                      or reopened_stat.st_size != len(value)
+                      or b"".join(chunks) != value
+                  ):
+                      raise ValueError("canonical summary did not replay after write")
+              finally:
+                  os.close(descriptor)
+
           def main():
               raw_root = Path(sys.argv[1])
               raw_name = sys.argv[2]
@@ -875,19 +925,7 @@ jobs:
                   upload_directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
               )
               try:
-                  descriptor = os.open(
-                      "phase5-v1-verify.json",
-                      os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW,
-                      0o600,
-                      dir_fd=directory,
-                  )
-                  try:
-                      os.write(descriptor, canonical)
-                      os.fsync(descriptor)
-                      if not stat.S_ISREG(os.fstat(descriptor).st_mode):
-                          raise ValueError("canonical summary is not regular")
-                  finally:
-                      os.close(descriptor)
+                  write_exact(directory, "phase5-v1-verify.json", canonical)
               finally:
                   os.close(directory)
               entries = list(os.scandir(upload_directory))

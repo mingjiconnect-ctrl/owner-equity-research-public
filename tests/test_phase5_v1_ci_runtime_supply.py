@@ -268,6 +268,15 @@ def test_inline_sanitizer_removes_private_message_and_writes_one_regular_file(
         return Completed()
 
     monkeypatch.setattr(namespace["subprocess"], "run", fake_cleanup)
+    original_write = namespace["os"].write
+    write_calls = 0
+
+    def short_write(descriptor: int, value: bytes | memoryview) -> int:
+        nonlocal write_calls
+        write_calls += 1
+        return original_write(descriptor, value[:3])
+
+    monkeypatch.setattr(namespace["os"], "write", short_write)
     monkeypatch.setattr(
         namespace["sys"],
         "argv",
@@ -285,6 +294,7 @@ def test_inline_sanitizer_removes_private_message_and_writes_one_regular_file(
         ],
     )
     namespace["main"]()
+    assert write_calls > 1
     output = upload / "phase5-v1-verify.json"
     assert output.is_file() and not output.is_symlink()
     assert stat.S_IMODE(output.stat().st_mode) == 0o600
