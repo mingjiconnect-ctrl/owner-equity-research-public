@@ -19,6 +19,7 @@ from owner_research.valuation_market_execution_policies import (
     MARKET_QUOTE_POLICY_VERSION,
     PHASE5E_POLICIES,
     PINNED_KERNEL_SCHEMA_SHA256,
+    PINNED_KERNEL_WHEEL_SHA256,
     SECURITY_IDENTITY_POLICY_ID,
     SECURITY_IDENTITY_POLICY_VERSION,
     SHARE_BASIS_POLICY_ID,
@@ -157,6 +158,8 @@ def _request_receipt(**changes: object) -> FinalRequestCompilationReceipt:
         "issuer_id": "issuer:fixture",
         "handoff_run_id": "valuation-run:fixture",
         "market_reference_snapshot_id": "market-reference:fixture",
+        "current_share_projection_sha256": "2" * 64,
+        "numeric_projection_sha256": "3" * 64,
         "added_source_ids": ("source:fixture:market",),
         "added_fact_ids": ("fact:fixture:quote", "fact:fixture:market-equity"),
         "price_blind_fact_ledger_sha256": SHA_A,
@@ -188,14 +191,24 @@ def _kernel_receipt(**changes: object) -> KernelExecutionReceipt:
         "package_version": "2.0.0rc2",
         "plugin_version": "2.0.0-rc.2",
         "schema_sha256": PINNED_KERNEL_SCHEMA_SHA256,
-        "wheel_sha256": SHA_A,
+        "wheel_sha256": PINNED_KERNEL_WHEEL_SHA256,
         "dependency_wheelhouse_sha256": SHA_B,
-        "execution_mode": "isolated_subprocess",
+        "runtime_authority_sha256": "1" * 64,
+        "runtime_manifest_file_sha256": "2" * 64,
+        "runtime_manifest_fingerprint": "3" * 64,
+        "runner_sha256": "4" * 64,
+        "python_executable_sha256": "5" * 64,
+        "unshare_sha256": "6" * 64,
+        "execution_mode": "isolated_linux_network_namespace",
         "request_transport": "canonical_json_stdin",
         "result_transport": "canonical_json_stdout",
-        "network_mode": "disabled",
+        "network_mode": "linux_network_namespace_none",
         "request_sha256": SHA_C,
         "result_sha256": SHA_D,
+        "fact_ledger_fingerprint": "7" * 64,
+        "assumption_ledger_fingerprint": "8" * 64,
+        "model_input_fingerprint": "9" * 64,
+        "call_count": 1,
         "exit_code": 0,
         "result_preserved": True,
         "status": "succeeded",
@@ -333,17 +346,33 @@ def test_final_request_receipt_rejects_any_protected_drift(changes) -> None:
         _request_receipt(**changes)
 
 
-def test_final_request_receipt_allows_only_one_source_and_two_market_facts() -> None:
-    with pytest.raises(ValueError, match="exactly one source and two market Facts"):
+def test_final_request_receipt_requires_appended_share_or_market_lineage() -> None:
+    receipt = _request_receipt(
+        added_source_ids=("source:fixture:filing", "source:fixture:market"),
+        added_fact_ids=(
+            "fact:fixture:opening-shares",
+            "fact:fixture:completed-repurchase",
+            "fact:fixture:current-shares",
+            "fact:fixture:quote",
+            "fact:fixture:market-equity",
+        ),
+    )
+    assert len(receipt.added_source_ids) == 2
+    assert len(receipt.added_fact_ids) == 5
+    with pytest.raises(ValueError, match="lacks appended share or market lineage"):
         _request_receipt(added_fact_ids=("fact:quote",))
+    with pytest.raises(ValueError, match="lacks appended share or market lineage"):
+        _request_receipt(added_source_ids=())
 
 
 @pytest.mark.parametrize(
     ("changes", "message"),
     (
         ({"commit": "0" * 40}, "identity drifted"),
-        ({"execution_mode": "in_process"}, "isolated subprocess"),
-        ({"network_mode": "enabled"}, "network must be disabled"),
+        ({"wheel_sha256": SHA_A}, "pinned release bytes"),
+        ({"execution_mode": "in_process"}, "isolated Linux network namespace"),
+        ({"network_mode": "enabled"}, "netless Linux namespace"),
+        ({"call_count": 2}, "preserve a zero-exit result"),
         ({"result_preserved": False}, "preserve"),
     ),
 )

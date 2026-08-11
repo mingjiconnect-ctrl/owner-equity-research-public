@@ -30,6 +30,7 @@ from .valuation_market_execution_policies import (
     PINNED_KERNEL_REPOSITORY,
     PINNED_KERNEL_SCHEMA_SHA256,
     PINNED_KERNEL_TAG,
+    PINNED_KERNEL_WHEEL_SHA256,
     SECURITY_DISPOSITIONS,
     SECURITY_IDENTITY_POLICY_ID,
     SECURITY_IDENTITY_POLICY_VERSION,
@@ -372,6 +373,8 @@ class FinalRequestCompilationReceipt:
     issuer_id: str
     handoff_run_id: str
     market_reference_snapshot_id: str
+    current_share_projection_sha256: str
+    numeric_projection_sha256: str
     added_source_ids: tuple[str, ...]
     added_fact_ids: tuple[str, ...]
     price_blind_fact_ledger_sha256: str
@@ -413,12 +416,14 @@ class FinalRequestCompilationReceipt:
             "protected_penman_before_sha256",
             "protected_penman_after_sha256",
             "valuation_request_sha256",
+            "current_share_projection_sha256",
+            "numeric_projection_sha256",
         ):
             _sha256(getattr(self, name), name)
         reasons = _registered_reasons(self.reason_codes)
         if self.status == "validated":
-            if len(self.added_source_ids) != 1 or len(self.added_fact_ids) != 2:
-                raise ValueError("final request must add exactly one source and two market Facts")
+            if not self.added_source_ids or len(self.added_fact_ids) < 2:
+                raise ValueError("final request lacks appended share or market lineage")
             if self.price_blind_fact_ledger_sha256 == self.final_fact_ledger_sha256:
                 raise ValueError("final FactLedger must reflect appended market evidence")
             protected_pairs = (
@@ -467,12 +472,22 @@ class KernelExecutionReceipt:
     schema_sha256: FrozenMap
     wheel_sha256: str
     dependency_wheelhouse_sha256: str
+    runtime_authority_sha256: str
+    runtime_manifest_file_sha256: str
+    runtime_manifest_fingerprint: str
+    runner_sha256: str
+    python_executable_sha256: str
+    unshare_sha256: str
     execution_mode: str
     request_transport: str
     result_transport: str
     network_mode: str
     request_sha256: str
     result_sha256: str
+    fact_ledger_fingerprint: str
+    assumption_ledger_fingerprint: str
+    model_input_fingerprint: str
+    call_count: int
     exit_code: int
     result_preserved: bool
     status: str
@@ -506,23 +521,34 @@ class KernelExecutionReceipt:
         for name in (
             "wheel_sha256",
             "dependency_wheelhouse_sha256",
+            "runtime_authority_sha256",
+            "runtime_manifest_file_sha256",
+            "runtime_manifest_fingerprint",
+            "runner_sha256",
+            "python_executable_sha256",
+            "unshare_sha256",
             "request_sha256",
             "result_sha256",
+            "fact_ledger_fingerprint",
+            "assumption_ledger_fingerprint",
+            "model_input_fingerprint",
         ):
             _sha256(getattr(self, name), name)
-        if self.execution_mode != "isolated_subprocess":
-            raise ValueError("kernel must execute in an isolated subprocess")
+        if self.wheel_sha256 != PINNED_KERNEL_WHEEL_SHA256:
+            raise ValueError("kernel wheel does not match the pinned release bytes")
+        if self.execution_mode != "isolated_linux_network_namespace":
+            raise ValueError("kernel must execute in an isolated Linux network namespace")
         if self.request_transport != "canonical_json_stdin":
             raise ValueError("kernel request transport must be canonical JSON over stdin")
         if self.result_transport != "canonical_json_stdout":
             raise ValueError("kernel result transport must be canonical JSON over stdout")
-        if self.network_mode != "disabled":
-            raise ValueError("kernel execution network must be disabled")
+        if self.network_mode != "linux_network_namespace_none":
+            raise ValueError("kernel execution requires a netless Linux namespace")
         if self.status not in {"succeeded", "blocked"}:
             raise ValueError("kernel execution status is not registered")
         reasons = _registered_reasons(self.reason_codes)
         if self.status == "succeeded":
-            if self.exit_code != 0 or not self.result_preserved:
+            if self.exit_code != 0 or not self.result_preserved or self.call_count != 1:
                 raise ValueError("successful kernel execution must preserve a zero-exit result")
             if reasons:
                 raise ValueError("successful kernel execution cannot retain blocking reasons")

@@ -19,8 +19,9 @@ from owner_research.valuation_kernel_materializer import (
 )
 
 ROOT = Path(__file__).parents[1]
-KERNEL = Path(os.environ.get("OWNER_VALUATION_REPO", ROOT.parent / "owner-valuation-kernel"))
-KERNEL_AVAILABLE = KERNEL.is_dir()
+KERNEL_ENV = os.environ.get("OWNER_VALUATION_REPO")
+KERNEL = Path(KERNEL_ENV) if KERNEL_ENV else Path("/__private_kernel_not_authorized__")
+KERNEL_AVAILABLE = KERNEL_ENV is not None and KERNEL.is_dir()
 EXPECTED_COMMIT = "be9b0773d5a78f5f8a33ba982494512668df85fe"
 EXPECTED_WHEEL_SHA256 = "fb27d01b1ee75fbd542371510150e890516d306218d33f3608f2aa3caa0e55a5"
 
