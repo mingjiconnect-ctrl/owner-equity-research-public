@@ -67,7 +67,11 @@ def _sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
-def _preparation_fingerprint(preparation: OwnerValuationPreparationResult) -> str:
+def _preparation_fingerprint(
+    preparation: OwnerValuationPreparationResult,
+    *,
+    expected_freeze_fingerprint: str,
+) -> str:
     prepared = preparation.prepared_market_reference
     authority_binding: dict[str, Any] | None = None
     if prepared is not None:
@@ -95,6 +99,7 @@ def _preparation_fingerprint(preparation: OwnerValuationPreparationResult) -> st
             "issuer_id": preparation.issuer_id,
             "data_cutoff_date": preparation.data_cutoff_date,
             "price_blind_input_fingerprint": (preparation.price_blind_input_fingerprint),
+            "expected_freeze_fingerprint": expected_freeze_fingerprint,
             "prepared_market_reference_fingerprint": (
                 prepared.fingerprint if prepared is not None else None
             ),
@@ -518,17 +523,21 @@ class OwnerValuationExecutionResult:
         object.__setattr__(self, "execution_handoffs", handoffs)
         object.__setattr__(self, "issue_codes", issues)
         _checked_sha256(self.preparation_fingerprint, "preparation fingerprint")
+        _checked_sha256(self.expected_freeze_fingerprint, "expected freeze fingerprint")
         if (
             type(self.preparation) is not OwnerValuationPreparationResult
             or type(self.clock) is not OwnerValuationExecutionClock
             or self.preparation.issuer_id != self.issuer_id
             or self.preparation.data_cutoff_date != self.data_cutoff_date
-            or self.preparation_fingerprint != _preparation_fingerprint(self.preparation)
+            or self.preparation_fingerprint
+            != _preparation_fingerprint(
+                self.preparation,
+                expected_freeze_fingerprint=self.expected_freeze_fingerprint,
+            )
         ):
             raise ValueError(
                 "owner execution changed its frozen preparation fingerprint or clock"
             )
-        _checked_sha256(self.expected_freeze_fingerprint, "expected freeze fingerprint")
         _validate_final_request_identity(self.preparation, self.final_request_result)
         request = self.final_request_result
         expected_freeze = self.expected_freeze
@@ -1271,15 +1280,19 @@ def _stopped(
     quarantined_result_sha256: str | None = None,
 ) -> OwnerValuationExecutionResult:
     retained_freeze = expected_freeze if final_request.status == "compiled" else None
+    freeze_fingerprint = _expected_freeze_fingerprint(expected_freeze)
     return OwnerValuationExecutionResult(
         status=status,
         issuer_id=preparation.issuer_id,
         data_cutoff_date=preparation.data_cutoff_date,
-        preparation_fingerprint=_preparation_fingerprint(preparation),
+        preparation_fingerprint=_preparation_fingerprint(
+            preparation,
+            expected_freeze_fingerprint=freeze_fingerprint,
+        ),
         preparation=preparation,
         clock=clock,
         expected_freeze=retained_freeze,
-        expected_freeze_fingerprint=_expected_freeze_fingerprint(expected_freeze),
+        expected_freeze_fingerprint=freeze_fingerprint,
         final_request_result=final_request,
         final_request_receipt=final_request_receipt,
         kernel_execution_result=None,
@@ -1410,15 +1423,19 @@ def execute_owner_valuation(
             issue_codes=(f"kernel_result_blocked:{type(exc).__name__}",),
         )
 
+    freeze_fingerprint = _expected_freeze_fingerprint(expected_freeze)
     return OwnerValuationExecutionResult(
         status="completed",
         issuer_id=preparation.issuer_id,
         data_cutoff_date=preparation.data_cutoff_date,
-        preparation_fingerprint=_preparation_fingerprint(preparation),
+        preparation_fingerprint=_preparation_fingerprint(
+            preparation,
+            expected_freeze_fingerprint=freeze_fingerprint,
+        ),
         preparation=preparation,
         clock=clock,
         expected_freeze=expected_freeze,
-        expected_freeze_fingerprint=_expected_freeze_fingerprint(expected_freeze),
+        expected_freeze_fingerprint=freeze_fingerprint,
         final_request_result=final_request,
         final_request_receipt=request_receipt,
         kernel_execution_result=execution,

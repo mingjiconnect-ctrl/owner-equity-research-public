@@ -142,6 +142,8 @@ def test_noncompiled_path_calls_compiler_once_and_never_runs_or_advances(
     assert result.result_bytes is None
     assert result.expected_freeze is None
     assert result.expected_freeze_fingerprint == freeze_result.fingerprint
+    with pytest.raises(ValueError, match="preparation fingerprint"):
+        replace(result, expected_freeze_fingerprint="f" * 64)
     malicious_freeze = SimpleNamespace(
         result_bytes=b'{"forged":true}',
         call_count=1,
