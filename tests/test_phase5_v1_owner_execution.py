@@ -140,12 +140,14 @@ def test_noncompiled_path_calls_compiler_once_and_never_runs_or_advances(
     assert result.execution_handoffs == ()
     assert result.validated_graph is None
     assert result.result_bytes is None
+    assert result.expected_freeze is None
+    assert result.expected_freeze_fingerprint == freeze_result.fingerprint
     malicious_freeze = SimpleNamespace(
         result_bytes=b'{"forged":true}',
         call_count=1,
         kernel_call_count=1,
     )
-    with pytest.raises(ValueError, match="exact price-blind freeze"):
+    with pytest.raises(ValueError, match="retained a full expected freeze"):
         replace(result, expected_freeze=malicious_freeze)
     malicious_request = SimpleNamespace(
         status=status,
@@ -183,7 +185,7 @@ def test_noncompiled_path_calls_compiler_once_and_never_runs_or_advances(
         freeze_result,
         handoffs=(*freeze_result.handoffs[:-1], rebound_v4),
     )
-    with pytest.raises(ValueError, match="expected freeze fingerprint"):
+    with pytest.raises(ValueError, match="retained a full expected freeze"):
         replace(result, expected_freeze=rebound_freeze)
 
 
@@ -1075,6 +1077,9 @@ def test_runner_output_binding_failure_is_hash_only_and_never_advances_graph(
         freeze_result.handoffs
     )
     assert result.final_request_receipt is not None
+    assert result.expected_freeze is freeze_result
+    with pytest.raises(ValueError, match="exact request receipt"):
+        replace(result, final_request_receipt=None)
     with pytest.raises(ValueError, match="bind owner preparation"):
         replace(
             result,
