@@ -617,6 +617,40 @@ def test_wheel_verifier_rejects_each_raw_runtime_member_tamper(
 
 
 @pytest.mark.parametrize(
+    ("member", "lock_key"),
+    (
+        ("owner_research/valuation_kernel_materializer.py", "materializer_code"),
+        ("owner_research/valuation_pinned_kernel.py", "runner_code"),
+        (
+            "owner_research/resources/phase5-v1-kernel-runtime/runtime-authority.json",
+            "runtime_authority",
+        ),
+    ),
+)
+def test_wheel_verifier_rejects_runtime_member_and_embedded_lock_rebinding(
+    research_wheel: Path, tmp_path: Path, member: str, lock_key: str
+) -> None:
+    lock_member = "owner_research/component-lock.json"
+    with zipfile.ZipFile(research_wheel) as archive:
+        lock = json.loads(archive.read(lock_member))
+        rebound_raw = archive.read(member) + b"\n "
+    lock["valuation_kernel_runtime"][lock_key]["sha256"] = hashlib.sha256(
+        rebound_raw
+    ).hexdigest()
+    mutated = _mutate_wheel(
+        research_wheel,
+        tmp_path / f"rebound-{lock_key}.whl",
+        replacements={
+            lock_member: json.dumps(lock).encode(),
+            member: rebound_raw,
+        },
+    )
+    errors = "\n".join(VERIFY_WHEEL(mutated))
+    assert f"runtime lock hash is not pinned: {lock_key}" in errors
+    assert f"runtime member hash mismatch: {lock_key}" in errors
+
+
+@pytest.mark.parametrize(
     "name",
     (
         "owner_research/private/kernel.whl",

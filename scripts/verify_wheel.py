@@ -146,6 +146,17 @@ LOCKED_RUNTIME_MEMBERS = {
     "materializer_code": "owner_research/valuation_kernel_materializer.py",
     "runner_code": "owner_research/valuation_pinned_kernel.py",
 }
+EXPECTED_RUNTIME_MEMBER_SHA256 = {
+    "runtime_authority": (
+        "0a317935d257e2fb406bc8efd9c90d42b1e572a6f8e6baa3c6d75b7cb48530dd"
+    ),
+    "materializer_code": (
+        "d5becc51a3708ec43a5a5712f835bccff3b66a132aa36f3304aeea4eff9fb5c2"
+    ),
+    "runner_code": (
+        "1baebaaa11aab5165ff3d6d1e1567b2dfbc2dac2cd23576572112038ca16fd0b"
+    ),
+}
 
 
 def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -224,7 +235,10 @@ def _runtime_binding_errors(archive: ZipFile) -> list[str]:
             errors.append(f"embedded runtime lock path drifted: {key}")
             continue
         raw = archive.read(member)
-        if entry.get("sha256") != _sha256(raw):
+        expected_sha256 = EXPECTED_RUNTIME_MEMBER_SHA256[key]
+        if entry.get("sha256") != expected_sha256:
+            errors.append(f"embedded runtime lock hash is not pinned: {key}")
+        if _sha256(raw) != expected_sha256:
             errors.append(f"embedded runtime member hash mismatch: {key}")
 
     kernel = authority.get("kernel")

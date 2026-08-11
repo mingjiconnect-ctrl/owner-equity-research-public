@@ -291,7 +291,6 @@ jobs:
           private_root="$RUNNER_TEMP/phase5-v1-private-${{ matrix.python-version }}"
           wheelhouse="$RUNNER_TEMP/phase5-v1-wheelhouse-${{ matrix.python-version }}"
           supply_lock="$RUNNER_TEMP/phase5-v1-supply-${{ matrix.python-version }}.lock"
-          runtime_lock="$RUNNER_TEMP/phase5-v1-runtime-supply.lock"
           validator="$RUNNER_TEMP/phase5-v1-supply-validator-${{ matrix.python-version }}.py"
           private_kernel="$RUNNER_TEMP/phase5-v1-kernel-source"
           runner_python=$(readlink -f '${{ steps.python.outputs.python-path }}')
