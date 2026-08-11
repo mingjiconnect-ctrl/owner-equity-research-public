@@ -241,6 +241,10 @@ class FinalValuationRequestCompilationResult:
                 != canonical_json(assumption_payload)
                 or self.issuer_id != fact_payload.get("entity_id")
                 or self.valuation_date != fact_payload.get("valuation_date")
+                or self.assumption_ledger_result.prior_fact_ledger_fingerprint
+                != self.fact_ledger_result.base_ledger_sha256
+                or self.assumption_ledger_result.final_fact_ledger_fingerprint
+                != canonical_sha256(fact_payload)
             ):
                 raise ValueError("compiled valuation request does not bind its ledger receipts")
             fact_index = {item["fact_id"]: item for item in fact_payload.get("facts", ())}

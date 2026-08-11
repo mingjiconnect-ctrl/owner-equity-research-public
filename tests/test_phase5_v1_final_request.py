@@ -837,6 +837,14 @@ def test_compilation_receipt_rejects_self_hashed_nested_binding_mutations() -> N
             request_sha256=canonical_sha256(different_ledger),
         )
 
+    assert result.assumption_ledger_result is not None
+    mismatched_assumption_receipt = replace(
+        result.assumption_ledger_result,
+        prior_fact_ledger_fingerprint="9" * 64,
+    )
+    with pytest.raises(ValueError, match="ledger receipts"):
+        replace(result, assumption_ledger_result=mismatched_assumption_receipt)
+
     different_market_binding = to_json_value(result.request_payload)
     different_market_binding["mckinsey"]["equity_bridge"]["share_denominator_fact_id"] = (
         different_market_binding["company"]["source_fact_ids"][0]
