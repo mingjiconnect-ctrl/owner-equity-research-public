@@ -27,6 +27,7 @@ from owner_research.valuation_current_share_compiler import (
 from owner_research.valuation_final_request import (
     FinalValuationRequestCompilationResult,
     _compile_from_artifact,
+    _market_evidence_binding_sha256,
 )
 from owner_research.valuation_kernel_projection import (
     KernelNumericProjectionWitness,
@@ -765,7 +766,10 @@ def _request_ready_case(
         valuation_handoffs=(handoff,),
         market_reference_validation_contexts=(
             SimpleNamespace(
-                context_id="market-context:SYNTH:2026-07-10",
+                context_id=(
+                    "market-reference-context:SYNTH:2026-07-10:"
+                    f"{snapshot.raw_evidence['raw_response_sha256'][:16]}"
+                ),
                 fingerprint="e" * 64,
                 market_access_result=access,
                 current_share_compilation_result=share_prepared.current_shares,
@@ -1350,6 +1354,72 @@ def test_prepared_market_objects_replay_unique_graph_and_context_ownership() -> 
             prepared=context_mismatch,
             artifact=artifact,
             kernel_repository=KERNEL,
+        )
+
+    artifact, relabeled_context_case, _example = _request_ready_case()
+    relabeled_context = relabeled_context_case.graph.market_reference_validation_contexts[0]
+    relabeled_context.context_id = "market-reference-context:forged-relabel"
+    relabeled_context.fingerprint = canonical_sha256(
+        {
+            "context_id": relabeled_context.context_id,
+            "market_access_result": relabeled_context.market_access_result.fingerprint,
+            "current_share_compilation": (
+                relabeled_context.current_share_compilation_result.fingerprint
+            ),
+        }
+    )
+    relabeled_context_case.graph = replace(
+        relabeled_context_case.graph,
+        market_reference_validation_contexts=(relabeled_context,),
+    )
+    relabeled_context_case.fingerprint = canonical_sha256(
+        {
+            "snapshot": vars(relabeled_context_case.snapshot),
+            "context": [relabeled_context.context_id, relabeled_context.fingerprint],
+        }
+    )
+    with pytest.raises(ValueError, match="validation context"):
+        _compile_from_artifact(
+            prepared=relabeled_context_case,
+            artifact=artifact,
+            kernel_repository=KERNEL,
+        )
+
+
+@requires_private_kernel
+def test_final_fact_ledger_rejects_post_hoc_market_context_relabel() -> None:
+    artifact, prepared, _example = _request_ready_case()
+    result = _compile_from_artifact(
+        prepared=prepared,
+        artifact=artifact,
+        kernel_repository=KERNEL,
+    )
+    fact_result = result.fact_ledger_result
+    assert fact_result is not None
+    relabeled_context_id = "market-reference-context:forged-relabel"
+    relabeled_binding = _market_evidence_binding_sha256(
+        context_id=relabeled_context_id,
+        context_fingerprint=fact_result.market_validation_context_fingerprint,
+        access_fingerprint=fact_result.market_access_result_fingerprint,
+        provider_id=fact_result.market_provider_id,
+        provider_registration_sha256=fact_result.market_provider_registration_sha256,
+        receipt_id=fact_result.market_provider_receipt_id,
+        receipt_fingerprint=fact_result.market_provider_receipt_fingerprint,
+        current_share_compilation_fingerprint=(fact_result.current_share_compilation_fingerprint),
+        source_document_id=fact_result.market_source_document_id,
+        source_document_fingerprint=fact_result.market_source_document_fingerprint,
+        source_ref_fingerprint=fact_result.market_source_ref_fingerprint,
+        raw_response_sha256=fact_result.market_raw_response_sha256,
+        quote_fact_id=fact_result.market_quote_fact_id,
+        quote_fact_fingerprint=fact_result.market_quote_fact_fingerprint,
+        calculation_id=fact_result.market_equity_calculation_id,
+        calculation_fingerprint=fact_result.market_equity_calculation_fingerprint,
+    )
+    with pytest.raises(ValueError, match="context identity is not canonical"):
+        replace(
+            fact_result,
+            market_validation_context_id=relabeled_context_id,
+            market_evidence_binding_sha256=relabeled_binding,
         )
 
 

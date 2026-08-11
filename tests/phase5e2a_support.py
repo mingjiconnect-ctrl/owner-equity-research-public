@@ -313,7 +313,10 @@ def valid_snapshot_graph(sample_payloads, monkeypatch, tmp_path: Path):
     assert current_shares.share_basis_decision is not None
     share_basis = current_shares.share_basis_decision
     context = MarketReferenceValidationContext(
-        context_id="market-reference-context:acme:2026-06-30",
+        context_id=(
+            f"market-reference-context:{request.issuer_id}:{receipt.trading_date}:"
+            f"{governed.raw_response_sha256[:16]}"
+        ),
         price_blind_artifact=freeze.artifact,
         security_compilation_result=security,
         market_access_result=access,

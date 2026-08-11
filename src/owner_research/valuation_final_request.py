@@ -59,6 +59,17 @@ _MODEL_SHARE_UNIT = "millions shares"
 _MARKET_EQUITY_DERIVATION = "market_price_per_current_common_share * common_shares_outstanding"
 
 
+def _canonical_market_validation_context_id(
+    *,
+    issuer_id: str,
+    trading_date: str,
+    raw_response_sha256: str,
+) -> str:
+    """Derive the sole accepted validation-context identity from market evidence."""
+
+    return f"market-reference-context:{issuer_id}:{trading_date}:{raw_response_sha256[:16]}"
+
+
 def _market_evidence_binding_sha256(
     *,
     context_id: str,
@@ -321,6 +332,12 @@ class FinalFactLedgerCompilationResult:
             or canonical_sha256(base_payload) != self.base_ledger_sha256
         ):
             raise ValueError("final FactLedger base fingerprint does not replay")
+        if self.market_validation_context_id != _canonical_market_validation_context_id(
+            issuer_id=str(payload["entity_id"]),
+            trading_date=str(payload["valuation_date"]),
+            raw_response_sha256=self.market_raw_response_sha256,
+        ):
+            raise ValueError("final FactLedger market validation context identity is not canonical")
         market_source = source_index.get(self.market_source_document_id)
         quote = fact_index.get(self.market_quote_fact_id)
         market = fact_index.get(f"derived:{self.market_equity_calculation_id}")
@@ -712,8 +729,13 @@ def _validated_prepared_market_context(prepared: PreparedMarketReference) -> Any
     context_current = context.current_share_compilation_result
     cutoff = date.fromisoformat(snapshot.data_cutoff_date)
     trading_date = date.fromisoformat(snapshot.trading_date)
+    expected_context_id = _canonical_market_validation_context_id(
+        issuer_id=snapshot.issuer_id,
+        trading_date=snapshot.trading_date,
+        raw_response_sha256=snapshot.raw_evidence["raw_response_sha256"],
+    )
     if (
-        not getattr(context, "context_id", "")
+        getattr(context, "context_id", "") != expected_context_id
         or not getattr(context, "fingerprint", "")
         or type(context_current) is not CurrentShareCompilationResult
         or context_current != current
