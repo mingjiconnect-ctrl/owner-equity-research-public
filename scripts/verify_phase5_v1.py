@@ -34,8 +34,8 @@ REQUIRED_CHECKS = [
     "phase5/semantic-audit",
 ]
 PRIORITIES = ("P0", "P1", "P2", "P3")
-VERIFY_JOB_CANONICAL_SHA256 = "50e20f3ae081142360262ccdcea964cc67c71722092b6f845370f742ef70bb9e"
-CI_WORKFLOW_SHA256 = "e51a1e484c2be53144c8ce6066f32126d64bebc903dcde7461e06e28ba4b2399"
+VERIFY_JOB_CANONICAL_SHA256 = "6e521b6e910fe5aa915758bb3eddf2c46b3e8ece8f855008765dfb4d99c9a7ea"
+CI_WORKFLOW_SHA256 = "4db0e17dd03ff8fb608e0561183bd3e74abea757152926805e4ad8585becaf6b"
 ACTIVE_WORKFLOW_NAMES = {"ci.yml", "phase5e2b12a-acceptance-gate.yml"}
 ACTIVE_WORKFLOW_SHA256 = {
     "ci.yml": CI_WORKFLOW_SHA256,
@@ -445,6 +445,9 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
                 "mount --make-rprivate /",
                 'test "$(readlink -f /var/run)" = /run',
                 "mount -t tmpfs -o mode=0755,nosuid,nodev,noexec tmpfs /run",
+                "test -d /tmp && test ! -L /tmp",
+                "mount -t tmpfs -o rw,exec,nosuid,nodev,size=268435456,mode=1777 "
+                "tmpfs /tmp",
                 "workspace=/run/owner-research/workspace",
                 "kernel_checkout=/run/owner-research/private-kernel",
                 "wheelhouse=/run/owner-research/wheelhouse",
@@ -491,7 +494,7 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
                 "stat -c '%u:%g:%a:%h' \"$protected_path\"",
                 "/usr/bin/setpriv",
                 "stage_code=80",
-                "stage_code=95",
+                "stage_code=96",
                 'trap \'exit "$stage_code"\' ERR',
                 "trap - ERR",
                 '--reuid="$candidate_uid"',
@@ -532,11 +535,17 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
                 'findmnt -n -o OPTIONS --target "$supply_lock"',
                 'findmnt -n -o OPTIONS --target "$validator"',
                 'findmnt -n -o OPTIONS --target "$private_root"',
+                'test "$TMPDIR" = /tmp',
+                "tmp_mount_options=$(findmnt -n -o OPTIONS --target /tmp)",
+                "for required_option in rw nosuid nodev",
+                "for forbidden_option in ro noexec",
+                "stat -c '%u:%g:%a' /tmp",
                 "for required_option in ro noexec nosuid nodev",
                 'test -r "$validator" && test ! -w "$validator"',
                 'test -r "$supply_lock" && test ! -w "$supply_lock"',
                 'test -r "$wheelhouse" && test -x "$wheelhouse"',
                 "PIP_NO_INDEX=1",
+                "TMPDIR=/tmp",
                 "--no-index",
                 "--no-isolation",
                 "/usr/bin/docker run --rm --interactive --pull=never",
@@ -587,6 +596,7 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
                 'chown --no-dereference "$candidate_uid:$candidate_gid" "$workspace"',
                 'chown -R --no-dereference "$candidate_uid:$candidate_gid" "$workspace_source"',
                 'chown --no-dereference "$candidate_uid:$candidate_gid" "$workspace_source"',
+                '"$private_root/tmp"',
             )
         )
         or test_run.count(
@@ -594,11 +604,28 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
             "container.stderr; do"
         )
         != 2
+        or test_run.count("TMPDIR=/tmp") != 2
     ):
         return [Finding("P1", code, "candidate verification is not pinned and netless")]
     if (
         test_run.index("mount --make-rprivate /")
         >= test_run.index("exec /usr/bin/setpriv")
+        or test_run.index("test -d /tmp && test ! -L /tmp")
+        >= test_run.index(
+            "mount -t tmpfs -o rw,exec,nosuid,nodev,size=268435456,mode=1777 "
+            "tmpfs /tmp"
+        )
+        or test_run.index(
+            "mount -t tmpfs -o rw,exec,nosuid,nodev,size=268435456,mode=1777 "
+            "tmpfs /tmp"
+        )
+        >= test_run.index("exec /usr/bin/setpriv")
+        or test_run.index("exec /usr/bin/setpriv")
+        >= test_run.index("TMPDIR=/tmp")
+        or test_run.index("exec /usr/bin/setpriv")
+        >= test_run.index("tmp_mount_options=$(findmnt -n -o OPTIONS --target /tmp)")
+        or test_run.index("tmp_mount_options=$(findmnt -n -o OPTIONS --target /tmp)")
+        >= test_run.index('"$runner_python" -I -c')
         or test_run.index(
             'chown -R --no-dereference "$candidate_uid:$candidate_gid" '
             '"$kernel_source"'

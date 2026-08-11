@@ -49,6 +49,11 @@ def test_kernel_reader_ci_closed_projection_is_accepted() -> None:
         "missing_private_checkout_ownership",
         "writable_private_checkout_source_alias",
         "missing_fixed_runtime_inputs",
+        "missing_candidate_tmpfs",
+        "late_candidate_tmpfs",
+        "private_tmpdir_reuse",
+        "orphan_private_tmpdir",
+        "missing_candidate_tmpfs_evidence",
         "workspace_candidate_ownership",
         "top_level_defaults",
         "semantic_secret",
@@ -144,6 +149,43 @@ def test_kernel_reader_ci_adversarial_mutations_are_rejected(mutation: str) -> N
         steps[7]["run"] = steps[7]["run"].replace(
             'mount --bind "$validator_source" "$validator"\n'
             'mount -o remount,bind,ro,noexec,nosuid,nodev "$validator"\n',
+            "",
+            1,
+        )
+    elif mutation == "missing_candidate_tmpfs":
+        steps[7]["run"] = steps[7]["run"].replace(
+            "mount -t tmpfs -o rw,exec,nosuid,nodev,size=268435456,mode=1777 "
+            "tmpfs /tmp\n",
+            "",
+            1,
+        )
+    elif mutation == "late_candidate_tmpfs":
+        tmpfs_mount = (
+            "mount -t tmpfs -o rw,exec,nosuid,nodev,size=268435456,mode=1777 "
+            "tmpfs /tmp\n"
+        )
+        steps[7]["run"] = steps[7]["run"].replace(tmpfs_mount, "", 1).replace(
+            'cd "$workspace"\n',
+            f'{tmpfs_mount}cd "$workspace"\n',
+            1,
+        )
+    elif mutation == "private_tmpdir_reuse":
+        steps[7]["run"] = steps[7]["run"].replace(
+            "TMPDIR=/tmp", 'TMPDIR="$private_root/tmp"', 1
+        )
+    elif mutation == "orphan_private_tmpdir":
+        steps[7]["run"] = steps[7]["run"].replace(
+            '  "$private_root/home" \\\n',
+            '  "$private_root/home" \\\n  "$private_root/tmp" \\\n',
+            1,
+        )
+    elif mutation == "missing_candidate_tmpfs_evidence":
+        steps[7]["run"] = steps[7]["run"].replace(
+            "tmp_mount_options=$(findmnt -n -o OPTIONS --target /tmp)\n"
+            "for required_option in rw nosuid nodev; do\n"
+            "  printf '%s\\n' \"$tmp_mount_options\" | tr ',' '\\n' | "
+            'grep -Fx "$required_option"\n'
+            "done\n",
             "",
             1,
         )

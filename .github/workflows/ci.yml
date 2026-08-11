@@ -312,7 +312,6 @@ jobs:
           mkdir -m 0700 "$private_root"
           mkdir -m 0700 \
             "$private_root/home" \
-            "$private_root/tmp" \
             "$private_root/output" \
             "$private_root/research-wheel" \
             "$private_root/venv" \
@@ -367,6 +366,8 @@ jobs:
           mount --make-rprivate /
           test "$(readlink -f /var/run)" = /run
           mount -t tmpfs -o mode=0755,nosuid,nodev,noexec tmpfs /run
+          test -d /tmp && test ! -L /tmp
+          mount -t tmpfs -o rw,exec,nosuid,nodev,size=268435456,mode=1777 tmpfs /tmp
           mkdir -m 0755 /run/owner-research
           mkdir -m 0755 \
             /run/owner-research/workspace \
@@ -425,7 +426,6 @@ jobs:
           chmod 0400 "$private_root/home/.gitconfig"
           chown -R --no-dereference "$candidate_uid:$candidate_gid" \
             "$private_root/home" \
-            "$private_root/tmp" \
             "$private_root/output" \
             "$private_root/research-wheel" \
             "$private_root/venv" \
@@ -467,7 +467,7 @@ jobs:
               PYTHONHASHSEED=0 \
               PYTHONDONTWRITEBYTECODE=1 \
               SOURCE_DATE_EPOCH=1784088771 \
-              TMPDIR="$private_root/tmp" \
+              TMPDIR=/tmp \
               TZ=UTC \
               /bin/bash -s -- \
                 "$workspace" \
@@ -550,19 +550,29 @@ jobs:
           printf '%s\n' "$private_mount_options" | tr ',' '\n' | grep -Fx nodev
           ! printf '%s\n' "$private_mount_options" | tr ',' '\n' | grep -Fx noexec
           stage_code=89
-          cd "$workspace"
+          test "$TMPDIR" = /tmp
+          tmp_mount_options=$(findmnt -n -o OPTIONS --target /tmp)
+          for required_option in rw nosuid nodev; do
+            printf '%s\n' "$tmp_mount_options" | tr ',' '\n' | grep -Fx "$required_option"
+          done
+          for forbidden_option in ro noexec; do
+            ! printf '%s\n' "$tmp_mount_options" | tr ',' '\n' | grep -Fx "$forbidden_option"
+          done
+          test "$(stat -c '%u:%g:%a' /tmp)" = 0:0:1777
           stage_code=90
-          "$runner_python" -I -c 'import hashlib, os, stat, sys'
+          cd "$workspace"
           stage_code=91
+          "$runner_python" -I -c 'import hashlib, os, stat, sys'
+          stage_code=92
           test -r "$validator" && test ! -w "$validator"
           test -r "$supply_lock" && test ! -w "$supply_lock"
           test -r "$wheelhouse" && test -x "$wheelhouse" && test ! -w "$wheelhouse"
-          stage_code=92
-          "$runner_python" -I "$validator" "$wheelhouse" "$python_minor"
           stage_code=93
+          "$runner_python" -I "$validator" "$wheelhouse" "$python_minor"
+          stage_code=94
           "$runner_python" -m venv "$private_root/venv"
           venv_python="$private_root/venv/bin/python"
-          stage_code=94
+          stage_code=95
           "$venv_python" -I -m pip install \
             --require-hashes \
             --only-binary=:all: \
@@ -571,7 +581,7 @@ jobs:
             --no-cache-dir \
             --find-links "$wheelhouse" \
             --requirement "$supply_lock"
-          stage_code=95
+          stage_code=96
           trap - ERR
           "$venv_python" -I -m build \
             --wheel \

@@ -185,6 +185,9 @@ def test_private_runtime_supply_and_containment_order_is_closed() -> None:
         "mount --make-rprivate /",
         'test "$(readlink -f /var/run)" = /run',
         "mount -t tmpfs -o mode=0755,nosuid,nodev,noexec tmpfs /run",
+        "test -d /tmp && test ! -L /tmp",
+        "mount -t tmpfs -o rw,exec,nosuid,nodev,size=268435456,mode=1777 "
+        "tmpfs /tmp",
         "workspace=/run/owner-research/workspace",
         "kernel_checkout=/run/owner-research/private-kernel",
         "wheelhouse=/run/owner-research/wheelhouse",
@@ -231,7 +234,7 @@ def test_private_runtime_supply_and_containment_order_is_closed() -> None:
         "stat -c '%u:%g:%a:%h' \"$protected_path\"",
         "/usr/bin/setpriv",
         "stage_code=80",
-        "stage_code=95",
+        "stage_code=96",
         'trap \'exit "$stage_code"\' ERR',
         "trap - ERR",
         '--reuid="$candidate_uid"',
@@ -272,12 +275,18 @@ def test_private_runtime_supply_and_containment_order_is_closed() -> None:
         'findmnt -n -o OPTIONS --target "$supply_lock"',
         'findmnt -n -o OPTIONS --target "$validator"',
         'findmnt -n -o OPTIONS --target "$private_root"',
+        'test "$TMPDIR" = /tmp',
+        "tmp_mount_options=$(findmnt -n -o OPTIONS --target /tmp)",
+        "for required_option in rw nosuid nodev",
+        "for forbidden_option in ro noexec",
+        "stat -c '%u:%g:%a' /tmp",
         "for required_option in ro noexec nosuid nodev",
         'test -r "$validator" && test ! -w "$validator"',
         'test -r "$supply_lock" && test ! -w "$supply_lock"',
         'test -r "$wheelhouse" && test -x "$wheelhouse"',
         "PIP_NO_INDEX=1",
         "PIP_FIND_LINKS=",
+        "TMPDIR=/tmp",
         "--no-index",
         "--no-isolation",
         "/usr/bin/docker run --rm --interactive --pull=never",
@@ -342,9 +351,28 @@ def test_private_runtime_supply_and_containment_order_is_closed() -> None:
         "for protected_log in stage.stdout stage.stderr container.stdout "
         "container.stderr; do"
     ) == 2
+    assert candidate_run.count("TMPDIR=/tmp") == 2
+    assert '"$private_root/tmp"' not in candidate_run
     assert candidate_run.index("mount --make-rprivate /") < candidate_run.index(
         "exec /usr/bin/setpriv"
     )
+    assert candidate_run.index("test -d /tmp && test ! -L /tmp") < candidate_run.index(
+        "mount -t tmpfs -o rw,exec,nosuid,nodev,size=268435456,mode=1777 "
+        "tmpfs /tmp"
+    )
+    assert candidate_run.index(
+        "mount -t tmpfs -o rw,exec,nosuid,nodev,size=268435456,mode=1777 "
+        "tmpfs /tmp"
+    ) < candidate_run.index("exec /usr/bin/setpriv")
+    assert candidate_run.index("exec /usr/bin/setpriv") < candidate_run.index(
+        "TMPDIR=/tmp"
+    )
+    assert candidate_run.index("exec /usr/bin/setpriv") < candidate_run.index(
+        "tmp_mount_options=$(findmnt -n -o OPTIONS --target /tmp)"
+    )
+    assert candidate_run.index(
+        "tmp_mount_options=$(findmnt -n -o OPTIONS --target /tmp)"
+    ) < candidate_run.index('"$runner_python" -I -c')
     assert candidate_run.index(
         'chown -R --no-dereference "$candidate_uid:$candidate_gid" '
         '"$kernel_source"'
