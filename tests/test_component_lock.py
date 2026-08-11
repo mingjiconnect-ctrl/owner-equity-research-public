@@ -13,6 +13,7 @@ from owner_research.component_lock import (
     verify_component_lock,
     verify_future_mapping_contract,
     verify_kernel_runtime_lock,
+    verify_kernel_runtime_snapshot,
     verify_research_schema_lock,
 )
 from owner_research.fingerprints import canonical_sha256
@@ -143,6 +144,23 @@ def test_kernel_runtime_lock_rejects_alternate_authority_paths(tmp_path: Path) -
     assert "runtime_authority path is not the closed package member" in "\n".join(
         result.errors
     )
+
+
+def test_kernel_runtime_snapshot_rejects_duplicate_lock_keys() -> None:
+    package = ROOT / "src/owner_research"
+    lock_bytes = (ROOT / "component-lock.json").read_bytes()
+    duplicate = b'{"lock_version":"9.9.9",' + lock_bytes[1:]
+    result = verify_kernel_runtime_snapshot(
+        lock_bytes=duplicate,
+        runtime_authority_bytes=(
+            package
+            / "resources/phase5-v1-kernel-runtime/runtime-authority.json"
+        ).read_bytes(),
+        materializer_bytes=(package / "valuation_kernel_materializer.py").read_bytes(),
+        runner_bytes=(package / "valuation_pinned_kernel.py").read_bytes(),
+    )
+    assert not result.ok
+    assert "duplicate JSON key" in "\n".join(result.errors)
 
 
 @pytest.mark.skipif(

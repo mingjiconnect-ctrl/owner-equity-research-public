@@ -151,18 +151,23 @@ def _read_package_file_nofollow(
         os.close(descriptor)
 
 
-def verify_kernel_runtime_lock(lock_path: Path | None = None) -> VerificationResult:
-    """Verify the packaged pinned-kernel runtime authority and executable code.
+def verify_kernel_runtime_snapshot(
+    *,
+    lock_bytes: bytes,
+    runtime_authority_bytes: bytes,
+    materializer_bytes: bytes,
+    runner_bytes: bytes,
+) -> VerificationResult:
+    """Verify one immutable component-lock/runtime byte snapshot."""
 
-    The package directory, resource paths, and code paths are deliberately not
-    caller-controlled.  A caller may supply only a lock file for adversarial
-    validation; production uses the packaged/default component lock.
-    """
-
-    path = lock_path or default_component_lock_path()
     errors: list[str] = []
     try:
-        lock = load_component_lock(path)
+        lock = json.loads(
+            lock_bytes.decode("utf-8"),
+            object_pairs_hook=_reject_duplicate_json_keys,
+        )
+        if not isinstance(lock, dict):
+            raise ValueError("component lock must be a JSON object")
         runtime = lock["valuation_kernel_runtime"]
         kernel = lock["valuation_kernel"]
     except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
@@ -201,8 +206,11 @@ def verify_kernel_runtime_lock(lock_path: Path | None = None) -> VerificationRes
     if runtime.get("manifest_policy_version") != "1.0.0":
         errors.append("Kernel runtime manifest policy version mismatch")
 
-    package_root = Path(__file__).resolve().parent
-    locked_bytes: dict[str, bytes] = {}
+    locked_bytes = {
+        "runtime_authority": runtime_authority_bytes,
+        "materializer_code": materializer_bytes,
+        "runner_code": runner_bytes,
+    }
     expected_paths = {
         "runtime_authority": "resources/phase5-v1-kernel-runtime/runtime-authority.json",
         "materializer_code": "valuation_kernel_materializer.py",
@@ -221,12 +229,7 @@ def verify_kernel_runtime_lock(lock_path: Path | None = None) -> VerificationRes
         if relative != expected_paths[key]:
             errors.append(f"Kernel runtime {key} path is not the closed package member")
             continue
-        try:
-            raw = _read_package_file_nofollow(package_root, relative)
-        except (OSError, ValueError) as exc:
-            errors.append(f"Kernel runtime {key} package member is unavailable: {exc}")
-            continue
-        locked_bytes[key] = raw
+        raw = locked_bytes[key]
         if hashlib.sha256(raw).hexdigest() != expected:
             errors.append(f"Kernel runtime {key} hash mismatch")
 
@@ -411,6 +414,31 @@ def verify_kernel_runtime_lock(lock_path: Path | None = None) -> VerificationRes
         errors.append("Kernel runtime execution policy drifted")
 
     return VerificationResult(tuple(errors))
+
+
+def verify_kernel_runtime_lock(lock_path: Path | None = None) -> VerificationResult:
+    """Verify the packaged runtime using one bounded no-follow byte snapshot."""
+
+    path = lock_path or default_component_lock_path()
+    package_root = Path(__file__).resolve().parent
+    try:
+        return verify_kernel_runtime_snapshot(
+            lock_bytes=_read_bounded_regular_file_nofollow(path),
+            runtime_authority_bytes=_read_package_file_nofollow(
+                package_root,
+                "resources/phase5-v1-kernel-runtime/runtime-authority.json",
+            ),
+            materializer_bytes=_read_package_file_nofollow(
+                package_root,
+                "valuation_kernel_materializer.py",
+            ),
+            runner_bytes=_read_package_file_nofollow(
+                package_root,
+                "valuation_pinned_kernel.py",
+            ),
+        )
+    except (OSError, UnicodeError, ValueError) as exc:
+        return VerificationResult((f"Kernel runtime package snapshot is unavailable: {exc}",))
 
 
 def verify_research_schema_lock(lock_path: Path, repository_root: Path) -> VerificationResult:
