@@ -231,8 +231,9 @@ def test_private_runtime_supply_and_containment_order_is_closed() -> None:
         "git -C /private-kernel rev-parse --show-toplevel",
         "CapInh CapPrm CapEff CapBnd CapAmb",
         'NoNewPrivs:/ {print $2}',
+        "/proc/net/dev",
         'test "${network_interfaces[*]}" = lo',
-        'test "$(wc -l < /proc/net/route)" -eq 1',
+        'test -z "$(awk \'NR > 1 {print; exit}\' /proc/net/route)"',
         'findmnt -n -o OPTIONS --target "$workspace"',
         'findmnt -n -o OPTIONS --target "$kernel_checkout"',
         "PIP_NO_INDEX=1",
@@ -267,6 +268,7 @@ def test_private_runtime_supply_and_containment_order_is_closed() -> None:
         "container.stderr",
     ):
         assert marker in candidate_run
+    assert "/sys/class/net" not in candidate_run
     assert "unshare --user" not in candidate_run
     assert "--map-root-user" not in candidate_run
     assert "--init-groups" not in candidate_run

@@ -472,10 +472,12 @@ jobs:
           test -z "$(command -v docker || true)"
           test -z "$(command -v sudo || true)"
           mapfile -t network_interfaces < <(
-            find /sys/class/net -mindepth 1 -maxdepth 1 -printf '%f\n' | sort
+            awk -F: 'NR > 2 {
+              gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1); print $1
+            }' /proc/net/dev | sort
           )
           test "${network_interfaces[*]}" = lo
-          test "$(wc -l < /proc/net/route)" -eq 1
+          test -z "$(awk 'NR > 1 {print; exit}' /proc/net/route)"
           findmnt -n -o OPTIONS --target "$workspace" | tr ',' '\n' | grep -Fx ro
           findmnt -n -o OPTIONS --target "$kernel_checkout" | tr ',' '\n' | grep -Fx ro
           cd "$workspace"

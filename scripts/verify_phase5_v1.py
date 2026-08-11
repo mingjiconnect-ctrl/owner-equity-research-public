@@ -34,8 +34,8 @@ REQUIRED_CHECKS = [
     "phase5/semantic-audit",
 ]
 PRIORITIES = ("P0", "P1", "P2", "P3")
-VERIFY_JOB_CANONICAL_SHA256 = "578a72460d21ffff385e966ae104f4e44f64d6df08d2c4b5207b2e782c2f633e"
-CI_WORKFLOW_SHA256 = "9dd935b5e32934b40972016aa041dc8757ebdce8335722eba27805549cbafe61"
+VERIFY_JOB_CANONICAL_SHA256 = "5ddf8dc1f87071ebc7698023b6f5e935d4800fa707b0e9434b10b94ccd3259fb"
+CI_WORKFLOW_SHA256 = "11cb0c272f9d298586717c09e752d8624db0c755dfd97ada4c8f5d7ac459bcf5"
 ACTIVE_WORKFLOW_NAMES = {"ci.yml", "phase5e2b12a-acceptance-gate.yml"}
 ACTIVE_WORKFLOW_SHA256 = {
     "ci.yml": CI_WORKFLOW_SHA256,
@@ -491,8 +491,9 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
                 "git -C /private-kernel rev-parse --show-toplevel",
                 "CapInh CapPrm CapEff CapBnd CapAmb",
                 'NoNewPrivs:/ {print $2}',
+                "/proc/net/dev",
                 'test "${network_interfaces[*]}" = lo',
-                'test "$(wc -l < /proc/net/route)" -eq 1',
+                'test -z "$(awk \'NR > 1 {print; exit}\' /proc/net/route)"',
                 'findmnt -n -o OPTIONS --target "$workspace"',
                 'findmnt -n -o OPTIONS --target "$kernel_checkout"',
                 "PIP_NO_INDEX=1",
