@@ -250,6 +250,104 @@ def verify_kernel_runtime_lock(lock_path: Path | None = None) -> VerificationRes
         if normalized != locked_schemas:
             errors.append("Kernel runtime Schema hashes differ from component lock")
 
+    authority_runtime = authority.get("runtime")
+    expected_runtime_keys = {
+        "platform",
+        "python_implementations",
+        "result_schema",
+        "container",
+        "python_minors",
+        "request_transport",
+        "result_transport",
+        "kernel_call",
+        "kernel_call_count",
+        "network_mode",
+        "result_bytes_preserved",
+    }
+    if not isinstance(authority_runtime, dict) or set(authority_runtime) != expected_runtime_keys:
+        errors.append("Kernel runtime execution authority shape mismatch")
+        return VerificationResult(tuple(errors))
+    expected_result_schema = {
+        "filename": "valuation-result.schema.json",
+        "sha256": authority_kernel.get("schema_sha256", {}).get(
+            "valuation-result.schema.json"
+        ),
+    }
+    if authority_runtime.get("result_schema") != expected_result_schema:
+        errors.append("Kernel runtime result Schema authority drifted")
+
+    container = authority_runtime.get("container")
+    expected_container_keys = {
+        "engine",
+        "engine_path",
+        "image_repository",
+        "image_tag",
+        "image_manifest_digest",
+        "image_config_digest",
+        "image_reference",
+        "platform",
+        "os",
+        "architecture",
+        "python_minor",
+        "python_patch",
+        "python_executable",
+        "pull_policy",
+        "network_mode",
+        "read_only_rootfs",
+        "cap_drop",
+        "security_opt",
+        "user_policy",
+        "pids_limit",
+        "memory_limit_bytes",
+        "memory_swap_limit_bytes",
+        "cpu_limit",
+        "tmpfs",
+        "ulimits",
+        "read_only_mounts",
+        "trusted_attestation_path_env",
+        "trusted_attestation_sha256_env",
+    }
+    expected_container_identity = {
+        "engine": "docker",
+        "engine_path": "/usr/bin/docker",
+        "image_repository": "docker.io/library/python",
+        "image_tag": "3.11.15-bookworm",
+        "image_manifest_digest": (
+            "sha256:eaeffb6e8511935426934aac863940fbd004ef31dab0d7fc27a129bb7c19d9a8"
+        ),
+        "image_config_digest": (
+            "sha256:d299dee73063206fe64248b8eb62cbef36f6baedfc2c5e2ef4c7618ad18efb3a"
+        ),
+        "image_reference": (
+            "docker.io/library/python@"
+            "sha256:eaeffb6e8511935426934aac863940fbd004ef31dab0d7fc27a129bb7c19d9a8"
+        ),
+        "platform": "linux/amd64",
+        "os": "linux",
+        "architecture": "amd64",
+        "python_minor": "3.11",
+        "python_patch": "3.11.15",
+        "python_executable": "/usr/local/bin/python3",
+        "pull_policy": "never",
+        "network_mode": "none",
+    }
+    if not isinstance(container, dict) or set(container) != expected_container_keys:
+        errors.append("Kernel runtime container authority shape mismatch")
+    elif any(container.get(key) != value for key, value in expected_container_identity.items()):
+        errors.append("Kernel runtime container identity drifted")
+    if (
+        authority_runtime.get("platform") != "linux_x86_64"
+        or authority_runtime.get("python_implementations") != ["cpython"]
+        or set(authority_runtime.get("python_minors", {})) != {"3.11"}
+        or authority_runtime.get("request_transport") != "canonical_json_stdin"
+        or authority_runtime.get("result_transport") != "canonical_json_stdout"
+        or authority_runtime.get("kernel_call") != "owner_valuation.run_dual_panel"
+        or authority_runtime.get("kernel_call_count") != 1
+        or authority_runtime.get("network_mode") != "docker_network_none"
+        or authority_runtime.get("result_bytes_preserved") is not True
+    ):
+        errors.append("Kernel runtime execution policy drifted")
+
     return VerificationResult(tuple(errors))
 
 

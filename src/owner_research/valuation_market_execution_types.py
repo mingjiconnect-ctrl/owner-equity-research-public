@@ -15,6 +15,7 @@ from .fingerprints import FrozenMap, canonical_sha256, freeze, to_json_value
 from .valuation_market_execution_policies import (
     FINAL_REQUEST_POLICY_ID,
     FINAL_REQUEST_POLICY_VERSION,
+    KERNEL_EXECUTION_BOUNDARIES,
     KERNEL_EXECUTION_POLICY_ID,
     KERNEL_EXECUTION_POLICY_VERSION,
     MARKET_INSTRUMENT_STATUSES,
@@ -25,6 +26,10 @@ from .valuation_market_execution_policies import (
     MARKET_SESSION_STATUSES,
     PHASE5E_REASON_CODES,
     PINNED_KERNEL_COMMIT,
+    PINNED_KERNEL_CONTAINER_IMAGE_CONFIG_DIGEST,
+    PINNED_KERNEL_CONTAINER_IMAGE_MANIFEST_DIGEST,
+    PINNED_KERNEL_CONTAINER_IMAGE_REFERENCE,
+    PINNED_KERNEL_CONTAINER_PLATFORM,
     PINNED_KERNEL_PACKAGE_VERSION,
     PINNED_KERNEL_PLUGIN_VERSION,
     PINNED_KERNEL_REPOSITORY,
@@ -373,6 +378,11 @@ class FinalRequestCompilationReceipt:
     issuer_id: str
     handoff_run_id: str
     market_reference_snapshot_id: str
+    company_name_fact_id: str
+    company_name_source_document_id: str
+    market_provider_id: str
+    market_provider_receipt_id: str
+    market_provider_receipt_fingerprint: str
     current_share_projection_sha256: str
     numeric_projection_sha256: str
     added_source_ids: tuple[str, ...]
@@ -418,10 +428,20 @@ class FinalRequestCompilationReceipt:
             "valuation_request_sha256",
             "current_share_projection_sha256",
             "numeric_projection_sha256",
+            "market_provider_receipt_fingerprint",
         ):
             _sha256(getattr(self, name), name)
         reasons = _registered_reasons(self.reason_codes)
         if self.status == "validated":
+            if not all(
+                (
+                    self.company_name_fact_id,
+                    self.company_name_source_document_id,
+                    self.market_provider_id,
+                    self.market_provider_receipt_id,
+                )
+            ):
+                raise ValueError("final request lacks governed name or provider lineage")
             if not self.added_source_ids or len(self.added_fact_ids) < 2:
                 raise ValueError("final request lacks appended share or market lineage")
             if self.price_blind_fact_ledger_sha256 == self.final_fact_ledger_sha256:
@@ -471,13 +491,22 @@ class KernelExecutionReceipt:
     plugin_version: str
     schema_sha256: FrozenMap
     wheel_sha256: str
-    dependency_wheelhouse_sha256: str
     runtime_authority_sha256: str
     runtime_manifest_file_sha256: str
     runtime_manifest_fingerprint: str
     runner_sha256: str
-    python_executable_sha256: str
-    unshare_sha256: str
+    result_schema_sha256: str
+    wheel_inventory_sha256: str
+    docker_executable_sha256: str | None
+    container_image_reference: str
+    container_image_manifest_digest: str
+    container_image_config_digest: str
+    container_platform: str
+    container_identity_sha256: str | None
+    docker_image_inspect_sha256: str | None
+    container_security_profile_sha256: str
+    trusted_workflow_attestation_sha256: str | None
+    execution_boundary: str
     execution_mode: str
     request_transport: str
     result_transport: str
@@ -520,13 +549,13 @@ class KernelExecutionReceipt:
             raise ValueError("kernel execution Schema hashes drifted")
         for name in (
             "wheel_sha256",
-            "dependency_wheelhouse_sha256",
             "runtime_authority_sha256",
             "runtime_manifest_file_sha256",
             "runtime_manifest_fingerprint",
             "runner_sha256",
-            "python_executable_sha256",
-            "unshare_sha256",
+            "result_schema_sha256",
+            "wheel_inventory_sha256",
+            "container_security_profile_sha256",
             "request_sha256",
             "result_sha256",
             "fact_ledger_fingerprint",
@@ -534,16 +563,55 @@ class KernelExecutionReceipt:
             "model_input_fingerprint",
         ):
             _sha256(getattr(self, name), name)
+        for name in (
+            "docker_executable_sha256",
+            "container_identity_sha256",
+            "docker_image_inspect_sha256",
+            "trusted_workflow_attestation_sha256",
+        ):
+            value = getattr(self, name)
+            if value is not None:
+                _sha256(value, name)
         if self.wheel_sha256 != PINNED_KERNEL_WHEEL_SHA256:
             raise ValueError("kernel wheel does not match the pinned release bytes")
-        if self.execution_mode != "isolated_linux_network_namespace":
-            raise ValueError("kernel must execute in an isolated Linux network namespace")
+        if self.result_schema_sha256 != PINNED_KERNEL_SCHEMA_SHA256[
+            "schemas/valuation-result.schema.json"
+        ]:
+            raise ValueError("kernel result Schema does not match the pinned release")
+        if (
+            self.container_image_reference != PINNED_KERNEL_CONTAINER_IMAGE_REFERENCE
+            or self.container_image_manifest_digest
+            != PINNED_KERNEL_CONTAINER_IMAGE_MANIFEST_DIGEST
+            or self.container_image_config_digest
+            != PINNED_KERNEL_CONTAINER_IMAGE_CONFIG_DIGEST
+            or self.container_platform != PINNED_KERNEL_CONTAINER_PLATFORM
+        ):
+            raise ValueError("kernel container authority drifted")
+        if self.execution_boundary not in KERNEL_EXECUTION_BOUNDARIES:
+            raise ValueError("kernel execution boundary is not registered")
+        if self.execution_boundary == "trusted_host_docker_launcher":
+            if (
+                self.docker_executable_sha256 is None
+                or self.container_identity_sha256 is None
+                or self.docker_image_inspect_sha256 is None
+                or self.trusted_workflow_attestation_sha256 is not None
+            ):
+                raise ValueError("host Docker execution lacks observed container authority")
+        elif (
+            self.docker_executable_sha256 is not None
+            or self.container_identity_sha256 is not None
+            or self.docker_image_inspect_sha256 is not None
+            or self.trusted_workflow_attestation_sha256 is None
+        ):
+            raise ValueError("authorized-container execution boundary is not isolated")
+        if self.execution_mode != "digest_pinned_linux_container":
+            raise ValueError("kernel must execute in the digest-pinned Linux container")
         if self.request_transport != "canonical_json_stdin":
             raise ValueError("kernel request transport must be canonical JSON over stdin")
         if self.result_transport != "canonical_json_stdout":
             raise ValueError("kernel result transport must be canonical JSON over stdout")
-        if self.network_mode != "linux_network_namespace_none":
-            raise ValueError("kernel execution requires a netless Linux namespace")
+        if self.network_mode != "docker_network_none":
+            raise ValueError("kernel execution requires Docker network none")
         if self.status not in {"succeeded", "blocked"}:
             raise ValueError("kernel execution status is not registered")
         reasons = _registered_reasons(self.reason_codes)

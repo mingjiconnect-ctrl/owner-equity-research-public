@@ -23,7 +23,7 @@ SHARE_BASIS_POLICY_VERSION = "2.0.0"
 FINAL_REQUEST_POLICY_ID = "price-blind-final-request"
 FINAL_REQUEST_POLICY_VERSION = "2.0.0"
 KERNEL_EXECUTION_POLICY_ID = "isolated-pinned-kernel"
-KERNEL_EXECUTION_POLICY_VERSION = "2.0.0"
+KERNEL_EXECUTION_POLICY_VERSION = "3.0.0"
 
 PINNED_KERNEL_REPOSITORY = "mingjiconnect-ctrl/owner-valuation-kernel"
 PINNED_KERNEL_TAG = "v2.0.0-rc.2"
@@ -33,6 +33,17 @@ PINNED_KERNEL_PLUGIN_VERSION = "2.0.0-rc.2"
 PINNED_KERNEL_WHEEL_SHA256 = (
     "fb27d01b1ee75fbd542371510150e890516d306218d33f3608f2aa3caa0e55a5"
 )
+PINNED_KERNEL_CONTAINER_IMAGE_REFERENCE = (
+    "docker.io/library/python@"
+    "sha256:eaeffb6e8511935426934aac863940fbd004ef31dab0d7fc27a129bb7c19d9a8"
+)
+PINNED_KERNEL_CONTAINER_IMAGE_MANIFEST_DIGEST = (
+    "sha256:eaeffb6e8511935426934aac863940fbd004ef31dab0d7fc27a129bb7c19d9a8"
+)
+PINNED_KERNEL_CONTAINER_IMAGE_CONFIG_DIGEST = (
+    "sha256:d299dee73063206fe64248b8eb62cbef36f6baedfc2c5e2ef4c7618ad18efb3a"
+)
+PINNED_KERNEL_CONTAINER_PLATFORM = "linux/amd64"
 PINNED_KERNEL_SCHEMA_SHA256 = {
     "schemas/assumption-ledger.schema.json": (
         "2232642332dc6444c784e21746cbd16bf8d4cd74fc483a0a345d95f98fc97a7a"
@@ -118,10 +129,14 @@ FINAL_REQUEST_PROTECTED_CHANNELS = (
     "protected_penman_assumptions_sha256",
 )
 
-KERNEL_EXECUTION_MODES = ("isolated_linux_network_namespace",)
+KERNEL_EXECUTION_MODES = ("digest_pinned_linux_container",)
+KERNEL_EXECUTION_BOUNDARIES = (
+    "trusted_host_docker_launcher",
+    "trusted_workflow_authorized_container",
+)
 KERNEL_REQUEST_TRANSPORTS = ("canonical_json_stdin",)
 KERNEL_RESULT_TRANSPORTS = ("canonical_json_stdout",)
-KERNEL_NETWORK_MODES = ("linux_network_namespace_none",)
+KERNEL_NETWORK_MODES = ("docker_network_none",)
 
 PHASE5E_REASON_CODES = frozenset(
     {
@@ -209,6 +224,7 @@ class KernelExecutionPolicy:
     policy_id: str
     policy_version: str
     execution_mode: str
+    execution_boundaries: tuple[str, ...]
     request_transport: str
     result_transport: str
     network_mode: str
@@ -268,10 +284,11 @@ FINAL_REQUEST_POLICY = FinalRequestPolicy(
 KERNEL_EXECUTION_POLICY = KernelExecutionPolicy(
     KERNEL_EXECUTION_POLICY_ID,
     KERNEL_EXECUTION_POLICY_VERSION,
-    "isolated_linux_network_namespace",
+    "digest_pinned_linux_container",
+    KERNEL_EXECUTION_BOUNDARIES,
     "canonical_json_stdin",
     "canonical_json_stdout",
-    "linux_network_namespace_none",
+    "docker_network_none",
     True,
     True,
     True,
