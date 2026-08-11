@@ -217,8 +217,8 @@ class KernelNumericProjectionWitness:
             projected = _checked_binary64(parsed_json, f"{self.label} JSON projection")
         except KernelProjectionError as exc:
             raise ValueError(str(exc)) from exc
-        if projected == 0.0 and model != 0:
-            raise ValueError(f"{self.label} underflows binary64 arithmetic")
+        if (model > 0 and projected <= 0.0) or (model == 0 and projected != 0.0):
+            raise ValueError(f"{self.label} changes sign in binary64 arithmetic")
         if self.canonical_json_number_token != json.dumps(
             projected,
             allow_nan=False,
@@ -293,8 +293,10 @@ class KernelNumericProjectionWitness:
             f"{label} scale",
         )
         projected_value = _checked_binary64(projected_value, label)
-        if projected_value == 0.0 and model != 0:
-            raise KernelProjectionError(f"{label} underflows binary64 arithmetic")
+        if (model > 0 and projected_value <= 0.0) or (
+            model == 0 and projected_value != 0.0
+        ):
+            raise KernelProjectionError(f"{label} changes sign in binary64 arithmetic")
         exact_binary64 = Decimal.from_float(projected_value)
         delta = _exact_decimal_subtract(
             exact_binary64,

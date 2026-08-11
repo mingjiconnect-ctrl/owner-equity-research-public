@@ -30,6 +30,7 @@ from owner_research.valuation_final_request import (
 )
 from owner_research.valuation_kernel_projection import (
     KernelNumericProjectionWitness,
+    KernelProjectionError,
     project_current_share_lineage,
 )
 
@@ -1525,3 +1526,26 @@ def test_decimal_projection_ignores_ambient_context_and_binds_rc2_operation_orde
         output_witness.projection_delta_decimal
         == projected.arithmetic_steps[0]["output_projection_delta_decimal"]
     )
+
+
+def test_binary64_cancellation_cannot_reverse_a_positive_total() -> None:
+    opening = Decimal("39614081257132168796771975168")
+    issuance = Decimal("70739870169781")
+    repurchase = Decimal("39614081257132239524204202963")
+    with localcontext() as context:
+        context.prec = 100
+        authoritative = opening + issuance - repurchase
+        projected = (
+            float(opening / Decimal(1_000_000))
+            + float(issuance / Decimal(1_000_000))
+            - float(repurchase / Decimal(1_000_000))
+        )
+    assert authoritative == Decimal("12437941986")
+    assert projected == -8_388_608.0
+    with pytest.raises(KernelProjectionError, match="changes sign"):
+        KernelNumericProjectionWitness.compile_from_projected_binary64(
+            label="roll-forward-cancellation",
+            authoritative_decimal=authoritative,
+            projected_value=projected,
+            scale_divisor=Decimal(1_000_000),
+        )
