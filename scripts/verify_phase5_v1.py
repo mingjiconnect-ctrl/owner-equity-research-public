@@ -34,8 +34,8 @@ REQUIRED_CHECKS = [
     "phase5/semantic-audit",
 ]
 PRIORITIES = ("P0", "P1", "P2", "P3")
-VERIFY_JOB_CANONICAL_SHA256 = "e3f246c8ae35b707ef7b6dbd5263ccb02031770cd17bf0d311d9579367e71a7b"
-CI_WORKFLOW_SHA256 = "620372f1567f70ce26d31785e72076b39e53ddc87e5827b0c190341706321609"
+VERIFY_JOB_CANONICAL_SHA256 = "50e20f3ae081142360262ccdcea964cc67c71722092b6f845370f742ef70bb9e"
+CI_WORKFLOW_SHA256 = "e51a1e484c2be53144c8ce6066f32126d64bebc903dcde7461e06e28ba4b2399"
 ACTIVE_WORKFLOW_NAMES = {"ci.yml", "phase5e2b12a-acceptance-gate.yml"}
 ACTIVE_WORKFLOW_SHA256 = {
     "ci.yml": CI_WORKFLOW_SHA256,
@@ -447,6 +447,10 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
                 "mount -t tmpfs -o mode=0755,nosuid,nodev,noexec tmpfs /run",
                 "workspace=/run/owner-research/workspace",
                 "kernel_checkout=/run/owner-research/private-kernel",
+                "wheelhouse=/run/owner-research/wheelhouse",
+                "supply_lock=/run/owner-research/supply.lock",
+                "validator=/run/owner-research/validator.py",
+                "private_root=/run/owner-research/private",
                 "stage_code=70",
                 "stage_code=75",
                 "for privileged_channel in /usr/bin/docker /usr/bin/sudo",
@@ -459,6 +463,22 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
                 '! -group "$candidate_gid"',
                 'mount --bind "$kernel_source" "$kernel_source"',
                 'mount -o remount,bind,ro "$kernel_source"',
+                'mount --bind "$wheelhouse_source" "$wheelhouse_source"',
+                'mount -o remount,bind,ro,noexec,nosuid,nodev "$wheelhouse_source"',
+                'mount --bind "$wheelhouse_source" "$wheelhouse"',
+                'mount -o remount,bind,ro,noexec,nosuid,nodev "$wheelhouse"',
+                'mount --bind "$supply_lock_source" "$supply_lock_source"',
+                'mount -o remount,bind,ro,noexec,nosuid,nodev "$supply_lock_source"',
+                'mount --bind "$supply_lock_source" "$supply_lock"',
+                'mount -o remount,bind,ro,noexec,nosuid,nodev "$supply_lock"',
+                'mount --bind "$validator_source" "$validator_source"',
+                'mount -o remount,bind,ro,noexec,nosuid,nodev "$validator_source"',
+                'mount --bind "$validator_source" "$validator"',
+                'mount -o remount,bind,ro,noexec,nosuid,nodev "$validator"',
+                'mount --bind "$private_root_source" "$private_root_source"',
+                'mount -o remount,bind,rw,exec,nosuid,nodev "$private_root_source"',
+                'mount --bind "$private_root_source" "$private_root"',
+                'mount -o remount,bind,rw,exec,nosuid,nodev "$private_root"',
                 '/usr/bin/git config --file "$private_root/home/.gitconfig"',
                 '--add safe.directory "$workspace"',
                 '--add safe.directory "$kernel_checkout"',
@@ -471,7 +491,7 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
                 "stat -c '%u:%g:%a:%h' \"$protected_path\"",
                 "/usr/bin/setpriv",
                 "stage_code=80",
-                "stage_code=89",
+                "stage_code=95",
                 'trap \'exit "$stage_code"\' ERR',
                 "trap - ERR",
                 '--reuid="$candidate_uid"',
@@ -508,6 +528,14 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
                 'test -z "$(awk \'NR > 1 {print; exit}\' /proc/net/route)"',
                 'findmnt -n -o OPTIONS --target "$workspace"',
                 'findmnt -n -o OPTIONS --target "$kernel_checkout"',
+                'findmnt -n -o OPTIONS --target "$wheelhouse"',
+                'findmnt -n -o OPTIONS --target "$supply_lock"',
+                'findmnt -n -o OPTIONS --target "$validator"',
+                'findmnt -n -o OPTIONS --target "$private_root"',
+                "for required_option in ro noexec nosuid nodev",
+                'test -r "$validator" && test ! -w "$validator"',
+                'test -r "$supply_lock" && test ! -w "$supply_lock"',
+                'test -r "$wheelhouse" && test -x "$wheelhouse"',
                 "PIP_NO_INDEX=1",
                 "--no-index",
                 "--no-isolation",
@@ -578,6 +606,14 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
         >= test_run.index('mount --bind "$kernel_source" "$kernel_source"')
         or test_run.index('mount -o remount,bind,ro "$kernel_source"')
         >= test_run.index('mount --bind "$kernel_source" "$kernel_checkout"')
+        or test_run.index('mount -o remount,bind,ro,noexec,nosuid,nodev "$wheelhouse_source"')
+        >= test_run.index('mount --bind "$wheelhouse_source" "$wheelhouse"')
+        or test_run.index('mount --bind "$wheelhouse_source" "$wheelhouse"')
+        >= test_run.index("exec /usr/bin/setpriv")
+        or test_run.index('mount -o remount,bind,rw,exec,nosuid,nodev "$private_root_source"')
+        >= test_run.index('mount --bind "$private_root_source" "$private_root"')
+        or test_run.index('mount --bind "$private_root_source" "$private_root"')
+        >= test_run.index("exec /usr/bin/setpriv")
         or test_run.index("exec /usr/bin/setpriv")
         >= test_run.index('"$runner_python" -I "$validator"')
     ):

@@ -48,6 +48,7 @@ def test_kernel_reader_ci_closed_projection_is_accepted() -> None:
         "missing_container_git_authority",
         "missing_private_checkout_ownership",
         "writable_private_checkout_source_alias",
+        "missing_fixed_runtime_inputs",
         "workspace_candidate_ownership",
         "top_level_defaults",
         "semantic_secret",
@@ -136,6 +137,13 @@ def test_kernel_reader_ci_adversarial_mutations_are_rejected(mutation: str) -> N
         steps[7]["run"] = steps[7]["run"].replace(
             'mount --bind "$kernel_source" "$kernel_source"\n'
             'mount -o remount,bind,ro "$kernel_source"\n',
+            "",
+            1,
+        )
+    elif mutation == "missing_fixed_runtime_inputs":
+        steps[7]["run"] = steps[7]["run"].replace(
+            'mount --bind "$validator_source" "$validator"\n'
+            'mount -o remount,bind,ro,noexec,nosuid,nodev "$validator"\n',
             "",
             1,
         )

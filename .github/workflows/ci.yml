@@ -355,10 +355,10 @@ jobs:
           candidate_gid=$4
           workspace_source=$5
           kernel_source=$6
-          wheelhouse=$7
-          supply_lock=$8
-          validator=$9
-          private_root=${10}
+          wheelhouse_source=$7
+          supply_lock_source=$8
+          validator_source=$9
+          private_root_source=${10}
           runner_python=${11}
           python_minor=${12}
           stage_code=70
@@ -370,9 +370,17 @@ jobs:
           mkdir -m 0755 /run/owner-research
           mkdir -m 0755 \
             /run/owner-research/workspace \
-            /run/owner-research/private-kernel
+            /run/owner-research/private-kernel \
+            /run/owner-research/wheelhouse \
+            /run/owner-research/private
+          : > /run/owner-research/supply.lock
+          : > /run/owner-research/validator.py
           workspace=/run/owner-research/workspace
           kernel_checkout=/run/owner-research/private-kernel
+          wheelhouse=/run/owner-research/wheelhouse
+          supply_lock=/run/owner-research/supply.lock
+          validator=/run/owner-research/validator.py
+          private_root=/run/owner-research/private
           stage_code=71
           for privileged_channel in /usr/bin/docker /usr/bin/sudo; do
             test -e "$privileged_channel"
@@ -394,6 +402,22 @@ jobs:
           mount --bind "$kernel_source" "$kernel_checkout"
           mount -o remount,bind,ro "$kernel_checkout"
           stage_code=74
+          mount --bind "$wheelhouse_source" "$wheelhouse_source"
+          mount -o remount,bind,ro,noexec,nosuid,nodev "$wheelhouse_source"
+          mount --bind "$wheelhouse_source" "$wheelhouse"
+          mount -o remount,bind,ro,noexec,nosuid,nodev "$wheelhouse"
+          mount --bind "$supply_lock_source" "$supply_lock_source"
+          mount -o remount,bind,ro,noexec,nosuid,nodev "$supply_lock_source"
+          mount --bind "$supply_lock_source" "$supply_lock"
+          mount -o remount,bind,ro,noexec,nosuid,nodev "$supply_lock"
+          mount --bind "$validator_source" "$validator_source"
+          mount -o remount,bind,ro,noexec,nosuid,nodev "$validator_source"
+          mount --bind "$validator_source" "$validator"
+          mount -o remount,bind,ro,noexec,nosuid,nodev "$validator"
+          mount --bind "$private_root_source" "$private_root_source"
+          mount -o remount,bind,rw,exec,nosuid,nodev "$private_root_source"
+          mount --bind "$private_root_source" "$private_root"
+          mount -o remount,bind,rw,exec,nosuid,nodev "$private_root"
           /usr/bin/git config --file "$private_root/home/.gitconfig" \
             --add safe.directory "$workspace"
           /usr/bin/git config --file "$private_root/home/.gitconfig" \
@@ -502,13 +526,43 @@ jobs:
           stage_code=84
           findmnt -n -o OPTIONS --target "$kernel_checkout" | tr ',' '\n' | grep -Fx ro
           stage_code=85
-          cd "$workspace"
+          wheelhouse_mount_options=$(findmnt -n -o OPTIONS --target "$wheelhouse")
+          for required_option in ro noexec nosuid nodev; do
+            printf '%s\n' "$wheelhouse_mount_options" | \
+              tr ',' '\n' | grep -Fx "$required_option"
+          done
           stage_code=86
-          "$runner_python" -I "$validator" "$wheelhouse" "$python_minor"
+          supply_lock_mount_options=$(findmnt -n -o OPTIONS --target "$supply_lock")
+          for required_option in ro noexec nosuid nodev; do
+            printf '%s\n' "$supply_lock_mount_options" | \
+              tr ',' '\n' | grep -Fx "$required_option"
+          done
           stage_code=87
+          validator_mount_options=$(findmnt -n -o OPTIONS --target "$validator")
+          for required_option in ro noexec nosuid nodev; do
+            printf '%s\n' "$validator_mount_options" | \
+              tr ',' '\n' | grep -Fx "$required_option"
+          done
+          stage_code=88
+          private_mount_options=$(findmnt -n -o OPTIONS --target "$private_root")
+          printf '%s\n' "$private_mount_options" | tr ',' '\n' | grep -Fx rw
+          printf '%s\n' "$private_mount_options" | tr ',' '\n' | grep -Fx nosuid
+          printf '%s\n' "$private_mount_options" | tr ',' '\n' | grep -Fx nodev
+          ! printf '%s\n' "$private_mount_options" | tr ',' '\n' | grep -Fx noexec
+          stage_code=89
+          cd "$workspace"
+          stage_code=90
+          "$runner_python" -I -c 'import hashlib, os, stat, sys'
+          stage_code=91
+          test -r "$validator" && test ! -w "$validator"
+          test -r "$supply_lock" && test ! -w "$supply_lock"
+          test -r "$wheelhouse" && test -x "$wheelhouse" && test ! -w "$wheelhouse"
+          stage_code=92
+          "$runner_python" -I "$validator" "$wheelhouse" "$python_minor"
+          stage_code=93
           "$runner_python" -m venv "$private_root/venv"
           venv_python="$private_root/venv/bin/python"
-          stage_code=88
+          stage_code=94
           "$venv_python" -I -m pip install \
             --require-hashes \
             --only-binary=:all: \
@@ -517,7 +571,7 @@ jobs:
             --no-cache-dir \
             --find-links "$wheelhouse" \
             --requirement "$supply_lock"
-          stage_code=89
+          stage_code=95
           trap - ERR
           "$venv_python" -I -m build \
             --wheel \

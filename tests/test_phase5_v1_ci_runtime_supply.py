@@ -187,6 +187,10 @@ def test_private_runtime_supply_and_containment_order_is_closed() -> None:
         "mount -t tmpfs -o mode=0755,nosuid,nodev,noexec tmpfs /run",
         "workspace=/run/owner-research/workspace",
         "kernel_checkout=/run/owner-research/private-kernel",
+        "wheelhouse=/run/owner-research/wheelhouse",
+        "supply_lock=/run/owner-research/supply.lock",
+        "validator=/run/owner-research/validator.py",
+        "private_root=/run/owner-research/private",
         "stage_code=70",
         "stage_code=75",
         "for privileged_channel in /usr/bin/docker /usr/bin/sudo",
@@ -199,6 +203,22 @@ def test_private_runtime_supply_and_containment_order_is_closed() -> None:
         '! -group "$candidate_gid"',
         'mount --bind "$kernel_source" "$kernel_source"',
         'mount -o remount,bind,ro "$kernel_source"',
+        'mount --bind "$wheelhouse_source" "$wheelhouse_source"',
+        'mount -o remount,bind,ro,noexec,nosuid,nodev "$wheelhouse_source"',
+        'mount --bind "$wheelhouse_source" "$wheelhouse"',
+        'mount -o remount,bind,ro,noexec,nosuid,nodev "$wheelhouse"',
+        'mount --bind "$supply_lock_source" "$supply_lock_source"',
+        'mount -o remount,bind,ro,noexec,nosuid,nodev "$supply_lock_source"',
+        'mount --bind "$supply_lock_source" "$supply_lock"',
+        'mount -o remount,bind,ro,noexec,nosuid,nodev "$supply_lock"',
+        'mount --bind "$validator_source" "$validator_source"',
+        'mount -o remount,bind,ro,noexec,nosuid,nodev "$validator_source"',
+        'mount --bind "$validator_source" "$validator"',
+        'mount -o remount,bind,ro,noexec,nosuid,nodev "$validator"',
+        'mount --bind "$private_root_source" "$private_root_source"',
+        'mount -o remount,bind,rw,exec,nosuid,nodev "$private_root_source"',
+        'mount --bind "$private_root_source" "$private_root"',
+        'mount -o remount,bind,rw,exec,nosuid,nodev "$private_root"',
         '/usr/bin/git config --file "$private_root/home/.gitconfig"',
         '--add safe.directory "$workspace"',
         '--add safe.directory "$kernel_checkout"',
@@ -211,7 +231,7 @@ def test_private_runtime_supply_and_containment_order_is_closed() -> None:
         "stat -c '%u:%g:%a:%h' \"$protected_path\"",
         "/usr/bin/setpriv",
         "stage_code=80",
-        "stage_code=89",
+        "stage_code=95",
         'trap \'exit "$stage_code"\' ERR',
         "trap - ERR",
         '--reuid="$candidate_uid"',
@@ -248,6 +268,14 @@ def test_private_runtime_supply_and_containment_order_is_closed() -> None:
         'test -z "$(awk \'NR > 1 {print; exit}\' /proc/net/route)"',
         'findmnt -n -o OPTIONS --target "$workspace"',
         'findmnt -n -o OPTIONS --target "$kernel_checkout"',
+        'findmnt -n -o OPTIONS --target "$wheelhouse"',
+        'findmnt -n -o OPTIONS --target "$supply_lock"',
+        'findmnt -n -o OPTIONS --target "$validator"',
+        'findmnt -n -o OPTIONS --target "$private_root"',
+        "for required_option in ro noexec nosuid nodev",
+        'test -r "$validator" && test ! -w "$validator"',
+        'test -r "$supply_lock" && test ! -w "$supply_lock"',
+        'test -r "$wheelhouse" && test -x "$wheelhouse"',
         "PIP_NO_INDEX=1",
         "PIP_FIND_LINKS=",
         "--no-index",
@@ -324,6 +352,18 @@ def test_private_runtime_supply_and_containment_order_is_closed() -> None:
     assert candidate_run.index(
         'mount -o remount,bind,ro "$kernel_source"'
     ) < candidate_run.index('mount --bind "$kernel_source" "$kernel_checkout"')
+    assert candidate_run.index(
+        'mount -o remount,bind,ro,noexec,nosuid,nodev "$wheelhouse_source"'
+    ) < candidate_run.index('mount --bind "$wheelhouse_source" "$wheelhouse"')
+    assert candidate_run.index(
+        'mount --bind "$wheelhouse_source" "$wheelhouse"'
+    ) < candidate_run.index("exec /usr/bin/setpriv")
+    assert candidate_run.index(
+        'mount -o remount,bind,rw,exec,nosuid,nodev "$private_root_source"'
+    ) < candidate_run.index('mount --bind "$private_root_source" "$private_root"')
+    assert candidate_run.index(
+        'mount --bind "$private_root_source" "$private_root"'
+    ) < candidate_run.index("exec /usr/bin/setpriv")
     assert candidate_run.index("exec /usr/bin/setpriv") < candidate_run.index(
         '"$runner_python" -I "$validator"'
     )
