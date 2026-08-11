@@ -1203,6 +1203,7 @@ def compile_final_valuation_request(
             kernel_repository=kernel_repository,
         )
     except (
+        AttributeError,
         FinalRequestCompilationError,
         InvalidOperation,
         IndexError,
