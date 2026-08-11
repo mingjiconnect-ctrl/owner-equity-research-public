@@ -34,8 +34,8 @@ REQUIRED_CHECKS = [
     "phase5/semantic-audit",
 ]
 PRIORITIES = ("P0", "P1", "P2", "P3")
-VERIFY_JOB_CANONICAL_SHA256 = "8f0df9395a3f31c79139e6c087734ca694dade45be5ea255b436d8cebca9a73c"
-CI_WORKFLOW_SHA256 = "638bf22e7704f2bf28765fdbc9e2facc8b257abb5dc64f81e5767dc48a93c7bc"
+VERIFY_JOB_CANONICAL_SHA256 = "c74d5c053605955e35edb8b8766344675fb2352575d2ce94ef710bfc74c0c440"
+CI_WORKFLOW_SHA256 = "9d80fc2d33a082cf3e144a7ab9bd97c496425abf9372b234e913cc9ac69cd69f"
 ACTIVE_WORKFLOW_NAMES = {"ci.yml", "phase5e2b12a-acceptance-gate.yml"}
 ACTIVE_WORKFLOW_SHA256 = {
     "ci.yml": CI_WORKFLOW_SHA256,
@@ -445,6 +445,8 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
                 "mount --make-rprivate /",
                 'test "$(readlink -f /var/run)" = /run',
                 "mount -t tmpfs -o mode=0755,nosuid,nodev,noexec tmpfs /run",
+                "stage_code=70",
+                "stage_code=75",
                 "for privileged_channel in /usr/bin/docker /usr/bin/sudo",
                 'mount --bind /dev/null "$privileged_channel"',
                 'find "$kernel_checkout" -xdev',
@@ -464,6 +466,10 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
                 "stat -c '%u:%g:%a' \"$private_root\"",
                 "stat -c '%u:%g:%a:%h' \"$protected_path\"",
                 "/usr/bin/setpriv",
+                "stage_code=80",
+                "stage_code=86",
+                'trap \'exit "$stage_code"\' ERR',
+                "trap - ERR",
                 '--reuid="$candidate_uid"',
                 '--regid="$candidate_gid"',
                 "--clear-groups",

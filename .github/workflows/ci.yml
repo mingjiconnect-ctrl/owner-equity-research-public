@@ -348,7 +348,7 @@ jobs:
               '${{ matrix.python-version }}' \
             >"$private_root/stage.stdout" \
             2>"$private_root/stage.stderr" <<'ROOT_BASH'
-          set -euo pipefail
+          set -Eeuo pipefail
           host_uid=$1
           host_gid=$2
           candidate_uid=$3
@@ -361,17 +361,22 @@ jobs:
           private_root=${10}
           runner_python=${11}
           python_minor=${12}
+          stage_code=70
+          trap 'exit "$stage_code"' ERR
           test "$(id -u)" -eq 0
           mount --make-rprivate /
           test "$(readlink -f /var/run)" = /run
           mount -t tmpfs -o mode=0755,nosuid,nodev,noexec tmpfs /run
+          stage_code=71
           for privileged_channel in /usr/bin/docker /usr/bin/sudo; do
             test -e "$privileged_channel"
             mount --bind /dev/null "$privileged_channel"
             mount -o remount,bind,ro,noexec,nosuid,nodev "$privileged_channel"
           done
+          stage_code=72
           mount --bind "$workspace" "$workspace"
           mount -o remount,bind,ro "$workspace"
+          stage_code=73
           test -z "$(find "$kernel_checkout" -xdev \
             \( -type b -o -type c -o -type p -o -type s -o -type f -links +1 \) \
             -print -quit)"
@@ -380,6 +385,7 @@ jobs:
             \( ! -user "$candidate_uid" -o ! -group "$candidate_gid" \) -print -quit)"
           mount --bind "$kernel_checkout" "$kernel_checkout"
           mount -o remount,bind,ro "$kernel_checkout"
+          stage_code=74
           /usr/bin/git config --file "$private_root/home/.gitconfig" \
             --add safe.directory "$workspace"
           /usr/bin/git config --file "$private_root/home/.gitconfig" \
@@ -404,6 +410,7 @@ jobs:
           done
           umask 0022
 
+          stage_code=75
           exec /usr/bin/setpriv \
             --reuid="$candidate_uid" \
             --regid="$candidate_gid" \
@@ -441,7 +448,7 @@ jobs:
                 "$python_minor" \
                 "$candidate_uid" \
                 "$candidate_gid" <<'CANDIDATE_BASH'
-          set -euo pipefail
+          set -Eeuo pipefail
           workspace=$1
           kernel_checkout=$2
           wheelhouse=$3
@@ -452,6 +459,8 @@ jobs:
           python_minor=$8
           expected_uid=$9
           expected_gid=${10}
+          stage_code=80
+          trap 'exit "$stage_code"' ERR
           expected_uids="$expected_uid $expected_uid $expected_uid $expected_uid"
           expected_gids="$expected_gid $expected_gid $expected_gid $expected_gid"
           test "$(awk '/^Uid:/ {print $2, $3, $4, $5}' /proc/self/status)" = \
@@ -464,6 +473,7 @@ jobs:
               /proc/self/status)" = 0000000000000000
           done
           test "$(awk '/^NoNewPrivs:/ {print $2}' /proc/self/status)" = 1
+          stage_code=81
           test ! -w "$private_root"
           test ! -x /usr/bin/docker
           test ! -x /usr/bin/sudo
@@ -471,6 +481,7 @@ jobs:
           test ! -S /run/docker.sock
           test "$(command -v docker)" = /usr/bin/docker
           test "$(command -v sudo)" = /usr/bin/sudo
+          stage_code=82
           mapfile -t network_interfaces < <(
             awk -F: 'NR > 2 {
               gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1); print $1
@@ -478,12 +489,16 @@ jobs:
           )
           test "${network_interfaces[*]}" = lo
           test -z "$(awk 'NR > 1 {print; exit}' /proc/net/route)"
+          stage_code=83
           findmnt -n -o OPTIONS --target "$workspace" | tr ',' '\n' | grep -Fx ro
           findmnt -n -o OPTIONS --target "$kernel_checkout" | tr ',' '\n' | grep -Fx ro
           cd "$workspace"
+          stage_code=84
           "$runner_python" -I "$validator" "$wheelhouse" "$python_minor"
+          stage_code=85
           "$runner_python" -m venv "$private_root/venv"
           venv_python="$private_root/venv/bin/python"
+          stage_code=86
           "$venv_python" -I -m pip install \
             --require-hashes \
             --only-binary=:all: \
@@ -492,6 +507,7 @@ jobs:
             --no-cache-dir \
             --find-links "$wheelhouse" \
             --requirement "$supply_lock"
+          trap - ERR
           "$venv_python" -I -m build \
             --wheel \
             --no-isolation \
