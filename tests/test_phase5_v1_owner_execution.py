@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 from dataclasses import replace
 from datetime import datetime, timedelta
-from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -12,18 +11,25 @@ import pytest
 from phase5e2a_support import valid_snapshot_graph
 
 import owner_research.valuation_owner_execution as owner_execution_module
-from owner_research.fingerprints import canonical_json, canonical_sha256, freeze
+from owner_research.contracts import Fact
+from owner_research.fingerprints import (
+    canonical_json,
+    canonical_sha256,
+    freeze,
+    to_json_value,
+)
 from owner_research.valuation_final_request import (
     FinalAssumptionLedgerCompilationResult,
     FinalFactLedgerCompilationResult,
     FinalValuationRequestCompilationResult,
     _company_identity_binding_sha256,
+    _governed_market_authority,
     _market_evidence_binding_sha256,
+    _market_facts,
+    _market_source,
+    _validated_prepared_market_context,
 )
-from owner_research.valuation_kernel_projection import (
-    CurrentShareKernelProjection,
-    KernelNumericProjectionWitness,
-)
+from owner_research.valuation_kernel_projection import project_current_share_lineage
 from owner_research.valuation_market_execution_policies import (
     KERNEL_EXECUTION_POLICY,
     PINNED_KERNEL_CONTAINER_IMAGE_CONFIG_DIGEST,
@@ -137,10 +143,38 @@ def _prepared_inputs(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> tuple[OwnerValuationPreparationResult, PriceBlindFreezeCompilationResult]:
+    monkeypatch.setattr(
+        "owner_research.valuation_kernel_projection._source_is_registered",
+        lambda _document: True,
+    )
     graph, snapshot, context, _access, calculation = valid_snapshot_graph(
         sample_payloads,
         monkeypatch,
         tmp_path,
+    )
+    company_source = graph.documents[0]
+    company_fact = Fact(
+        schema_version="2.0.0",
+        fact_id="fact:acme:issuer-legal-name",
+        issuer_id=snapshot.issuer_id,
+        concept="issuer_legal_name",
+        value_type="text",
+        value="ACME Corporation",
+        unit=None,
+        currency=None,
+        period={"start": None, "end": snapshot.data_cutoff_date},
+        source_document_id=company_source.document_id,
+        source_locator="cover:issuer-legal-name",
+        derivation=None,
+        parent_fact_ids=(),
+        confidence="high",
+    )
+    graph = replace(graph, facts=(*graph.facts, company_fact))
+    graph.validate()
+    monkeypatch.setattr(
+        owner_execution_module,
+        "_governed_company_name",
+        lambda _prepared: (company_fact.value, company_fact, company_source),
     )
     source = next(
         item for item in graph.documents if item.document_id == snapshot.quote_source_document_id
@@ -186,170 +220,132 @@ def _compiled(
 ) -> FinalValuationRequestCompilationResult:
     prepared = preparation.prepared_market_reference
     assert prepared is not None
-    share_witness = KernelNumericProjectionWitness.compile(
-        label="share:fixture",
-        authoritative_decimal=Decimal(
-            prepared.snapshot.share_basis["current_common_shares_outstanding_decimal"]
-        ),
-        scale_divisor=Decimal(1_000_000),
-    )
-    current_share_compilation_fingerprint = prepared.current_shares.fingerprint
-    attestation = {
-        "fixture": "compiled-current-share-lineage",
-        "current_share_compilation_fingerprint": (
-            current_share_compilation_fingerprint
-        ),
-    }
-    projection = CurrentShareKernelProjection(
-        status="eligible",
-        evidence_kind=prepared.snapshot.share_basis["evidence_kind"],
-        current_share_fact_id=prepared.snapshot.share_basis["shares_outstanding_fact_id"],
-        sources=({"source_id": "source:fixture:shares"},),
-        facts=({"fact_id": prepared.snapshot.share_basis["shares_outstanding_fact_id"]},),
-        numeric_witnesses=(share_witness,),
-        arithmetic_steps=({"step": 0, "operation": "fixture"},),
-        research_evidence_attestation=attestation,
-        research_evidence_sha256=canonical_sha256(attestation),
-        issue_codes=(),
-    )
-    quote_witness = KernelNumericProjectionWitness.compile(
-        label="quote:fact:fixture:quote",
-        authoritative_decimal=Decimal(prepared.snapshot.quote_price_decimal),
-    )
-    market_witness = KernelNumericProjectionWitness.compile(
-        label="market-equity:calculation:fixture:market",
-        authoritative_decimal=Decimal(prepared.snapshot.market_equity["value_decimal"]),
-        scale_divisor=Decimal(1_000_000),
+    context = _validated_prepared_market_context(prepared)
+    freeze_artifact = context.price_blind_artifact.to_dict()
+    reviewed = freeze_artifact["reviewed_assumptions"]
+    base_ledger = to_json_value(reviewed["augmented_fact_ledger_payload"])
+    base_assumption_ledger = to_json_value(reviewed["assumption_ledger_payload"])
+    authority = _governed_market_authority(prepared, context)
+    projection = project_current_share_lineage(prepared)
+    market_source = _market_source(prepared, authority)
+    quote_fact, market_fact, quote_witness, market_witness = _market_facts(
+        prepared,
+        projection,
+        prepared.snapshot.quote_currency,
     )
     current_share_id = projection.current_share_fact_id
     assert current_share_id is not None
-    quote_fact_id = "fact:fixture:quote"
-    market_calculation_id = "calculation:fixture:market"
-    market_fact_id = f"derived:{market_calculation_id}"
-    market_source_id = "source:fixture:market"
-    market_provider_id = "provider:fixture"
-    market_raw_response_sha256 = "1" * 64
-    market_source = {
-        "source_id": market_source_id,
-        "publisher": market_provider_id,
-        "locator": f"cas://sha256/{market_raw_response_sha256}",
-    }
-    market_source_ref_fingerprint = canonical_sha256(market_source)
+    source_index = {item["source_id"]: item for item in base_ledger["sources"]}
+    fact_index = {item["fact_id"]: item for item in base_ledger["facts"]}
+    base_source_ids = set(source_index)
+    base_fact_ids = set(fact_index)
+    for item in [
+        *(to_json_value(value) for value in projection.sources),
+        market_source,
+    ]:
+        assert item["source_id"] not in source_index or source_index[item["source_id"]] == item
+        source_index[item["source_id"]] = item
+    for item in [
+        *(to_json_value(value) for value in projection.facts),
+        quote_fact,
+        market_fact,
+    ]:
+        assert item["fact_id"] not in fact_index or fact_index[item["fact_id"]] == item
+        fact_index[item["fact_id"]] = item
+    sources = [source_index[key] for key in sorted(source_index)]
+    facts = [fact_index[key] for key in sorted(fact_index)]
     fact_ledger = {
         "schema_version": "1.0.0",
         "entity_id": preparation.issuer_id,
         "valuation_date": preparation.data_cutoff_date,
         "reporting_currency": prepared.snapshot.quote_currency,
-        "sources": [market_source],
-        "facts": [
-            {
-                "fact_id": current_share_id,
-                "concept": "common_shares_outstanding",
-                "parent_fact_ids": [],
-            },
-            {
-                "fact_id": quote_fact_id,
-                "concept": "market_price_per_current_common_share",
-                "source_id": market_source_id,
-                "raw": True,
-                "value": quote_witness.kernel_value,
-                "parent_fact_ids": [],
-            },
-            {
-                "fact_id": market_fact_id,
-                "concept": "market_equity_value",
-                "source_id": market_source_id,
-                "raw": False,
-                "value": market_witness.kernel_value,
-                "parent_fact_ids": [quote_fact_id, current_share_id],
-            },
-        ],
+        "sources": sources,
+        "facts": facts,
     }
     final_fact_sha256 = canonical_sha256(fact_ledger)
     assumption_ledger = {
-        "schema_version": "1.0.0",
+        **base_assumption_ledger,
         "fact_ledger_fingerprint": final_fact_sha256,
-        "assumptions": [],
     }
-    market_registration_sha256 = "c" * 64
-    market_context_id = "market-context:fixture"
-    market_context_fingerprint = "d" * 64
-    market_access_fingerprint = "e" * 64
-    market_source_document_fingerprint = "f" * 64
-    quote_fact_fingerprint = "2" * 64
-    calculation_fingerprint = "3" * 64
-    receipt_id = "market-receipt:fixture"
-    receipt_fingerprint = "b" * 64
     market_evidence_binding = _market_evidence_binding_sha256(
-        context_id=market_context_id,
-        context_fingerprint=market_context_fingerprint,
-        access_fingerprint=market_access_fingerprint,
-        provider_id=market_provider_id,
-        provider_registration_sha256=market_registration_sha256,
-        receipt_id=receipt_id,
-        receipt_fingerprint=receipt_fingerprint,
-        current_share_compilation_fingerprint=(
-            current_share_compilation_fingerprint
-        ),
-        source_document_id=market_source_id,
-        source_document_fingerprint=market_source_document_fingerprint,
-        source_ref_fingerprint=market_source_ref_fingerprint,
-        raw_response_sha256=market_raw_response_sha256,
-        quote_fact_id=quote_fact_id,
-        quote_fact_fingerprint=quote_fact_fingerprint,
-        calculation_id=market_calculation_id,
-        calculation_fingerprint=calculation_fingerprint,
+        context_id=authority["context_id"],
+        context_fingerprint=authority["context_fingerprint"],
+        access_fingerprint=authority["access_fingerprint"],
+        provider_id=authority["provider_id"],
+        provider_registration_sha256=authority["provider_registration_sha256"],
+        receipt_id=authority["receipt_id"],
+        receipt_fingerprint=authority["receipt_fingerprint"],
+        current_share_compilation_fingerprint=prepared.current_shares.fingerprint,
+        source_document_id=prepared.market_source.document_id,
+        source_document_fingerprint=prepared.market_source.fingerprint,
+        source_ref_fingerprint=canonical_sha256(market_source),
+        raw_response_sha256=authority["raw_response_sha256"],
+        quote_fact_id=prepared.quote_fact.fact_id,
+        quote_fact_fingerprint=prepared.quote_fact.fingerprint,
+        calculation_id=prepared.market_equity_calculation.calculation_id,
+        calculation_fingerprint=prepared.market_equity_calculation.fingerprint,
     )
     fact_result = FinalFactLedgerCompilationResult(
         policy_id="price-blind-final-request",
         policy_version="2.0.0",
-        base_ledger_sha256="a" * 64,
-        base_source_fingerprints=(),
-        base_fact_fingerprints=(),
+        base_ledger_sha256=canonical_sha256(base_ledger),
+        base_ledger_payload=freeze(base_ledger),
+        base_source_fingerprints=tuple(
+            sorted(
+                (item["source_id"], canonical_sha256(item))
+                for item in base_ledger["sources"]
+            )
+        ),
+        base_fact_fingerprints=tuple(
+            sorted(
+                (item["fact_id"], canonical_sha256(item))
+                for item in base_ledger["facts"]
+            )
+        ),
         current_share_projection=projection,
         quote_projection_witness=quote_witness,
         market_equity_projection_witness=market_witness,
-        market_provider_id=market_provider_id,
-        market_provider_receipt_id=receipt_id,
-        market_provider_receipt_fingerprint=receipt_fingerprint,
-        market_provider_registration_sha256=market_registration_sha256,
-        market_validation_context_id=market_context_id,
-        market_validation_context_fingerprint=market_context_fingerprint,
-        market_access_result_fingerprint=market_access_fingerprint,
-        current_share_compilation_fingerprint=(
-            current_share_compilation_fingerprint
-        ),
-        market_source_document_id=market_source_id,
-        market_source_document_fingerprint=market_source_document_fingerprint,
-        market_source_ref_fingerprint=market_source_ref_fingerprint,
-        market_raw_response_sha256=market_raw_response_sha256,
-        market_quote_fact_id=quote_fact_id,
-        market_quote_fact_fingerprint=quote_fact_fingerprint,
-        market_equity_calculation_id=market_calculation_id,
-        market_equity_calculation_fingerprint=calculation_fingerprint,
+        market_provider_id=authority["provider_id"],
+        market_provider_receipt_id=authority["receipt_id"],
+        market_provider_receipt_fingerprint=authority["receipt_fingerprint"],
+        market_provider_registration_sha256=authority["provider_registration_sha256"],
+        market_validation_context_id=authority["context_id"],
+        market_validation_context_fingerprint=authority["context_fingerprint"],
+        market_access_result_fingerprint=authority["access_fingerprint"],
+        current_share_compilation_fingerprint=prepared.current_shares.fingerprint,
+        market_source_document_id=prepared.market_source.document_id,
+        market_source_document_fingerprint=prepared.market_source.fingerprint,
+        market_source_ref_fingerprint=canonical_sha256(market_source),
+        market_raw_response_sha256=authority["raw_response_sha256"],
+        market_quote_fact_id=prepared.quote_fact.fact_id,
+        market_quote_fact_fingerprint=prepared.quote_fact.fingerprint,
+        market_equity_calculation_id=prepared.market_equity_calculation.calculation_id,
+        market_equity_calculation_fingerprint=prepared.market_equity_calculation.fingerprint,
         market_evidence_binding_sha256=market_evidence_binding,
-        added_source_ids=(market_source_id,),
-        added_fact_ids=(current_share_id, quote_fact_id, market_fact_id),
+        added_source_ids=tuple(
+            item["source_id"] for item in sources if item["source_id"] not in base_source_ids
+        ),
+        added_fact_ids=tuple(
+            item["fact_id"] for item in facts if item["fact_id"] not in base_fact_ids
+        ),
         fact_ledger_payload=freeze(fact_ledger),
     )
     assumption_result = FinalAssumptionLedgerCompilationResult(
-        assumption_entries_sha256=canonical_sha256([]),
+        assumption_entries_sha256=reviewed["assumption_entries_sha256"],
         prior_fact_ledger_fingerprint=fact_result.base_ledger_sha256,
         final_fact_ledger_fingerprint=final_fact_sha256,
         assumption_ledger_payload=freeze(assumption_ledger),
     )
-    company_legal_name = "Fixture Corporation"
-    company_name_fact_id = "fact:fixture:company-name"
-    company_name_fact_fingerprint = "4" * 64
-    company_name_source_document_id = "source:fixture:company-name"
-    company_name_source_document_fingerprint = "5" * 64
+    company_legal_name, company_name_fact, company_name_source = (
+        owner_execution_module._governed_company_name(prepared)
+    )
     company_identity_binding = _company_identity_binding_sha256(
         issuer_id=preparation.issuer_id,
         legal_name=company_legal_name,
-        fact_id=company_name_fact_id,
-        fact_fingerprint=company_name_fact_fingerprint,
-        source_document_id=company_name_source_document_id,
-        source_document_fingerprint=company_name_source_document_fingerprint,
+        fact_id=company_name_fact.fact_id,
+        fact_fingerprint=company_name_fact.fingerprint,
+        source_document_id=company_name_source.document_id,
+        source_document_fingerprint=company_name_source.fingerprint,
     )
     request = {
         "schema_version": "2.0.0",
@@ -359,7 +355,7 @@ def _compiled(
         "routing_assessments": {},
         "method_views": {},
         "mckinsey": {"equity_bridge": {"share_denominator_fact_id": current_share_id}},
-        "penman": {"market_equity_value_fact_id": market_fact_id},
+        "penman": {"market_equity_value_fact_id": market_fact["fact_id"]},
     }
     return FinalValuationRequestCompilationResult(
         status="compiled",
@@ -368,12 +364,10 @@ def _compiled(
         price_blind_input_fingerprint=preparation.price_blind_input_fingerprint,
         prepared_market_reference_fingerprint=prepared.fingerprint,
         company_legal_name_value=company_legal_name,
-        company_name_fact_id=company_name_fact_id,
-        company_name_fact_fingerprint=company_name_fact_fingerprint,
-        company_name_source_document_id=company_name_source_document_id,
-        company_name_source_document_fingerprint=(
-            company_name_source_document_fingerprint
-        ),
+        company_name_fact_id=company_name_fact.fact_id,
+        company_name_fact_fingerprint=company_name_fact.fingerprint,
+        company_name_source_document_id=company_name_source.document_id,
+        company_name_source_document_fingerprint=company_name_source.fingerprint,
         company_identity_binding_sha256=company_identity_binding,
         fact_ledger_result=fact_result,
         assumption_ledger_result=assumption_result,
@@ -445,6 +439,77 @@ def _runner_result(
         assumption_ledger_fingerprint=assumption_fingerprint,
         model_input_fingerprint=compiled.request_sha256,
         kernel_call_count=1,
+    )
+
+
+def _completed_result(
+    *,
+    preparation: OwnerValuationPreparationResult,
+    freeze_result: PriceBlindFreezeCompilationResult,
+    compiled: FinalValuationRequestCompilationResult,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Any:
+    execution = _runner_result(compiled)
+    monkeypatch.setattr(
+        owner_execution_module,
+        "compile_final_valuation_request",
+        lambda **_kwargs: compiled,
+    )
+    monkeypatch.setattr(
+        owner_execution_module,
+        "execute_pinned_kernel",
+        lambda *_args, **_kwargs: execution,
+    )
+    result = execute_owner_valuation(
+        preparation=preparation,
+        expected_freeze=freeze_result,
+        kernel_repository=Path("/read-only/kernel"),
+        runtime_manifest=Path("/runtime/manifest.json"),
+        runtime_manifest_file_sha256="d" * 64,
+        cas_root=Path("/runtime/cas"),
+        clock=_clock(preparation),
+    )
+    assert result.status == "completed"
+    return result
+
+
+def _rebound_final_request_receipt(receipt: Any, **changes: Any) -> Any:
+    payload = receipt.to_dict()
+    payload.update(changes)
+    payload.pop("receipt_id")
+    payload["receipt_id"] = (
+        f"final-request-receipt:{payload['issuer_id']}:"
+        f"{canonical_sha256(payload)[:24]}"
+    )
+    return type(receipt)(**payload)
+
+
+def _market_binding(
+    fact_result: FinalFactLedgerCompilationResult,
+    **changes: str,
+) -> str:
+    def value(name: str) -> str:
+        return changes.get(name, getattr(fact_result, name))
+
+    return _market_evidence_binding_sha256(
+        context_id=value("market_validation_context_id"),
+        context_fingerprint=value("market_validation_context_fingerprint"),
+        access_fingerprint=value("market_access_result_fingerprint"),
+        provider_id=value("market_provider_id"),
+        provider_registration_sha256=value("market_provider_registration_sha256"),
+        receipt_id=value("market_provider_receipt_id"),
+        receipt_fingerprint=value("market_provider_receipt_fingerprint"),
+        current_share_compilation_fingerprint=value(
+            "current_share_compilation_fingerprint"
+        ),
+        source_document_id=value("market_source_document_id"),
+        source_document_fingerprint=value("market_source_document_fingerprint"),
+        source_ref_fingerprint=value("market_source_ref_fingerprint"),
+        raw_response_sha256=value("market_raw_response_sha256"),
+        quote_fact_id=value("market_quote_fact_id"),
+        quote_fact_fingerprint=value("market_quote_fact_fingerprint"),
+        calculation_id=value("market_equity_calculation_id"),
+        calculation_fingerprint=value("market_equity_calculation_fingerprint"),
     )
 
 
@@ -704,6 +769,101 @@ def test_invalid_runtime_manifest_hash_blocks_before_runner_or_handoff(
     assert result.validated_graph is None
 
 
+def test_coordinated_base_ledger_rebinding_blocks_before_runner(
+    sample_payloads: dict[str, dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    preparation, freeze_result = _prepared_inputs(
+        sample_payloads,
+        monkeypatch,
+        tmp_path,
+    )
+    compiled = _compiled(preparation)
+    fact_result = compiled.fact_ledger_result
+    assumption_result = compiled.assumption_ledger_result
+    assert fact_result is not None and assumption_result is not None
+    final_ledger = to_json_value(fact_result.fact_ledger_payload)
+    current_share_id = fact_result.current_share_projection.current_share_fact_id
+    assert current_share_id is not None
+    current_share_fact = next(
+        item for item in final_ledger["facts"] if item["fact_id"] == current_share_id
+    )
+    current_share_source = next(
+        item
+        for item in final_ledger["sources"]
+        if item["source_id"] == current_share_fact["source_id"]
+    )
+    forged_base = {
+        "schema_version": final_ledger["schema_version"],
+        "entity_id": final_ledger["entity_id"],
+        "valuation_date": final_ledger["valuation_date"],
+        "reporting_currency": final_ledger["reporting_currency"],
+        "sources": [current_share_source],
+        "facts": [current_share_fact],
+    }
+    forged_base_sha256 = canonical_sha256(forged_base)
+    forged_fact_result = replace(
+        fact_result,
+        base_ledger_sha256=forged_base_sha256,
+        base_ledger_payload=freeze(forged_base),
+        base_source_fingerprints=(
+            (current_share_source["source_id"], canonical_sha256(current_share_source)),
+        ),
+        base_fact_fingerprints=(
+            (current_share_fact["fact_id"], canonical_sha256(current_share_fact)),
+        ),
+        added_source_ids=tuple(
+            item["source_id"]
+            for item in final_ledger["sources"]
+            if item["source_id"] != current_share_source["source_id"]
+        ),
+        added_fact_ids=tuple(
+            item["fact_id"]
+            for item in final_ledger["facts"]
+            if item["fact_id"] != current_share_fact["fact_id"]
+        ),
+    )
+    forged_assumption_result = replace(
+        assumption_result,
+        prior_fact_ledger_fingerprint=forged_base_sha256,
+    )
+    forged_request = replace(
+        compiled,
+        fact_ledger_result=forged_fact_result,
+        assumption_ledger_result=forged_assumption_result,
+    )
+    runner_calls: list[object] = []
+    monkeypatch.setattr(
+        owner_execution_module,
+        "compile_final_valuation_request",
+        lambda **_kwargs: forged_request,
+    )
+    monkeypatch.setattr(
+        owner_execution_module,
+        "execute_pinned_kernel",
+        lambda *args, **kwargs: runner_calls.append((args, kwargs)),
+    )
+
+    result = execute_owner_valuation(
+        preparation=preparation,
+        expected_freeze=freeze_result,
+        kernel_repository=Path("/read-only/kernel"),
+        runtime_manifest=Path("/runtime/manifest.json"),
+        runtime_manifest_file_sha256="d" * 64,
+        cas_root=Path("/runtime/cas"),
+        clock=_clock(preparation),
+    )
+
+    assert result.status == "blocked"
+    assert result.issue_codes == (
+        "owner_execution_preflight_blocked:OwnerValuationExecutionError",
+    )
+    assert runner_calls == []
+    assert result.final_request_receipt is None
+    assert result.execution_handoffs == ()
+
+
 def test_superseded_and_quarantined_market_run_never_executes(
     sample_payloads: dict[str, dict[str, Any]],
     monkeypatch: pytest.MonkeyPatch,
@@ -813,3 +973,319 @@ def test_runner_output_binding_failure_is_hash_only_and_never_advances_graph(
     assert preparation.prepared_market_reference.graph.valuation_handoffs == (
         freeze_result.handoffs
     )
+
+
+def test_completed_result_rejects_coordinated_request_provenance_rebindings(
+    sample_payloads: dict[str, dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    preparation, freeze_result = _prepared_inputs(
+        sample_payloads,
+        monkeypatch,
+        tmp_path,
+    )
+    compiled = _compiled(preparation)
+    completed = _completed_result(
+        preparation=preparation,
+        freeze_result=freeze_result,
+        compiled=compiled,
+        monkeypatch=monkeypatch,
+    )
+    receipt = completed.final_request_receipt
+    fact_result = compiled.fact_ledger_result
+    assert receipt is not None and fact_result is not None
+
+    company_fact_fingerprint = "f" * 64
+    company_source_fingerprint = "e" * 64
+    company_binding = _company_identity_binding_sha256(
+        issuer_id=compiled.issuer_id,
+        legal_name=compiled.company_legal_name_value,
+        fact_id="fact:forged:issuer-legal-name",
+        fact_fingerprint=company_fact_fingerprint,
+        source_document_id="doc:forged:issuer-legal-name",
+        source_document_fingerprint=company_source_fingerprint,
+    )
+    forged_company = replace(
+        compiled,
+        company_name_fact_id="fact:forged:issuer-legal-name",
+        company_name_fact_fingerprint=company_fact_fingerprint,
+        company_name_source_document_id="doc:forged:issuer-legal-name",
+        company_name_source_document_fingerprint=company_source_fingerprint,
+        company_identity_binding_sha256=company_binding,
+    )
+    forged_company_receipt = _rebound_final_request_receipt(
+        receipt,
+        company_name_fact_id=forged_company.company_name_fact_id,
+        company_name_fact_fingerprint=company_fact_fingerprint,
+        company_name_source_document_id=(forged_company.company_name_source_document_id),
+        company_name_source_document_fingerprint=company_source_fingerprint,
+        company_identity_binding_sha256=company_binding,
+    )
+    with pytest.raises(ValueError, match="provenance"):
+        replace(
+            completed,
+            final_request_result=forged_company,
+            final_request_receipt=forged_company_receipt,
+        )
+
+    registration_sha256 = "f" * 64
+    market_binding = _market_binding(
+        fact_result,
+        market_provider_registration_sha256=registration_sha256,
+    )
+    forged_market_result = replace(
+        fact_result,
+        market_provider_registration_sha256=registration_sha256,
+        market_evidence_binding_sha256=market_binding,
+    )
+    forged_market = replace(compiled, fact_ledger_result=forged_market_result)
+    forged_market_receipt = _rebound_final_request_receipt(
+        receipt,
+        market_provider_registration_sha256=registration_sha256,
+        market_evidence_binding_sha256=market_binding,
+    )
+    with pytest.raises(ValueError, match="provenance"):
+        replace(
+            completed,
+            final_request_result=forged_market,
+            final_request_receipt=forged_market_receipt,
+        )
+
+    current_share_fingerprint = "f" * 64
+    projection_attestation = to_json_value(
+        fact_result.current_share_projection.research_evidence_attestation
+    )
+    projection_attestation["current_share_compilation_fingerprint"] = (
+        current_share_fingerprint
+    )
+    forged_projection = replace(
+        fact_result.current_share_projection,
+        research_evidence_attestation=projection_attestation,
+        research_evidence_sha256=canonical_sha256(projection_attestation),
+    )
+    share_market_binding = _market_binding(
+        fact_result,
+        current_share_compilation_fingerprint=current_share_fingerprint,
+    )
+    forged_share_result = replace(
+        fact_result,
+        current_share_projection=forged_projection,
+        current_share_compilation_fingerprint=current_share_fingerprint,
+        market_evidence_binding_sha256=share_market_binding,
+    )
+    forged_share = replace(compiled, fact_ledger_result=forged_share_result)
+    forged_share_receipt = _rebound_final_request_receipt(
+        receipt,
+        current_share_compilation_fingerprint=current_share_fingerprint,
+        current_share_projection_sha256=forged_projection.fingerprint,
+        market_evidence_binding_sha256=share_market_binding,
+    )
+    with pytest.raises(ValueError, match="provenance"):
+        replace(
+            completed,
+            final_request_result=forged_share,
+            final_request_receipt=forged_share_receipt,
+        )
+
+    with pytest.raises(ValueError, match="provenance"):
+        replace(
+            completed,
+            final_request_result=replace(
+                compiled,
+                prepared_market_reference_fingerprint="f" * 64,
+            ),
+        )
+    with pytest.raises(ValueError, match="provenance"):
+        replace(
+            completed,
+            final_request_result=replace(
+                compiled,
+                price_blind_input_fingerprint="f" * 64,
+            ),
+        )
+
+
+def test_second_active_run_blocks_preflight_and_frozen_result(
+    sample_payloads: dict[str, dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    preparation, freeze_result = _prepared_inputs(
+        sample_payloads,
+        monkeypatch,
+        tmp_path,
+    )
+    prepared = preparation.prepared_market_reference
+    assert prepared is not None
+    clone_ids = {
+        item.handoff_id: f"{item.handoff_id}:parallel" for item in freeze_result.handoffs
+    }
+    parallel = tuple(
+        replace(
+            item,
+            handoff_id=clone_ids[item.handoff_id],
+            handoff_run_id=f"{item.handoff_run_id}:parallel",
+            predecessor_handoff_id=(
+                clone_ids[item.predecessor_handoff_id]
+                if item.predecessor_handoff_id is not None
+                else None
+            ),
+            supersedes_handoff_id=None,
+        )
+        for item in freeze_result.handoffs
+    )
+    two_active_graph = replace(
+        prepared.graph,
+        valuation_handoffs=(*prepared.graph.valuation_handoffs, *parallel),
+    )
+    two_active_graph.validate()
+    two_active_preparation = replace(
+        preparation,
+        prepared_market_reference=replace(prepared, graph=two_active_graph),
+    )
+    compiled = _compiled(two_active_preparation)
+    runner_calls: list[object] = []
+    monkeypatch.setattr(
+        owner_execution_module,
+        "compile_final_valuation_request",
+        lambda **_kwargs: compiled,
+    )
+    monkeypatch.setattr(
+        owner_execution_module,
+        "execute_pinned_kernel",
+        lambda *args, **kwargs: runner_calls.append((args, kwargs)),
+    )
+    blocked = execute_owner_valuation(
+        preparation=two_active_preparation,
+        expected_freeze=freeze_result,
+        kernel_repository=Path("/read-only/kernel"),
+        runtime_manifest=Path("/runtime/manifest.json"),
+        runtime_manifest_file_sha256="d" * 64,
+        cas_root=Path("/runtime/cas"),
+        clock=_clock(two_active_preparation),
+    )
+    assert blocked.status == "blocked"
+    assert runner_calls == []
+    assert blocked.kernel_execution_result is None
+    assert blocked.execution_handoffs == ()
+
+    completed = _completed_result(
+        preparation=preparation,
+        freeze_result=freeze_result,
+        compiled=_compiled(preparation),
+        monkeypatch=monkeypatch,
+    )
+    assert completed.validated_graph is not None
+    forged_overlay = replace(
+        two_active_graph,
+        valuation_handoffs=(*two_active_graph.valuation_handoffs, *completed.execution_handoffs),
+    )
+    forged_overlay.validate()
+    with pytest.raises(ValueError, match="active authorization run"):
+        replace(
+            completed,
+            preparation=two_active_preparation,
+            validated_graph=forged_overlay,
+        )
+
+
+def test_completed_result_rejects_handoff_id_and_time_rebindings(
+    sample_payloads: dict[str, dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    preparation, freeze_result = _prepared_inputs(
+        sample_payloads,
+        monkeypatch,
+        tmp_path,
+    )
+    completed = _completed_result(
+        preparation=preparation,
+        freeze_result=freeze_result,
+        compiled=_compiled(preparation),
+        monkeypatch=monkeypatch,
+    )
+    prepared = preparation.prepared_market_reference
+    assert prepared is not None
+    request_handoff, result_handoff = completed.execution_handoffs
+
+    rebound_request = replace(
+        request_handoff,
+        handoff_id=f"{request_handoff.handoff_id}:rebound",
+    )
+    rebound_result = replace(
+        result_handoff,
+        handoff_id=f"{result_handoff.handoff_id}:rebound",
+        predecessor_handoff_id=rebound_request.handoff_id,
+    )
+    rebound_graph = replace(
+        prepared.graph,
+        valuation_handoffs=(
+            *prepared.graph.valuation_handoffs,
+            rebound_request,
+            rebound_result,
+        ),
+    )
+    rebound_graph.validate()
+    with pytest.raises(ValueError, match="deterministic Handoff"):
+        replace(
+            completed,
+            execution_handoffs=(rebound_request, rebound_result),
+            validated_graph=rebound_graph,
+        )
+
+    shifted_request_time = datetime.fromisoformat(
+        request_handoff.transitioned_at.replace("Z", "+00:00")
+    ) + timedelta(days=1)
+    shifted_result_time = datetime.fromisoformat(
+        result_handoff.transitioned_at.replace("Z", "+00:00")
+    ) + timedelta(days=1)
+    shifted_request = replace(request_handoff, transitioned_at=shifted_request_time.isoformat())
+    shifted_result = replace(result_handoff, transitioned_at=shifted_result_time.isoformat())
+    shifted_graph = replace(
+        prepared.graph,
+        valuation_handoffs=(
+            *prepared.graph.valuation_handoffs,
+            shifted_request,
+            shifted_result,
+        ),
+    )
+    shifted_graph.validate()
+    with pytest.raises(ValueError, match="deterministic Handoff"):
+        replace(
+            completed,
+            execution_handoffs=(shifted_request, shifted_result),
+            validated_graph=shifted_graph,
+        )
+
+    retrieved = datetime.fromisoformat(
+        prepared.snapshot.quote_retrieved_at.replace("Z", "+00:00")
+    )
+    at_quote_request = replace(
+        request_handoff,
+        transitioned_at=prepared.snapshot.quote_retrieved_at,
+    )
+    at_quote_result = replace(
+        result_handoff,
+        transitioned_at=(retrieved + timedelta(microseconds=1)).isoformat(),
+    )
+    at_quote_graph = replace(
+        prepared.graph,
+        valuation_handoffs=(
+            *prepared.graph.valuation_handoffs,
+            at_quote_request,
+            at_quote_result,
+        ),
+    )
+    at_quote_graph.validate()
+    with pytest.raises(ValueError, match="follow accepted market evidence"):
+        replace(
+            completed,
+            clock=OwnerValuationExecutionClock(
+                at_quote_request.transitioned_at,
+                at_quote_result.transitioned_at,
+            ),
+            execution_handoffs=(at_quote_request, at_quote_result),
+            validated_graph=at_quote_graph,
+        )

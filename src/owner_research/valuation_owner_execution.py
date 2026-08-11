@@ -21,8 +21,14 @@ from .fingerprints import canonical_json, canonical_sha256
 from .validation import ContractGraph, ContractGraphError
 from .valuation_final_request import (
     FinalValuationRequestCompilationResult,
+    _governed_company_name,
+    _governed_market_authority,
+    _market_facts,
+    _market_source,
+    _validated_prepared_market_context,
     compile_final_valuation_request,
 )
+from .valuation_kernel_projection import project_current_share_lineage
 from .valuation_market_execution_policies import (
     FINAL_REQUEST_POLICY_ID,
     FINAL_REQUEST_POLICY_VERSION,
@@ -63,6 +69,26 @@ def _sha256_bytes(value: bytes) -> str:
 
 def _preparation_fingerprint(preparation: OwnerValuationPreparationResult) -> str:
     prepared = preparation.prepared_market_reference
+    authority_binding: dict[str, Any] | None = None
+    if prepared is not None:
+        snapshot = prepared.snapshot
+        authority_binding = {
+            "authorization_handoffs": tuple(
+                sorted(
+                    (item.handoff_id, item.fingerprint)
+                    for item in prepared.graph.valuation_handoffs
+                    if item.handoff_id == snapshot.authorization_handoff_id
+                )
+            ),
+            "validation_contexts": tuple(
+                sorted(
+                    (item.context_id, item.fingerprint)
+                    for item in prepared.graph.market_reference_validation_contexts
+                    if item.market_access_result.fingerprint
+                    == snapshot.market_access_result_fingerprint
+                )
+            ),
+        }
     return canonical_sha256(
         {
             "status": preparation.status,
@@ -72,6 +98,7 @@ def _preparation_fingerprint(preparation: OwnerValuationPreparationResult) -> st
             "prepared_market_reference_fingerprint": (
                 prepared.fingerprint if prepared is not None else None
             ),
+            "prepared_authority_binding": authority_binding,
             "issue_codes": preparation.issue_codes,
         }
     )
@@ -124,6 +151,279 @@ class OwnerValuationExecutionClock:
         object.__setattr__(self, "kernel_result_frozen_at", _timestamp(result_time))
 
 
+def _active_market_authorization(
+    preparation: OwnerValuationPreparationResult,
+) -> ValuationHandoff:
+    """Return the sole active v4 run bound to the prepared security Snapshot."""
+
+    prepared = preparation.prepared_market_reference
+    if preparation.status != "prepared" or prepared is None:
+        raise OwnerValuationExecutionError("owner execution lacks a prepared market reference")
+    graph = prepared.graph
+    graph.validate()
+    authorization_matches = tuple(
+        item
+        for item in graph.valuation_handoffs
+        if item.handoff_id == prepared.snapshot.authorization_handoff_id
+    )
+    if len(authorization_matches) != 1:
+        raise OwnerValuationExecutionError("prepared Snapshot lacks one graph-owned authorization")
+    authorization = authorization_matches[0]
+    handoff_index = {item.handoff_id: item for item in graph.valuation_handoffs}
+    relevant = tuple(
+        item
+        for item in graph.valuation_handoffs
+        if item.issuer_id == preparation.issuer_id
+        and item.data_cutoff_date == preparation.data_cutoff_date
+    )
+    roots = tuple(item for item in relevant if item.predecessor_handoff_id is None)
+    superseded_runs = {
+        handoff_index[root.supersedes_handoff_id].handoff_run_id
+        for root in roots
+        if root.supersedes_handoff_id in handoff_index
+    }
+    active_runs = {root.handoff_run_id for root in roots} - superseded_runs
+    run_handoffs = tuple(
+        sorted(
+            (
+                item
+                for item in relevant
+                if item.handoff_run_id == authorization.handoff_run_id
+            ),
+            key=lambda item: item.handoff_version,
+        )
+    )
+    run_handoff_ids = {item.handoff_id for item in run_handoffs}
+    if (
+        active_runs != {authorization.handoff_run_id}
+        or tuple(item.state for item in run_handoffs)
+        != (
+            "evidence_open",
+            "price_blind_candidates_reviewed",
+            "price_blind_input_frozen",
+            "market_reference_allowed",
+        )
+        or run_handoffs[-1:] != (authorization,)
+        or authorization.handoff_version != 4
+        or authorization.fingerprint != prepared.snapshot.authorization_handoff_fingerprint
+        or any(
+            item.supersedes_handoff_id in run_handoff_ids
+            for item in graph.valuation_handoffs
+        )
+        or any(
+            prepared.snapshot.snapshot_id in item.quarantined_market_reference_snapshot_ids
+            for item in graph.valuation_handoffs
+        )
+    ):
+        raise OwnerValuationExecutionError(
+            "prepared issuer/cutoff/security does not have one active authorization run"
+        )
+    return authorization
+
+
+def _replay_request_provenance(
+    *,
+    preparation: OwnerValuationPreparationResult,
+    request: FinalValuationRequestCompilationResult,
+) -> None:
+    """Re-derive every mutable request provenance field from frozen graph objects."""
+
+    prepared = preparation.prepared_market_reference
+    fact_result = request.fact_ledger_result
+    if prepared is None or fact_result is None:
+        raise OwnerValuationExecutionError("compiled request lacks prepared provenance")
+    context = _validated_prepared_market_context(prepared)
+    authority = _governed_market_authority(prepared, context)
+    projected_market_source = _market_source(prepared, authority)
+    current_share_projection = project_current_share_lineage(prepared)
+    _, _, quote_witness, market_witness = _market_facts(
+        prepared,
+        current_share_projection,
+        prepared.snapshot.quote_currency,
+    )
+    legal_name, company_fact, company_source = _governed_company_name(prepared)
+    if (
+        request.issuer_id != preparation.issuer_id
+        or request.valuation_date != preparation.data_cutoff_date
+        or request.price_blind_input_fingerprint
+        != preparation.price_blind_input_fingerprint
+        or request.prepared_market_reference_fingerprint != prepared.fingerprint
+        or request.company_legal_name_value != legal_name
+        or request.company_name_fact_id != company_fact.fact_id
+        or request.company_name_fact_fingerprint != company_fact.fingerprint
+        or request.company_name_source_document_id != company_source.document_id
+        or request.company_name_source_document_fingerprint != company_source.fingerprint
+        or fact_result.current_share_projection != current_share_projection
+        or fact_result.quote_projection_witness != quote_witness
+        or fact_result.market_equity_projection_witness != market_witness
+        or fact_result.market_provider_id != authority["provider_id"]
+        or fact_result.market_provider_registration_sha256
+        != authority["provider_registration_sha256"]
+        or fact_result.market_provider_receipt_id != authority["receipt_id"]
+        or fact_result.market_provider_receipt_fingerprint
+        != authority["receipt_fingerprint"]
+        or fact_result.market_validation_context_id != authority["context_id"]
+        or fact_result.market_validation_context_fingerprint
+        != authority["context_fingerprint"]
+        or fact_result.market_access_result_fingerprint != authority["access_fingerprint"]
+        or fact_result.current_share_compilation_fingerprint
+        != prepared.current_shares.fingerprint
+        or fact_result.market_source_document_id != prepared.market_source.document_id
+        or fact_result.market_source_document_fingerprint != prepared.market_source.fingerprint
+        or fact_result.market_source_ref_fingerprint
+        != canonical_sha256(projected_market_source)
+        or fact_result.market_raw_response_sha256 != authority["raw_response_sha256"]
+        or fact_result.market_quote_fact_id != prepared.quote_fact.fact_id
+        or fact_result.market_quote_fact_fingerprint != prepared.quote_fact.fingerprint
+        or fact_result.market_equity_calculation_id
+        != prepared.market_equity_calculation.calculation_id
+        or fact_result.market_equity_calculation_fingerprint
+        != prepared.market_equity_calculation.fingerprint
+    ):
+        raise OwnerValuationExecutionError(
+            "completed request provenance does not replay its frozen preparation"
+        )
+
+
+def _replay_expected_freeze(
+    *,
+    preparation: OwnerValuationPreparationResult,
+    expected_freeze: PriceBlindFreezeCompilationResult,
+    authorization: ValuationHandoff,
+    request: FinalValuationRequestCompilationResult,
+    request_handoff: ValuationHandoff | None = None,
+) -> None:
+    """Re-attest the compiled ledgers to the exact reviewed price-blind freeze."""
+
+    prepared = preparation.prepared_market_reference
+    fact_result = request.fact_ledger_result
+    assumption_result = request.assumption_ledger_result
+    if (
+        prepared is None
+        or type(expected_freeze) is not PriceBlindFreezeCompilationResult
+        or fact_result is None
+        or assumption_result is None
+    ):
+        raise OwnerValuationExecutionError(
+            "compiled request lacks frozen price-blind ledger evidence"
+        )
+    artifact = expected_freeze.artifact.to_dict()
+    reviewed = artifact["reviewed_assumptions"]
+    base_ledger = reviewed["augmented_fact_ledger_payload"]
+    base_ledger_sha256 = canonical_sha256(base_ledger)
+    expected_base_sources = tuple(
+        sorted(
+            (str(item["source_id"]), canonical_sha256(item))
+            for item in base_ledger["sources"]
+        )
+    )
+    expected_base_facts = tuple(
+        sorted(
+            (str(item["fact_id"]), canonical_sha256(item))
+            for item in base_ledger["facts"]
+        )
+    )
+    run_handoffs = tuple(
+        sorted(
+            (
+                item
+                for item in prepared.graph.valuation_handoffs
+                if item.handoff_run_id == authorization.handoff_run_id
+            ),
+            key=lambda item: item.handoff_version,
+        )
+    )
+    expected_assumptions = reviewed["assumption_ledger_payload"]["assumptions"]
+    actual_assumptions = assumption_result.assumption_ledger_payload["assumptions"]
+    if (
+        expected_freeze.handoffs[-1:] != (authorization,)
+        or run_handoffs != expected_freeze.handoffs
+        or expected_freeze.artifact.fingerprint
+        != preparation.price_blind_input_fingerprint
+        or request.price_blind_input_fingerprint != expected_freeze.artifact.fingerprint
+        or authorization.price_blind_input_fingerprint
+        != expected_freeze.artifact.fingerprint
+        or authorization.protected_mckinsey_sha256
+        != artifact["protected_mckinsey_sha256"]
+        or authorization.protected_penman_assumptions_sha256
+        != artifact["protected_penman_assumptions_sha256"]
+        or fact_result.base_ledger_sha256 != base_ledger_sha256
+        or canonical_json(fact_result.base_ledger_payload) != canonical_json(base_ledger)
+        or fact_result.base_source_fingerprints != expected_base_sources
+        or fact_result.base_fact_fingerprints != expected_base_facts
+        or assumption_result.prior_fact_ledger_fingerprint != base_ledger_sha256
+        or assumption_result.assumption_entries_sha256
+        != reviewed["assumption_entries_sha256"]
+        or canonical_json(actual_assumptions) != canonical_json(expected_assumptions)
+        or canonical_sha256(actual_assumptions)
+        != reviewed["assumption_entries_sha256"]
+        or (
+            request_handoff is not None
+            and (
+                request_handoff.price_blind_input_fingerprint
+                != expected_freeze.artifact.fingerprint
+                or request_handoff.protected_mckinsey_sha256
+                != artifact["protected_mckinsey_sha256"]
+                or request_handoff.protected_penman_assumptions_sha256
+                != artifact["protected_penman_assumptions_sha256"]
+            )
+        )
+    ):
+        raise OwnerValuationExecutionError(
+            "compiled request changed its frozen price-blind ledger"
+        )
+
+
+def _expected_execution_handoffs(
+    *,
+    authorization: ValuationHandoff,
+    snapshot_id: str,
+    quote_retrieved_at: str,
+    request_sha256: str,
+    result_sha256: str,
+    clock: OwnerValuationExecutionClock,
+) -> tuple[ValuationHandoff, ValuationHandoff]:
+    """Rebuild the exact adjacent v5/v6 transition from graph-owned v4."""
+
+    _checked_sha256(request_sha256, "valuation request SHA")
+    _checked_sha256(result_sha256, "valuation result SHA")
+    request_time = _utc(clock.request_compiled_at, "request_compiled_at")
+    result_time = _utc(clock.kernel_result_frozen_at, "kernel_result_frozen_at")
+    if (
+        request_time
+        <= _utc(authorization.transitioned_at, "authorization transitioned_at")
+        or request_time <= _utc(quote_retrieved_at, "snapshot quote_retrieved_at")
+        or result_time <= request_time
+    ):
+        raise OwnerValuationExecutionError(
+            "execution Handoff timestamps do not follow accepted market evidence"
+        )
+    prefix = _handoff_prefix(authorization)
+    request = replace(
+        authorization,
+        handoff_id=f"{prefix}:v5",
+        handoff_version=5,
+        transitioned_at=clock.request_compiled_at,
+        state="request_compiled",
+        predecessor_handoff_id=authorization.handoff_id,
+        market_reference_snapshot_id=snapshot_id,
+        valuation_request_sha256=request_sha256,
+        valuation_result_sha256=None,
+        missing_evidence=(),
+    )
+    result = replace(
+        request,
+        handoff_id=f"{prefix}:v6",
+        handoff_version=6,
+        transitioned_at=clock.kernel_result_frozen_at,
+        state="kernel_result_frozen",
+        predecessor_handoff_id=request.handoff_id,
+        valuation_result_sha256=result_sha256,
+        missing_evidence=(),
+    )
+    return request, result
+
+
 @dataclass(frozen=True, slots=True)
 class OwnerValuationExecutionResult:
     """Closed in-memory result for one prepared request and one pinned-kernel call."""
@@ -132,6 +432,9 @@ class OwnerValuationExecutionResult:
     issuer_id: str
     data_cutoff_date: str
     preparation_fingerprint: str
+    preparation: OwnerValuationPreparationResult
+    clock: OwnerValuationExecutionClock
+    expected_freeze: PriceBlindFreezeCompilationResult
     final_request_result: FinalValuationRequestCompilationResult
     final_request_receipt: FinalRequestCompilationReceipt | None
     kernel_execution_result: PinnedKernelExecutionResult | None
@@ -150,6 +453,16 @@ class OwnerValuationExecutionResult:
         object.__setattr__(self, "execution_handoffs", handoffs)
         object.__setattr__(self, "issue_codes", issues)
         _checked_sha256(self.preparation_fingerprint, "preparation fingerprint")
+        if (
+            type(self.preparation) is not OwnerValuationPreparationResult
+            or type(self.clock) is not OwnerValuationExecutionClock
+            or self.preparation.issuer_id != self.issuer_id
+            or self.preparation.data_cutoff_date != self.data_cutoff_date
+            or self.preparation_fingerprint != _preparation_fingerprint(self.preparation)
+        ):
+            raise ValueError(
+                "owner execution changed its frozen preparation fingerprint or clock"
+            )
         if self.quarantined_result_sha256 is not None:
             _checked_sha256(self.quarantined_result_sha256, "quarantined result SHA")
 
@@ -174,12 +487,18 @@ class OwnerValuationExecutionResult:
             return
 
         request = self.final_request_result
+        preparation = self.preparation
+        prepared = preparation.prepared_market_reference
+        expected_freeze = self.expected_freeze
         execution = self.kernel_execution_result
         request_receipt = self.final_request_receipt
         execution_receipt = self.kernel_execution_receipt
         graph = self.validated_graph
         if (
             request.status != "compiled"
+            or preparation.status != "prepared"
+            or prepared is None
+            or type(expected_freeze) is not PriceBlindFreezeCompilationResult
             or request.issuer_id != self.issuer_id
             or request.valuation_date != self.data_cutoff_date
             or request.request_sha256 is None
@@ -195,30 +514,27 @@ class OwnerValuationExecutionResult:
             != ("request_compiled", "kernel_result_frozen")
         ):
             raise ValueError("completed owner execution is incomplete")
-        expected_preparation_fingerprint = canonical_sha256(
-            {
-                "status": "prepared",
-                "issuer_id": request.issuer_id,
-                "data_cutoff_date": request.valuation_date,
-                "price_blind_input_fingerprint": request.price_blind_input_fingerprint,
-                "prepared_market_reference_fingerprint": (
-                    request.prepared_market_reference_fingerprint
-                ),
-                "issue_codes": (),
-            }
-        )
-        if self.preparation_fingerprint != expected_preparation_fingerprint:
-            raise ValueError("completed owner execution changed its preparation fingerprint")
         request_handoff, result_handoff = handoffs
+        authorization = _active_market_authorization(preparation)
+        _replay_request_provenance(preparation=preparation, request=request)
         result_sha256 = _sha256_bytes(self.result_bytes)
         fact_result = request.fact_ledger_result
         assumption_result = request.assumption_ledger_result
         if fact_result is None or assumption_result is None:
             raise ValueError("completed owner execution lacks compiled ledger evidence")
+        _replay_expected_freeze(
+            preparation=preparation,
+            expected_freeze=expected_freeze,
+            authorization=authorization,
+            request=request,
+            request_handoff=request_handoff,
+        )
         if (
             execution.result_bytes != self.result_bytes
             or execution.request_sha256 != request.request_sha256
             or execution.result_sha256 != result_sha256
+            or request.price_blind_input_fingerprint
+            != request_handoff.price_blind_input_fingerprint
             or request_receipt.issuer_id != request.issuer_id
             or request_receipt.handoff_run_id != request_handoff.handoff_run_id
             or request_receipt.valuation_request_sha256 != request.request_sha256
@@ -342,9 +658,22 @@ class OwnerValuationExecutionResult:
             or result_handoff.missing_evidence
         ):
             raise ValueError("owner-execution receipt or Handoff binding changed")
-        by_id = {item.handoff_id: item for item in graph.valuation_handoffs}
-        if any(by_id.get(item.handoff_id) != item for item in handoffs):
-            raise ValueError("validated graph omits an execution Handoff")
+        expected_handoffs = _expected_execution_handoffs(
+            authorization=authorization,
+            snapshot_id=prepared.snapshot.snapshot_id,
+            quote_retrieved_at=prepared.snapshot.quote_retrieved_at,
+            request_sha256=request.request_sha256,
+            result_sha256=result_sha256,
+            clock=self.clock,
+        )
+        if handoffs != expected_handoffs:
+            raise ValueError("owner-execution deterministic Handoff binding changed")
+        expected_graph = replace(
+            prepared.graph,
+            valuation_handoffs=(*prepared.graph.valuation_handoffs, *expected_handoffs),
+        )
+        if graph != expected_graph:
+            raise ValueError("validated graph is not the exact execution overlay")
         graph.validate()
 
 
@@ -387,9 +716,17 @@ def _compiled_context(
         or final_request.prepared_market_reference_fingerprint != prepared.fingerprint
     ):
         raise OwnerValuationExecutionError("compiled request does not bind its preparation")
+    _replay_request_provenance(preparation=preparation, request=final_request)
 
     graph = prepared.graph
     graph.validate()
+    active_authorization = _active_market_authorization(preparation)
+    _replay_expected_freeze(
+        preparation=preparation,
+        expected_freeze=expected_freeze,
+        authorization=active_authorization,
+        request=final_request,
+    )
     try:
         authorization = expected_freeze.handoffs[-1]
     except IndexError as exc:
@@ -412,6 +749,7 @@ def _compiled_context(
     if (
         authorization.state != "market_reference_allowed"
         or authorization.handoff_version != 4
+        or authorization != active_authorization
         or run_handoffs != expected_freeze.handoffs
         or tuple(item.state for item in run_handoffs)
         != (
@@ -428,17 +766,6 @@ def _compiled_context(
     ):
         raise OwnerValuationExecutionError(
             "prepared graph does not end at the exact v4 market authorization"
-        )
-    run_handoff_ids = {item.handoff_id for item in run_handoffs}
-    if any(
-        item.supersedes_handoff_id in run_handoff_ids
-        for item in graph.valuation_handoffs
-    ) or any(
-        prepared.snapshot.snapshot_id in item.quarantined_market_reference_snapshot_ids
-        for item in graph.valuation_handoffs
-    ):
-        raise OwnerValuationExecutionError(
-            "prepared market authorization was superseded or quarantined"
         )
     request_compiled_at = _utc(clock.request_compiled_at, "request_compiled_at")
     if request_compiled_at <= _utc(
@@ -652,33 +979,17 @@ def _execution_handoffs(
     clock: OwnerValuationExecutionClock,
     result_sha256: str,
 ) -> tuple[ValuationHandoff, ValuationHandoff]:
-    _checked_sha256(result_sha256, "valuation result SHA")
     request_sha256 = context.final_request.request_sha256
     prepared = context.preparation.prepared_market_reference
     if request_sha256 is None or prepared is None:
         raise OwnerValuationExecutionError("execution Handoff lacks request evidence")
-    prefix = _handoff_prefix(context.authorization)
-    request = replace(
-        context.authorization,
-        handoff_id=f"{prefix}:v5",
-        handoff_version=5,
-        transitioned_at=clock.request_compiled_at,
-        state="request_compiled",
-        predecessor_handoff_id=context.authorization.handoff_id,
-        market_reference_snapshot_id=prepared.snapshot.snapshot_id,
-        valuation_request_sha256=request_sha256,
-        valuation_result_sha256=None,
-        missing_evidence=(),
-    )
-    result = replace(
-        request,
-        handoff_id=f"{prefix}:v6",
-        handoff_version=6,
-        transitioned_at=clock.kernel_result_frozen_at,
-        state="kernel_result_frozen",
-        predecessor_handoff_id=request.handoff_id,
-        valuation_result_sha256=result_sha256,
-        missing_evidence=(),
+    request, result = _expected_execution_handoffs(
+        authorization=context.authorization,
+        snapshot_id=prepared.snapshot.snapshot_id,
+        quote_retrieved_at=prepared.snapshot.quote_retrieved_at,
+        request_sha256=request_sha256,
+        result_sha256=result_sha256,
+        clock=clock,
     )
     existing = {item.handoff_id for item in context.graph.valuation_handoffs}
     if request.handoff_id in existing or result.handoff_id in existing:
@@ -803,6 +1114,8 @@ def _verify_kernel_result(
 def _stopped(
     *,
     preparation: OwnerValuationPreparationResult,
+    clock: OwnerValuationExecutionClock,
+    expected_freeze: PriceBlindFreezeCompilationResult,
     final_request: FinalValuationRequestCompilationResult,
     status: str,
     issue_codes: tuple[str, ...],
@@ -814,6 +1127,9 @@ def _stopped(
         issuer_id=preparation.issuer_id,
         data_cutoff_date=preparation.data_cutoff_date,
         preparation_fingerprint=_preparation_fingerprint(preparation),
+        preparation=preparation,
+        clock=clock,
+        expected_freeze=expected_freeze,
         final_request_result=final_request,
         final_request_receipt=final_request_receipt,
         kernel_execution_result=None,
@@ -847,6 +1163,8 @@ def execute_owner_valuation(
     if final_request.status != "compiled":
         return _stopped(
             preparation=preparation,
+            clock=clock,
+            expected_freeze=expected_freeze,
             final_request=final_request,
             status=(
                 "specialist_required"
@@ -878,6 +1196,8 @@ def execute_owner_valuation(
     ) as exc:
         return _stopped(
             preparation=preparation,
+            clock=clock,
+            expected_freeze=expected_freeze,
             final_request=final_request,
             status="blocked",
             issue_codes=(f"owner_execution_preflight_blocked:{type(exc).__name__}",),
@@ -894,6 +1214,8 @@ def execute_owner_valuation(
     except PinnedKernelExecutionError as exc:
         return _stopped(
             preparation=preparation,
+            clock=clock,
+            expected_freeze=expected_freeze,
             final_request=final_request,
             final_request_receipt=request_receipt,
             status="blocked",
@@ -926,6 +1248,8 @@ def execute_owner_valuation(
         )
         return _stopped(
             preparation=preparation,
+            clock=clock,
+            expected_freeze=expected_freeze,
             final_request=final_request,
             final_request_receipt=request_receipt,
             status="blocked",
@@ -938,6 +1262,9 @@ def execute_owner_valuation(
         issuer_id=preparation.issuer_id,
         data_cutoff_date=preparation.data_cutoff_date,
         preparation_fingerprint=_preparation_fingerprint(preparation),
+        preparation=preparation,
+        clock=clock,
+        expected_freeze=expected_freeze,
         final_request_result=final_request,
         final_request_receipt=request_receipt,
         kernel_execution_result=execution,
