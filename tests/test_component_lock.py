@@ -18,6 +18,7 @@ from owner_research.component_lock import (
 from owner_research.fingerprints import canonical_sha256
 
 ROOT = Path(__file__).parents[1]
+PRIVATE_KERNEL_REPOSITORY = os.environ.get("OWNER_VALUATION_REPO")
 
 
 def test_component_lock_has_exact_pinned_identity() -> None:
@@ -139,9 +140,13 @@ def test_kernel_runtime_lock_rejects_alternate_authority_paths(tmp_path: Path) -
     )
 
 
+@pytest.mark.skipif(
+    PRIVATE_KERNEL_REPOSITORY is None,
+    reason="private kernel checkout is supplied only to the authorized 3.11 verification job",
+)
 def test_component_lock_matches_pinned_local_checkout() -> None:
-    default_repo = ROOT.parent / "owner-valuation-kernel"
-    kernel_repo = Path(os.environ.get("OWNER_VALUATION_REPO", default_repo))
+    assert PRIVATE_KERNEL_REPOSITORY is not None
+    kernel_repo = Path(PRIVATE_KERNEL_REPOSITORY)
     result = verify_component_lock(
         ROOT / "component-lock.json",
         source_repo=kernel_repo,
@@ -156,6 +161,10 @@ def test_component_lock_matches_research_schema_files() -> None:
     assert result.ok, "\n".join(result.errors)
 
 
+@pytest.mark.skipif(
+    PRIVATE_KERNEL_REPOSITORY is None,
+    reason="private kernel checkout is supplied only to the authorized 3.11 verification job",
+)
 def test_compatibility_fixture_uses_only_future_mappable_numeric_fields() -> None:
     fixture = json.loads(
         (ROOT / "evals" / "future-valuation-mapping.json").read_text(encoding="utf-8")
@@ -163,8 +172,8 @@ def test_compatibility_fixture_uses_only_future_mappable_numeric_fields() -> Non
     assert fixture["mapping_status"] == "IMPLEMENTED_PHASE_5B"
     assert fixture["eligible_fact"]["value_type"] == "number"
     assert fixture["target_schema"] == "fact-ledger.schema.json"
-    default_repo = ROOT.parent / "owner-valuation-kernel"
-    kernel_repo = Path(os.environ.get("OWNER_VALUATION_REPO", default_repo))
+    assert PRIVATE_KERNEL_REPOSITORY is not None
+    kernel_repo = Path(PRIVATE_KERNEL_REPOSITORY)
     result = verify_future_mapping_contract(
         ROOT / "evals" / "future-valuation-mapping.json",
         source_repo=kernel_repo,
