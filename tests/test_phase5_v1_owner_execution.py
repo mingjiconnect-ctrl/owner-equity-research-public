@@ -141,16 +141,25 @@ def test_noncompiled_path_calls_compiler_once_and_never_runs_or_advances(
     assert result.validated_graph is None
     assert result.result_bytes is None
     assert result.expected_freeze is None
-    assert result.expected_freeze_fingerprint == freeze_result.fingerprint
+    assert result.expected_freeze_fingerprint is None
     assert result.stopped_envelope_fingerprint is not None
-    with pytest.raises(ValueError, match="preparation fingerprint"):
-        replace(result, expected_freeze_fingerprint="f" * 64)
+    forged_freeze_fingerprint = "f" * 64
+    forged_preparation_fingerprint = owner_execution_module._preparation_fingerprint(
+        result.preparation,
+        expected_freeze_fingerprint=forged_freeze_fingerprint,
+    )
+    with pytest.raises(ValueError, match="retained expected freeze authority"):
+        replace(
+            result,
+            expected_freeze_fingerprint=forged_freeze_fingerprint,
+            preparation_fingerprint=forged_preparation_fingerprint,
+        )
     malicious_freeze = SimpleNamespace(
         result_bytes=b'{"forged":true}',
         call_count=1,
         kernel_call_count=1,
     )
-    with pytest.raises(ValueError, match="retained a full expected freeze"):
+    with pytest.raises(ValueError, match="retained expected freeze authority"):
         replace(result, expected_freeze=malicious_freeze)
     malicious_request = SimpleNamespace(
         status=status,
@@ -219,7 +228,7 @@ def test_noncompiled_path_calls_compiler_once_and_never_runs_or_advances(
         freeze_result,
         handoffs=(*freeze_result.handoffs[:-1], rebound_v4),
     )
-    with pytest.raises(ValueError, match="retained a full expected freeze"):
+    with pytest.raises(ValueError, match="retained expected freeze authority"):
         replace(result, expected_freeze=rebound_freeze)
 
 
@@ -1076,7 +1085,7 @@ def test_superseded_and_quarantined_market_run_never_executes(
     assert result.validated_graph is None
 
 
-def test_runner_output_binding_failure_is_hash_only_and_never_advances_graph(
+def test_runner_output_binding_failure_is_closed_and_never_advances_graph(
     sample_payloads: dict[str, dict[str, Any]],
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -1116,13 +1125,12 @@ def test_runner_output_binding_failure_is_hash_only_and_never_advances_graph(
     assert result.execution_handoffs == ()
     assert result.validated_graph is None
     assert result.result_bytes is None
-    assert result.quarantined_result_sha256 == hashlib.sha256(execution.result_bytes).hexdigest()
+    assert not hasattr(result, "quarantined_result_sha256")
     assert result.stopped_envelope_fingerprint is not None
 
     def envelope(
         *,
         issue_codes: tuple[str, ...],
-        quarantined_result_sha256: str | None,
     ) -> str:
         return owner_execution_module._stopped_envelope_fingerprint(
             status=result.status,
@@ -1132,36 +1140,16 @@ def test_runner_output_binding_failure_is_hash_only_and_never_advances_graph(
             expected_freeze_fingerprint=result.expected_freeze_fingerprint,
             final_request=result.final_request_result,
             final_request_receipt=result.final_request_receipt,
-            quarantined_result_sha256=quarantined_result_sha256,
             issue_codes=issue_codes,
             clock=result.clock,
         )
 
-    with pytest.raises(ValueError, match="envelope fingerprint"):
-        replace(result, quarantined_result_sha256=None)
+    with pytest.raises(TypeError):
+        replace(result, quarantined_result_sha256="f" * 64)
     with pytest.raises(ValueError, match="envelope fingerprint"):
         replace(
             result,
             issue_codes=("kernel_execution_blocked:PinnedKernelExecutionError",),
-        )
-    with pytest.raises(ValueError, match="lacks quarantine evidence"):
-        replace(
-            result,
-            quarantined_result_sha256=None,
-            stopped_envelope_fingerprint=envelope(
-                issue_codes=result.issue_codes,
-                quarantined_result_sha256=None,
-            ),
-        )
-    execution_issue = ("kernel_execution_blocked:PinnedKernelExecutionError",)
-    with pytest.raises(ValueError, match="retained quarantine evidence"):
-        replace(
-            result,
-            issue_codes=execution_issue,
-            stopped_envelope_fingerprint=envelope(
-                issue_codes=execution_issue,
-                quarantined_result_sha256=result.quarantined_result_sha256,
-            ),
         )
     invalid_issue = ("kernel_result_blocked:RuntimeError",)
     with pytest.raises(ValueError, match="invalid causal issue"):
@@ -1170,7 +1158,6 @@ def test_runner_output_binding_failure_is_hash_only_and_never_advances_graph(
             issue_codes=invalid_issue,
             stopped_envelope_fingerprint=envelope(
                 issue_codes=invalid_issue,
-                quarantined_result_sha256=result.quarantined_result_sha256,
             ),
         )
     assert preparation.prepared_market_reference.graph.valuation_handoffs == (

@@ -70,7 +70,7 @@ def _sha256_bytes(value: bytes) -> str:
 def _preparation_fingerprint(
     preparation: OwnerValuationPreparationResult,
     *,
-    expected_freeze_fingerprint: str,
+    expected_freeze_fingerprint: str | None,
 ) -> str:
     prepared = preparation.prepared_market_reference
     authority_binding: dict[str, Any] | None = None
@@ -149,10 +149,9 @@ def _stopped_envelope_fingerprint(
     issuer_id: str,
     data_cutoff_date: str,
     preparation_fingerprint: str,
-    expected_freeze_fingerprint: str,
+    expected_freeze_fingerprint: str | None,
     final_request: FinalValuationRequestCompilationResult,
     final_request_receipt: FinalRequestCompilationReceipt | None,
-    quarantined_result_sha256: str | None,
     issue_codes: tuple[str, ...],
     clock: OwnerValuationExecutionClock,
 ) -> str:
@@ -170,7 +169,6 @@ def _stopped_envelope_fingerprint(
             "expected_freeze_fingerprint": expected_freeze_fingerprint,
             "final_request_fingerprint": final_request.fingerprint,
             "final_request_receipt_fingerprint": receipt_fingerprint,
-            "quarantined_result_sha256": quarantined_result_sha256,
             "issue_codes": issue_codes,
             "clock": clock,
         }
@@ -538,7 +536,7 @@ class OwnerValuationExecutionResult:
     preparation: OwnerValuationPreparationResult
     clock: OwnerValuationExecutionClock
     expected_freeze: PriceBlindFreezeCompilationResult | None
-    expected_freeze_fingerprint: str
+    expected_freeze_fingerprint: str | None
     final_request_result: FinalValuationRequestCompilationResult
     final_request_receipt: FinalRequestCompilationReceipt | None
     kernel_execution_result: PinnedKernelExecutionResult | None
@@ -546,7 +544,6 @@ class OwnerValuationExecutionResult:
     execution_handoffs: tuple[ValuationHandoff, ...]
     validated_graph: ContractGraph | None
     result_bytes: bytes | None
-    quarantined_result_sha256: str | None
     stopped_envelope_fingerprint: str | None
     issue_codes: tuple[str, ...]
 
@@ -561,7 +558,11 @@ class OwnerValuationExecutionResult:
         object.__setattr__(self, "execution_handoffs", handoffs)
         object.__setattr__(self, "issue_codes", issues)
         _checked_sha256(self.preparation_fingerprint, "preparation fingerprint")
-        _checked_sha256(self.expected_freeze_fingerprint, "expected freeze fingerprint")
+        if self.expected_freeze_fingerprint is not None:
+            _checked_sha256(
+                self.expected_freeze_fingerprint,
+                "expected freeze fingerprint",
+            )
         if (
             type(self.preparation) is not OwnerValuationPreparationResult
             or type(self.clock) is not OwnerValuationExecutionClock
@@ -581,15 +582,18 @@ class OwnerValuationExecutionResult:
         expected_freeze = self.expected_freeze
         requires_freeze = self.status == "completed" or request.status == "compiled"
         if requires_freeze:
-            if type(expected_freeze) is not PriceBlindFreezeCompilationResult:
+            if (
+                type(expected_freeze) is not PriceBlindFreezeCompilationResult
+                or self.expected_freeze_fingerprint is None
+            ):
                 raise ValueError("compiled owner execution lacks its exact expected freeze")
             _validate_expected_freeze_identity(self.preparation, expected_freeze)
             if self.expected_freeze_fingerprint != _expected_freeze_fingerprint(
                 expected_freeze
             ):
                 raise ValueError("owner execution changed its expected freeze fingerprint")
-        elif expected_freeze is not None:
-            raise ValueError("noncompiled owner execution retained a full expected freeze")
+        elif expected_freeze is not None or self.expected_freeze_fingerprint is not None:
+            raise ValueError("noncompiled owner execution retained expected freeze authority")
         if self.status == "completed":
             if self.stopped_envelope_fingerprint is not None:
                 raise ValueError("completed owner execution retained a stopped envelope")
@@ -608,13 +612,10 @@ class OwnerValuationExecutionResult:
                 expected_freeze_fingerprint=self.expected_freeze_fingerprint,
                 final_request=request,
                 final_request_receipt=self.final_request_receipt,
-                quarantined_result_sha256=self.quarantined_result_sha256,
                 issue_codes=issues,
                 clock=self.clock,
             ):
                 raise ValueError("stopped owner execution envelope fingerprint changed")
-        if self.quarantined_result_sha256 is not None:
-            _checked_sha256(self.quarantined_result_sha256, "quarantined result SHA")
 
         if self.status != "completed":
             if (
@@ -632,7 +633,6 @@ class OwnerValuationExecutionResult:
                     or self.preparation.status != "specialist_required"
                     or self.final_request_receipt is not None
                     or self.kernel_execution_result is not None
-                    or self.quarantined_result_sha256 is not None
                     or issues != request.issue_codes
                 ):
                     raise ValueError("specialist route promoted request or execution evidence")
@@ -643,7 +643,6 @@ class OwnerValuationExecutionResult:
                     self.preparation.status != "blocked"
                     or self.status != "blocked"
                     or self.final_request_receipt is not None
-                    or self.quarantined_result_sha256 is not None
                     or issues != request.issue_codes
                 ):
                     raise ValueError("blocked compiler result promoted request evidence")
@@ -674,10 +673,8 @@ class OwnerValuationExecutionResult:
                 if len(issues) != 1 or not isinstance(issues[0], str):
                     raise ValueError("compiled stopped result lacks one causal issue code")
                 issue_code = issues[0]
-                if issue_code == "kernel_execution_blocked:PinnedKernelExecutionError":
-                    if self.quarantined_result_sha256 is not None:
-                        raise ValueError("kernel execution failure retained quarantine evidence")
-                elif issue_code in {
+                if issue_code not in {
+                    "kernel_execution_blocked:PinnedKernelExecutionError",
                     "kernel_result_blocked:AttributeError",
                     "kernel_result_blocked:ContractGraphError",
                     "kernel_result_blocked:KeyError",
@@ -685,9 +682,6 @@ class OwnerValuationExecutionResult:
                     "kernel_result_blocked:TypeError",
                     "kernel_result_blocked:ValueError",
                 }:
-                    if self.quarantined_result_sha256 is None:
-                        raise ValueError("kernel result failure lacks quarantine evidence")
-                else:
                     raise ValueError("compiled stopped result has an invalid causal issue")
                 context = _compiled_context(
                     preparation=self.preparation,
@@ -720,7 +714,6 @@ class OwnerValuationExecutionResult:
             or execution_receipt is None
             or graph is None
             or self.result_bytes is None
-            or self.quarantined_result_sha256 is not None
             or issues
             or tuple(item.state for item in handoffs)
             != ("request_compiled", "kernel_result_frozen")
@@ -1377,10 +1370,13 @@ def _stopped(
     status: str,
     issue_codes: tuple[str, ...],
     final_request_receipt: FinalRequestCompilationReceipt | None = None,
-    quarantined_result_sha256: str | None = None,
 ) -> OwnerValuationExecutionResult:
     retained_freeze = expected_freeze if final_request.status == "compiled" else None
-    freeze_fingerprint = _expected_freeze_fingerprint(expected_freeze)
+    freeze_fingerprint = (
+        _expected_freeze_fingerprint(expected_freeze)
+        if retained_freeze is not None
+        else None
+    )
     preparation_fingerprint = _preparation_fingerprint(
         preparation,
         expected_freeze_fingerprint=freeze_fingerprint,
@@ -1393,7 +1389,6 @@ def _stopped(
         expected_freeze_fingerprint=freeze_fingerprint,
         final_request=final_request,
         final_request_receipt=final_request_receipt,
-        quarantined_result_sha256=quarantined_result_sha256,
         issue_codes=issue_codes,
         clock=clock,
     )
@@ -1413,7 +1408,6 @@ def _stopped(
         execution_handoffs=(),
         validated_graph=None,
         result_bytes=None,
-        quarantined_result_sha256=quarantined_result_sha256,
         stopped_envelope_fingerprint=envelope_fingerprint,
         issue_codes=issue_codes,
     )
@@ -1533,9 +1527,6 @@ def execute_owner_valuation(
         TypeError,
         ValueError,
     ) as exc:
-        quarantined_sha = (
-            _sha256_bytes(execution.result_bytes) if type(execution.result_bytes) is bytes else None
-        )
         return _stopped(
             preparation=preparation,
             clock=clock,
@@ -1543,7 +1534,6 @@ def execute_owner_valuation(
             final_request=final_request,
             final_request_receipt=request_receipt,
             status="blocked",
-            quarantined_result_sha256=quarantined_sha,
             issue_codes=(f"kernel_result_blocked:{type(exc).__name__}",),
         )
 
@@ -1567,7 +1557,6 @@ def execute_owner_valuation(
         execution_handoffs=handoffs,
         validated_graph=graph,
         result_bytes=execution.result_bytes,
-        quarantined_result_sha256=None,
         stopped_envelope_fingerprint=None,
         issue_codes=(),
     )
