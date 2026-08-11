@@ -142,6 +142,7 @@ def test_noncompiled_path_calls_compiler_once_and_never_runs_or_advances(
     assert result.result_bytes is None
     assert result.expected_freeze is None
     assert result.expected_freeze_fingerprint == freeze_result.fingerprint
+    assert result.stopped_envelope_fingerprint is not None
     with pytest.raises(ValueError, match="preparation fingerprint"):
         replace(result, expected_freeze_fingerprint="f" * 64)
     malicious_freeze = SimpleNamespace(
@@ -170,9 +171,40 @@ def test_noncompiled_path_calls_compiler_once_and_never_runs_or_advances(
     for foreign_request in foreign_requests:
         with pytest.raises(
             ValueError,
-            match="bind owner preparation|final-request status|specialist route",
+            match=(
+                "bind owner preparation|final-request status|specialist route|"
+                "envelope fingerprint"
+            ),
         ):
             replace(result, final_request_result=foreign_request)
+
+    other_status = "blocked" if status == "specialist_required" else "specialist_required"
+    other_issues = (f"{other_status}:fixture",)
+    rebound_preparation = replace(
+        preparation,
+        status=other_status,
+        issue_codes=other_issues,
+    )
+    rebound_request = replace(
+        compiled,
+        status=other_status,
+        issue_codes=other_issues,
+    )
+    rebound_preparation_fingerprint = owner_execution_module._preparation_fingerprint(
+        rebound_preparation,
+        expected_freeze_fingerprint=result.expected_freeze_fingerprint,
+    )
+    with pytest.raises(ValueError, match="envelope fingerprint"):
+        replace(
+            result,
+            status=other_status,
+            preparation=rebound_preparation,
+            preparation_fingerprint=rebound_preparation_fingerprint,
+            final_request_result=rebound_request,
+            issue_codes=other_issues,
+        )
+    with pytest.raises(ValueError, match="exact strings"):
+        replace(result, issue_codes=(b"not-a-string",))
 
     rebound_v4 = replace(
         freeze_result.handoffs[-1],
@@ -679,6 +711,7 @@ def test_success_calls_each_stage_once_preserves_stdout_and_adds_only_v5_v6(
         },
     )
     assert result.status == "completed"
+    assert result.stopped_envelope_fingerprint is None
     assert result.result_bytes is execution.result_bytes
     assert hashlib.sha256(result.result_bytes).hexdigest() == execution.result_sha256
     assert result.final_request_receipt is not None
@@ -743,7 +776,10 @@ def test_success_calls_each_stage_once_preserves_stdout_and_adds_only_v5_v6(
 
     with pytest.raises(ValueError, match="preparation fingerprint"):
         replace(result, preparation_fingerprint="f" * 64)
-    with pytest.raises(ValueError, match="promoted a frozen result"):
+    with pytest.raises(
+        ValueError,
+        match="promoted a frozen result|lacks its envelope fingerprint",
+    ):
         replace(
             result,
             status="blocked",
@@ -961,6 +997,12 @@ def test_coordinated_base_ledger_rebinding_blocks_before_runner(
     )
 
     assert result.status == "blocked"
+    assert result.preparation.status == "blocked"
+    assert result.preparation.prepared_market_reference is None
+    assert result.preparation.price_blind_input_fingerprint == (
+        preparation.price_blind_input_fingerprint
+    )
+    assert result.final_request_result.status == "blocked"
     assert result.issue_codes == (
         "owner_execution_preflight_blocked:OwnerValuationExecutionError",
     )
@@ -1075,12 +1117,68 @@ def test_runner_output_binding_failure_is_hash_only_and_never_advances_graph(
     assert result.validated_graph is None
     assert result.result_bytes is None
     assert result.quarantined_result_sha256 == hashlib.sha256(execution.result_bytes).hexdigest()
+    assert result.stopped_envelope_fingerprint is not None
+
+    def envelope(
+        *,
+        issue_codes: tuple[str, ...],
+        quarantined_result_sha256: str | None,
+    ) -> str:
+        return owner_execution_module._stopped_envelope_fingerprint(
+            status=result.status,
+            issuer_id=result.issuer_id,
+            data_cutoff_date=result.data_cutoff_date,
+            preparation_fingerprint=result.preparation_fingerprint,
+            expected_freeze_fingerprint=result.expected_freeze_fingerprint,
+            final_request=result.final_request_result,
+            final_request_receipt=result.final_request_receipt,
+            quarantined_result_sha256=quarantined_result_sha256,
+            issue_codes=issue_codes,
+            clock=result.clock,
+        )
+
+    with pytest.raises(ValueError, match="envelope fingerprint"):
+        replace(result, quarantined_result_sha256=None)
+    with pytest.raises(ValueError, match="envelope fingerprint"):
+        replace(
+            result,
+            issue_codes=("kernel_execution_blocked:PinnedKernelExecutionError",),
+        )
+    with pytest.raises(ValueError, match="lacks quarantine evidence"):
+        replace(
+            result,
+            quarantined_result_sha256=None,
+            stopped_envelope_fingerprint=envelope(
+                issue_codes=result.issue_codes,
+                quarantined_result_sha256=None,
+            ),
+        )
+    execution_issue = ("kernel_execution_blocked:PinnedKernelExecutionError",)
+    with pytest.raises(ValueError, match="retained quarantine evidence"):
+        replace(
+            result,
+            issue_codes=execution_issue,
+            stopped_envelope_fingerprint=envelope(
+                issue_codes=execution_issue,
+                quarantined_result_sha256=result.quarantined_result_sha256,
+            ),
+        )
+    invalid_issue = ("kernel_result_blocked:RuntimeError",)
+    with pytest.raises(ValueError, match="invalid causal issue"):
+        replace(
+            result,
+            issue_codes=invalid_issue,
+            stopped_envelope_fingerprint=envelope(
+                issue_codes=invalid_issue,
+                quarantined_result_sha256=result.quarantined_result_sha256,
+            ),
+        )
     assert preparation.prepared_market_reference.graph.valuation_handoffs == (
         freeze_result.handoffs
     )
     assert result.final_request_receipt is not None
     assert result.expected_freeze is freeze_result
-    with pytest.raises(ValueError, match="exact request receipt"):
+    with pytest.raises(ValueError, match="exact request receipt|envelope fingerprint"):
         replace(result, final_request_receipt=None)
     with pytest.raises(ValueError, match="bind owner preparation"):
         replace(
@@ -1094,7 +1192,10 @@ def test_runner_output_binding_failure_is_hash_only_and_never_advances_graph(
         result.final_request_receipt,
         numeric_projection_sha256="f" * 64,
     )
-    with pytest.raises(ValueError, match="stopped request receipt binding"):
+    with pytest.raises(
+        ValueError,
+        match="stopped request receipt binding|envelope fingerprint",
+    ):
         replace(result, final_request_receipt=rebound_receipt)
 
 
