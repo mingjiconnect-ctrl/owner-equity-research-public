@@ -20,15 +20,20 @@ from owner_research.valuation_kernel_materializer import (
 
 ROOT = Path(__file__).parents[1]
 KERNEL = Path(os.environ.get("OWNER_VALUATION_REPO", ROOT.parent / "owner-valuation-kernel"))
+KERNEL_AVAILABLE = KERNEL.is_dir()
 EXPECTED_COMMIT = "be9b0773d5a78f5f8a33ba982494512668df85fe"
 EXPECTED_WHEEL_SHA256 = "fb27d01b1ee75fbd542371510150e890516d306218d33f3608f2aa3caa0e55a5"
 
 
-def test_runtime_authority_and_private_checkout_are_exactly_pinned() -> None:
+def test_runtime_authority_is_exactly_pinned() -> None:
     assert verify_kernel_runtime_lock().ok
     authority = json.loads(AUTHORITY_RESOURCE.read_bytes())
     assert authority["kernel"]["commit"] == EXPECTED_COMMIT
     assert authority["kernel"]["wheel_sha256"] == EXPECTED_WHEEL_SHA256
+
+
+@pytest.mark.skipif(not KERNEL_AVAILABLE, reason="private kernel checkout is verify-job only")
+def test_private_checkout_is_exactly_pinned() -> None:
     attestation = verify_pinned_kernel_checkout(KERNEL)
     assert attestation.commit == EXPECTED_COMMIT
     assert attestation.tag_object == "4e19ce6a59bc4321ebcd368e807ed764f4e8abde"
@@ -43,6 +48,7 @@ def test_real_supply_identity_mismatch_blocks_before_build(tmp_path: Path) -> No
         verify_pinned_kernel_checkout(wrong)
 
 
+@pytest.mark.skipif(not KERNEL_AVAILABLE, reason="private kernel checkout is verify-job only")
 def test_missing_runtime_dependency_inventory_blocks_before_backend(tmp_path: Path) -> None:
     fake_backend = tmp_path / "setuptools-80.9.0-py3-none-any.whl"
     fake_backend.write_bytes(b"not a wheel")
@@ -103,6 +109,7 @@ def test_timestamp_normalizer_changes_only_registered_dist_info(tmp_path: Path) 
         }
 
 
+@pytest.mark.skipif(not KERNEL_AVAILABLE, reason="private kernel checkout is verify-job only")
 def test_private_cas_inside_repository_is_rejected(tmp_path: Path) -> None:
     fake_backend = tmp_path / "setuptools-80.9.0-py3-none-any.whl"
     fake_backend.write_bytes(b"not a wheel")
