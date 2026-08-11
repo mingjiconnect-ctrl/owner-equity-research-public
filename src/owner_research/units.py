@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import Decimal, localcontext
 
 
 class UnitError(ValueError):
@@ -103,7 +103,14 @@ def compatible_units(left: str, right: str) -> bool:
 
 def normalize_value(value: int | float, unit: str) -> Decimal:
     spec = unit_spec(unit)
-    return Decimal(str(value)) * spec.scale
+    parsed = Decimal(str(value))
+    # Decimal multiplication obeys the ambient context even when both operands are exact.
+    # Size the local context from both coefficients so large integral share counts and monetary
+    # magnitudes cannot be silently rounded during a unit-only scale conversion.
+    precision = len(parsed.as_tuple().digits) + len(spec.scale.as_tuple().digits) + 2
+    with localcontext() as context:
+        context.prec = max(context.prec, precision)
+        return parsed * spec.scale
 
 
 def xbrl_unit(unit_ref: str | None, *, currency: str | None) -> str | None:

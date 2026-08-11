@@ -58,6 +58,7 @@ def _rollforward_graph(
     graph,
     share,
     *,
+    opening_value=98_000_000,
     event_concepts=(
         ("common_shares_issued_completed", 3_000_000, "2026-05-01"),
         ("common_shares_repurchased_completed", 1_000_000, "2026-06-01"),
@@ -67,7 +68,7 @@ def _rollforward_graph(
     opening = replace(
         share,
         fact_id="fact:acme:current-common-shares:2026-03-31",
-        value=98_000_000,
+        value=opening_value,
         period={"start": None, "end": "2026-03-31"},
     )
     events = tuple(
@@ -80,7 +81,7 @@ def _rollforward_graph(
         )
         for concept, value, event_date in event_concepts
     )
-    result = 98_000_000 + sum(
+    result = opening_value + sum(
         int(COMPLETED_SHARE_EVENT_SIGNS[event.concept] * event.value) for event in events
     )
     output = replace(

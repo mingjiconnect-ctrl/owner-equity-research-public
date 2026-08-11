@@ -99,14 +99,14 @@ def _sha(value: str, label: str) -> None:
         raise CurrentShareEvidenceError(f"{label} is not a lowercase SHA-256")
 
 
-def _decimal(value: object, label: str, *, positive: bool = False) -> Decimal:
+def _decimal(value: object, label: str, *, positive: bool = False) -> int:
     try:
         number = Decimal(str(value))
     except (InvalidOperation, ValueError) as exc:
         raise CurrentShareEvidenceError(f"{label} is not an exact decimal") from exc
     if not number.is_finite() or (positive and number <= 0) or number != number.to_integral():
         raise CurrentShareEvidenceError(f"{label} is not an eligible integer magnitude")
-    return number
+    return int(number)
 
 
 @dataclass(frozen=True, slots=True)
@@ -340,7 +340,7 @@ def _formal_raw_fact(
     documents: dict[str, SourceDocument],
     unit: str = "shares",
     positive: bool = True,
-) -> Decimal:
+) -> int:
     source = documents.get(fact.source_document_id)
     if (
         fact.issuer_id != issuer_id
@@ -371,7 +371,7 @@ def _validate_output_fact(
     trading_date: str,
     cutoff: date,
     documents: dict[str, SourceDocument],
-) -> Decimal:
+) -> int:
     source = documents.get(fact.source_document_id)
     if (
         fact.issuer_id != issuer_id
@@ -1067,11 +1067,11 @@ def derive_current_share_evidence_closure(
             )
         expected = _decimal(base.value, "opening common shares", positive=True) + sum(
             (
-                COMPLETED_SHARE_EVENT_SIGNS[event.concept]
+                int(COMPLETED_SHARE_EVENT_SIGNS[event.concept])
                 * _decimal(event.value, "completed share event", positive=True)
                 for event in event_facts
             ),
-            Decimal("0"),
+            0,
         )
         if _decimal(share_fact.value, "roll-forward output", positive=True) != expected:
             raise CurrentShareEvidenceError(

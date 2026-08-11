@@ -1,0 +1,68 @@
+{
+  "authorized_next": [
+    "PR1 market-reference vertical slice"
+  ],
+  "current_phase": "Phase 5 v1 market-reference vertical slice",
+  "legacy_governance": {
+    "archive": "legacy_governance/phase5e2b12a-acceptance-gate.yml",
+    "archive_sha256": "51d3e43dffb66b507fe6a1718cd85b1e21dfac77938cb44c6a4045afeb29cf08",
+    "baseline_commit": "e5fb637538ce57772a027746651b7527a99268c5",
+    "recursive_authority": "retired",
+    "replay_workflow": ".github/workflows/phase5e2b12a-acceptance-gate.yml",
+    "status_file": "docs/phase-status.json",
+    "test_policy": "explicit historical replay only"
+  },
+  "release_tag": null,
+  "release_candidate_selector": "v*-rc* tag",
+  "required_checks": [
+    "verify (3.11)",
+    "verify (3.12)",
+    "verify (3.13)",
+    "phase5/semantic-audit"
+  ],
+  "schema_version": "1.0.0",
+  "semantic_audit_policy": {
+    "independent_fresh_context_review": {
+      "enforcement": "external PR review evidence before merge",
+      "pull_request_required_zero": [
+        "P0",
+        "P1"
+      ],
+      "release_required_zero": [
+        "P0",
+        "P1",
+        "P2",
+        "P3"
+      ],
+      "report_binding": [
+        "commit",
+        "tree",
+        "tests",
+        "P0",
+        "P1",
+        "P2",
+        "P3",
+        "report_sha256"
+      ]
+    },
+    "main": "smoke and deterministic replay",
+    "pull_request": {
+      "execution": "once at the exact pull-request head",
+      "kind": "deterministic candidate replay, not independent review",
+      "required_zero": [
+        "P0",
+        "P1"
+      ]
+    },
+    "release_candidate": {
+      "required_zero": [
+        "P0",
+        "P1",
+        "P2",
+        "P3"
+      ]
+    },
+    "run_ids_in_product_state": false
+  },
+  "status": "in_progress"
+}

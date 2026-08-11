@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "owner-equity-research"
-version = "0.5.0.dev11"
+version = "0.6.0.dev1"
 description = "Auditable equity-research evidence and deterministic integration artifacts"
 readme = "README.md"
 requires-python = ">=3.11"

@@ -4,7 +4,7 @@ import inspect
 from dataclasses import FrozenInstanceError, replace
 
 import pytest
-from phase4a_support import replace_graph
+from phase4a_support import contract, replace_graph
 from phase5e2b_support import current_share_compile_context
 from test_phase5e2a21_recursive_evidence import _rollforward_graph
 
@@ -98,6 +98,43 @@ def test_issued_less_treasury_is_derived_without_caller_fact_selection(
     assert result.share_basis_decision.evidence_kind == "issued_less_treasury"
 
 
+def test_issued_less_treasury_preserves_integer_precision_above_decimal_context(
+    sample_payloads, monkeypatch, tmp_path
+) -> None:
+    graph, freeze, directory, security, access, shares, _ = _compile(
+        sample_payloads, monkeypatch, tmp_path
+    )
+    issued_value = 123456789012345678901234567896
+    treasury_value = 5_000_000
+    issued = replace(
+        shares,
+        fact_id="fact:acme:large-common-shares-issued:2026-06-30",
+        concept="common_shares_issued",
+        value=issued_value,
+    )
+    treasury = replace(
+        shares,
+        fact_id="fact:acme:large-treasury-shares:2026-06-30",
+        concept="treasury_shares",
+        value=treasury_value,
+    )
+    result = compile_quote_date_current_common_shares(
+        price_blind_artifact_directory=directory,
+        graph=replace_graph(
+            graph,
+            facts=tuple(item for item in graph.facts if item.fact_id != shares.fact_id)
+            + (issued, treasury),
+        ),
+        expected_freeze=freeze,
+        expected_security=security,
+        expected_market_access=access,
+    )
+
+    assert result.status == "eligible"
+    assert result.output_fact is not None
+    assert result.output_fact.value == issued_value - treasury_value
+
+
 def test_conflicting_quote_date_paths_fail_closed(
     sample_payloads, monkeypatch, tmp_path
 ) -> None:
@@ -152,16 +189,8 @@ def test_market_access_and_artifact_identity_are_replayed(
     graph, freeze, directory, security, access, _, _ = _compile(
         sample_payloads, monkeypatch, tmp_path
     )
-    forged_access = replace(access, authorization_handoff_id="handoff:forged")
-    result = compile_quote_date_current_common_shares(
-        price_blind_artifact_directory=directory,
-        graph=graph,
-        expected_freeze=freeze,
-        expected_security=security,
-        expected_market_access=forged_access,
-    )
-    assert result.status == "blocked"
-    assert result.issue_codes == ("market_access_mismatch",)
+    with pytest.raises(ValueError, match="Request and Receipt do not replay"):
+        replace(access, authorization_handoff_id="handoff:forged")
     (directory / "price-blind-input.json").write_text("{}", encoding="utf-8")
     result = compile_quote_date_current_common_shares(
         price_blind_artifact_directory=directory,
@@ -242,6 +271,91 @@ def test_completed_event_rollforward_compiles_only_with_closed_coverage(
     assert result.share_basis_decision.evidence_kind == "completed_event_rollforward"
     assert result.evidence_closure is not None
     assert result.evidence_closure.coverage_receipt_ids
+
+
+def test_legacy_rollforward_preserves_integer_precision_above_decimal_context(
+    sample_payloads, monkeypatch, tmp_path
+) -> None:
+    graph, freeze, directory, security, access, shares, _ = _compile(
+        sample_payloads, monkeypatch, tmp_path
+    )
+    opening_value = 123456789012345678901234567896
+    rollforward_graph, expected_output, _, _, _ = _rollforward_graph(
+        graph,
+        shares,
+        opening_value=opening_value,
+    )
+    result = compile_quote_date_current_common_shares(
+        price_blind_artifact_directory=directory,
+        graph=rollforward_graph,
+        expected_freeze=freeze,
+        expected_security=security,
+        expected_market_access=access,
+    )
+
+    assert result.status == "eligible"
+    assert result.output_fact is not None
+    assert result.output_fact.value == expected_output.value
+
+
+def test_unrelated_filing_artifact_does_not_switch_legacy_rollforward_authority(
+    sample_payloads, monkeypatch, tmp_path
+) -> None:
+    graph, freeze, directory, security, access, shares, _ = _compile(
+        sample_payloads, monkeypatch, tmp_path
+    )
+    rollforward_graph, _, _, _, _ = _rollforward_graph(graph, shares)
+    baseline = compile_quote_date_current_common_shares(
+        price_blind_artifact_directory=directory,
+        graph=rollforward_graph,
+        expected_freeze=freeze,
+        expected_security=security,
+        expected_market_access=access,
+    )
+    unrelated_filing = contract(sample_payloads, "filing-artifact")
+    polluted_graph = replace_graph(
+        rollforward_graph,
+        filing_artifacts=(*rollforward_graph.filing_artifacts, unrelated_filing),
+    )
+    polluted_graph.validate()
+    replay = compile_quote_date_current_common_shares(
+        price_blind_artifact_directory=directory,
+        graph=polluted_graph,
+        expected_freeze=freeze,
+        expected_security=security,
+        expected_market_access=access,
+    )
+
+    assert baseline.status == replay.status == "eligible"
+    assert baseline.output_fact is not None and replay.output_fact is not None
+    assert baseline.output_fact.to_dict() == replay.output_fact.to_dict()
+    assert replay.output_fact.derivation == "completed-event-rollforward/1.0.0"
+
+
+def test_low_confidence_window_facts_cannot_change_share_path_selection(
+    sample_payloads, monkeypatch, tmp_path
+) -> None:
+    graph, freeze, directory, security, access, shares, baseline = _compile(
+        sample_payloads, monkeypatch, tmp_path
+    )
+    low_confidence_split = replace(
+        shares,
+        fact_id="fact:acme:unreviewed-stock-split:2026-05-15",
+        concept="stock_split_completed",
+        value=2,
+        confidence="low",
+        period={"start": None, "end": "2026-05-15"},
+    )
+    replay = compile_quote_date_current_common_shares(
+        price_blind_artifact_directory=directory,
+        graph=replace_graph(graph, facts=(*graph.facts, low_confidence_split)),
+        expected_freeze=freeze,
+        expected_security=security,
+        expected_market_access=access,
+    )
+
+    assert baseline.status == replay.status == "eligible"
+    assert baseline.output_fact == replay.output_fact == shares
 
 
 def test_rollforward_split_window_routes_specialist(

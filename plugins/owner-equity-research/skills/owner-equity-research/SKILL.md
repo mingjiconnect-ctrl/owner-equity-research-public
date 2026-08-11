@@ -161,75 +161,16 @@ workflows run only when that ledger is explicitly requested.
     Phase 5D acceptance governance. This Skill cannot invoke an internal compiler or expose market,
     request/result, kernel execution, report, Publisher, or release behavior. Phase 5D-6 is
     accepted/closed under audit `2.2.6`, and Phase 5D is frozen.
-38. Phase 5E-0 defines only the validation policy in
-    [market-execution policy](references/market-execution-policy.md): explicit post-authorization
-    access timing, single-security/reporting-currency routing, quote-date current common shares,
-    split-factor-one fail-closed semantics, final-request byte preservation, and isolated pinned
-    wheel execution. It exposes no network, builder, compiler, kernel call, writer, or implicit
-    Skill entry point and is accepted/closed under audit `2.3.0`.
-39. Phase 5E-1.1 closes the internal market authority boundary: strict price-blind reload,
-    evidence-bound security replay, component-locked Provider/adapter/parser, content-addressed
-    2026 XNYS/XNAS sessions, orchestrator-owned timestamps, exactly one raw-response call, and a
-    governed Receipt-or-quarantine result. This Skill cannot invoke or configure the gate. Phase
-    5E-1.1 is accepted/closed under audit `2.3.1.1`.
-40. Phase 5E-2A upgrades only `MarketReferenceSnapshot` and adds an
-    internal validation witness so ContractGraph can replay authorization, authority, security,
-    raw evidence, quote, share-basis, dilution-overlap, and market-equity lineage. It exposes no
-    builder or market operation. Phase 5E-2A.1 is accepted/closed under audit `2.3.2.1`.
-41. Phase 5E-2A.2 pins the complete annotated rc.2 kernel release and validates Snapshot v3
-    current-common-share evidence, Claim-control separation, and the future request-v2 mapping
-    witness under audit `2.3.2.2`. It exposes no production compiler or execution surface.
-42. Phase 5E-2A.2.1 recursively derives current-share roots, exact-security bindings, cutoff-safe
-    formal sources, complete corporate-action search coverage, and completed-claim transitions.
-    It is accepted/closed as a validation-only internal boundary.
-43. Phase 5E-2B contains one internal deterministic quote-date current-common-share compiler. It
-    strictly reloads the price-blind artifact, replays security, governed access, dilution and
-    recursive evidence, owns path selection, and returns an immutable result. This Skill cannot
-    invoke it or select its Fact, date, path, status, or ShareBasisDecision. Implementation and
-    acceptance closeout remain historical governance records under audit `2.3.2.3`.
-44. Independent semantic review found that one legal share event can be represented by multiple
-    formal-source Facts. Phase 5E-2B.1-0 adds only the internal identity policy, immutable records,
-    adversarial fixtures, and baseline oracle under audit `2.3.2.3.1`. Phase 5E-2B.1-1 adds an
-    internal production grouping boundary accepted/closed under audit `2.3.2.3.2`, but this Skill
-    cannot invoke it. Phase 5E-2B.1-2A defines internal contract-only exactly-once integration
-    records under audit `2.3.2.3.3`; exact category coverage, unique category/security-specific N/A
-    review chains, direct-Fact and cutoff-safe evidence, graph-byte-bound coverage/transition
-    objects, typed evidence cardinality, and option-only standard Claim authority are mandatory.
-    Convertible and warrant transitions require specialist handling. Exact source-byte code
-    identity and independent test replay bootstrap a credential-partitioned gate; only candidate
-    execution is secret-isolated, while protected Controller and kernel jobs use separate
-    environment-scoped credentials; the gate introduction
-    cannot self-certify and only its later closeout use is base-owned. Official-occurrence key
-    drift, nonofficial or non-high opening roots, multi-root Claims without an aggregate balance,
-    generated-ID collisions, and multiple transition review chains are blocked. It exposes no
-    compiler. Before the validated two-file closeout exists, only the acceptance closeout is
-    authorized and 2B is prohibited; after the base-owned gate validates it, only
-    `feature/phase5e2b12b-canonical-rollforward` may make the exact compiler/test/state change.
-    Its 2B verifier, trust, oracle, and gate tests are preinstalled and frozen by 2A. Phase
-    5E-2B.1-2C and Phase 5E-2C through Phase 5E-2F remain prohibited.
-
-Phase 4 and Phase 4E are accepted/frozen at `v0.4.0-alpha.1` after merge, audit, and tag CI.
-Phase 5A, Phase 5B, and Phase 5C are accepted/closed. Phase 5D-0 contract and policy hardening and
-Phase 5D-1 Candidate compilation are accepted/closed and this Skill does not expose them
-implicitly. Phase 5D-2 named-human Decision and AssumptionLedger work is accepted/closed. Phase
-5D-3 McKinsey four-scenario input compilation,
-Phase 5D-4 Penman input compilation, Phase 5D-5 canonical freeze, and Phase 5D-6 deterministic
-replay are accepted/closed under audits `2.2.3`, `2.2.4`, `2.2.5`, and `2.2.6`. Phase 5D is
-accepted/frozen. Phase 5E-0 policy hardening and Phase 5E-1.1 authority closeout are
-accepted/closed under audits `2.3.0` and `2.3.1.1`; this Skill must not trigger or expose the access
-gate implicitly. Phase 5E-2A.1 is accepted/closed after deriving dilution roots from the frozen
-Phase 5C bridge and aligning public/Python decimal domains under audit `2.3.2.1`. Phase 5E-2A.2
-is accepted/closed after pinning rc.2 and validating current-common-share lineage under audit
-`2.3.2.2`. Phase 5E-2A.2.1 recursive evidence is accepted/closed under audit `2.3.2.2.1`.
-Phase 5E-2B retains its original governance record under audit `2.3.2.3`; Phase 5E-2B.1-0 is
-frozen under audit `2.3.2.3.1`, and Phase 5E-2B.1-1 production grouping is accepted/closed under
-audit `2.3.2.3.2`. Phase 5E-2B.1-2A is contract-only under audit `2.3.2.3.3` and uses the
-dual-state closeout rule above. Before validation only acceptance is authorized; afterward 2A is
-accepted/closed and only 2B is authorized. Phase 5E-2C, Phase 5E-2D, Phase 5F, and later phases
-remain prohibited in both states.
-Governance audits
-`2.1.0.1` and `2.1.5.1` plus
-implementation audits `2.1.1`, `2.1.2`, `2.1.3`, `2.1.4`, and `2.1.5` require P0-P3 all zero.
+38. Read [market-execution policy](references/market-execution-policy.md) before any explicit
+    valuation preparation. Market evidence may enter only after the price-blind artifact reaches
+    `market_reference_allowed`; ordinary research remains price-blind.
+39. The Phase 5 v1 market slice can internally compile quote-date current common shares and a
+    provider-neutral `MarketReferenceSnapshot 4.0.0`. A reviewed-file provider must recompute the
+    external evidence hash and bind a named-human review. It cannot accept a command-line price,
+    access a network, read a trading account, or produce a final request or kernel result.
+40. Cross-source disclosures of one legal share event are grouped once for arithmetic while all
+    corroborating evidence is retained. Conflicting amount, date, security, or remaining-claim
+    evidence blocks the lineage; convertible and warrant cases remain specialist routes.
 
 ## Stop conditions
 
@@ -250,19 +191,8 @@ consumption replay; Phase 5C-4 adds only the internal equity-bridge compiler. No
 entry point, output writer, market access, complete routing request, handoff execution, or
 valuation execution. Phase 5C-5 adds only the internal successor-readiness assessor and no Skill
 entry point, output writer, market access, assumption compilation, request/result, or kernel call.
-Phase 5D-0 through Phase 5D-6, Phase 5E-0, Phase 5E-1.1, and Phase 5E-2A.1 are accepted/closed and
-remain internal to the audited handoff boundary. Phase 5E-2A.2 is accepted and validation-only.
-Phase 5E-2A.2.1 recursive evidence is accepted/closed. Phase 5E-2B keeps its historical closeout
-but requires the Phase 5E-2B.1 semantic correction. Phase 5E-2C and later remain prohibited, and
-this Skill has no grouping, market, or valuation entry point.
-
-The post-S3 control plane is a protected-base recursive G1/G2/G3/G4/G5 sequence: inert gate,
-accepted gate, successor pending acceptance, accepted successor, then total closeout and the exact
-next inert seed. Dynamic audit profiles come from the deepest validated gate; candidate oracle
-text remains inert. Treat `Phase 5E-2B.1-2C` (current-share recursive closure) and `Phase 5E-2C`
-(exact market evidence) as distinct phases. Phase 6 through Phase 9 remain outside this map and
-require a separate reviewed authorization. The public canonical repository has pinned Controller,
-Gate Author, and kernel-only Reader Apps. Remote acceptance still requires their protected
-environments, exact main protection, CI, and P0-P3-zero audits.
-
-Phase 5 current authority: S3 -> G1 -> G2 -> G3 -> G4 -> G5 -> external 2C-P; after feasibility a new protected gate is required; Phase 6-9 require separate reviewed control-plane authorization; Phase 5E-2B.1-2C != Phase 5E-2C.
+Phase 5D remains the frozen price-blind boundary. The v1 market slice is internal and can stop only
+at a validated release-candidate Snapshot; it does not expose a package-root API, CLI, final
+valuation request, kernel execution, archive, report, or publishing surface. Recursive controller,
+gate-author, recovery-seal, and acceptance-only PR instructions are historical governance records
+and are not active Skill workflow.

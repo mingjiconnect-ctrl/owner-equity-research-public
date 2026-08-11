@@ -64,7 +64,7 @@ def test_phase4e2_audit_manifest_records_machine_test_counts(tmp_path: Path) -> 
 
 
 def test_ci_uses_current_readonly_audit_and_dynamic_counts() -> None:
-    path = ROOT / ".github" / "workflows" / "phase5e2b12a-acceptance-gate.yml"
+    path = ROOT / "legacy_governance" / "phase5e2b12a-acceptance-gate.yml"
     workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
     job = workflow["jobs"]["phase5e-readonly-audit"]
     text = path.read_text(encoding="utf-8")

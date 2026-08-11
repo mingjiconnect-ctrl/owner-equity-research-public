@@ -57,7 +57,10 @@ PINNED_KERNEL_SCHEMA_SHA256 = {
     ),
 }
 
-MARKET_PRICE_BASES = ("official_unadjusted_close",)
+MARKET_PRICE_BASES = (
+    "official_unadjusted_close",
+    "reviewed_unadjusted_regular_session_close",
+)
 MARKET_SESSION_KINDS = ("regular",)
 MARKET_SESSION_STATUSES = ("completed",)
 MARKET_INSTRUMENT_STATUSES = ("active",)

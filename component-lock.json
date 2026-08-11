@@ -2,7 +2,7 @@
   "lock_version": "1.2.0",
   "generated_date": "2026-07-16",
   "owner_equity_research": {
-    "plugin_version": "0.5.0-dev.11",
+    "plugin_version": "0.6.0-dev.1",
     "public_schema_sha256": {
       "schemas/accounting-quality-finding.schema.json": "0ea5d7de6520fcb19dcedddf1d3c0bc14a58faf7239beae3ef431805516dafc5",
       "schemas/accounting-quality-review.schema.json": "1019218ca7ff086dd5319e4a1b7d18631a2b5725847b14333b02b7f06ea91d46",
@@ -33,7 +33,7 @@
       "schemas/management-statement.schema.json": "c9dfec9c4caccd2ceacdddea94ddef37feab9f31c90704651776650b15d935fc",
       "schemas/management-statement-candidate.schema.json": "8c9ecc6a9fdcb75f8b7f4e0d3190edbab5219ccf7a1cb405514d2d06f8b0ab1a",
       "schemas/management-statement-review-decision.schema.json": "4c2ef112c1e5008c40925e65c90fee2fc30f811b006081c06320b95cbe60ebe4",
-      "schemas/market-reference-snapshot.schema.json": "cdadc1a1f27b52fef933ce46e0ec901e7b95f0cb7bcbc0d2d55860c470a8824e",
+      "schemas/market-reference-snapshot.schema.json": "62df9a6d7367446d8c242ebc241572691eec62a0dfe89ce5c8ab309fef267efb",
       "schemas/quarterly-reconciliation.schema.json": "554aa0322c5eb83355e31b663d28857ffe68c23dff8816768cc6b1cd35762115",
       "schemas/quarterly-update.schema.json": "1b916287bdff14b2709d617602532f128de7c4c430caf9b383ce3e493a1062db",
       "schemas/report-spec.schema.json": "bedbb43b018b2236660e49081690fc3bb2520f0778ea23cb944903508c392bd7",
@@ -74,6 +74,25 @@
     "parser_code": {
       "path": "valuation_market_parsers.py",
       "sha256": "94808e37018cb32997c5d352b1131dad23754eab07f57422b31c3b2761fd290d"
+    },
+    "reviewed_file_provider": {
+      "provider_id": "provider:human-reviewed-file",
+      "provider_version": "1.0.0",
+      "authority_kind": "human_reviewed_file",
+      "endpoint_id": "reviewed-file",
+      "price_basis": "reviewed_unadjusted_regular_session_close",
+      "module_path": "valuation_market_provider.py",
+      "adapter_sha256": "60af71df7cc36179c0babf87dfaa2f127e1666b732a1d997029cd4dc0f44622a",
+      "parser_sha256": "60af71df7cc36179c0babf87dfaa2f127e1666b732a1d997029cd4dc0f44622a"
+    },
+    "authorization_consumption_store": {
+      "policy_id": "handoff-global-filesystem-reservation",
+      "policy_version": "1.0.0",
+      "key_policy": "authorization_handoff_id_and_fingerprint",
+      "namespace": "market-authorizations-v1",
+      "root_policy": "module_import_user_state_home",
+      "module_path": "valuation_market_provider.py",
+      "code_sha256": "60af71df7cc36179c0babf87dfaa2f127e1666b732a1d997029cd4dc0f44622a"
     }
   },
   "valuation_kernel": {

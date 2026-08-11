@@ -13,16 +13,20 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
-from .capital_allocation_policies import OFFICIAL_AUTHORITY_LEVELS
+from .capital_allocation_policies import OFFICIAL_AUTHORITY_LEVELS, SOURCE_FAMILIES
 from .contracts import Fact, SourceDocument
 from .fingerprints import canonical_sha256, to_json_value
 from .validation import ContractGraph, ContractGraphError
 from .valuation_current_share_evidence import (
     COMPLETED_SHARE_EVENT_SIGNS,
+    SHARE_COVERAGE_SEARCH_EVENT_TYPES,
     CurrentShareEvidenceClosure,
     CurrentShareEvidenceError,
-    derive_current_share_evidence_closure,
 )
+from .valuation_current_share_evidence import (
+    derive_current_share_evidence_closure as _derive_predecessor_evidence_closure,
+)
+from .valuation_current_share_vertical import derive_v2_closure
 from .valuation_market_access import MarketAccessResult
 from .valuation_market_execution_policies import (
     SHARE_BASIS_POLICY_ID,
@@ -46,18 +50,37 @@ from .valuation_share_event_grouping import (
 )
 from .valuation_share_event_integration_types import (
     CANONICAL_EVENT_DERIVATION,
+    COVERAGE_SEARCH_ENDPOINTS,
+    COVERAGE_SEARCH_TOOL_NAMESPACE,
+    COVERAGE_SEARCH_TOOL_VERSION,
     CURRENT_SHARE_INTEGRATION_POLICY_ID,
     CURRENT_SHARE_INTEGRATION_POLICY_VERSION,
     CURRENT_SHARE_ROLLFORWARD_CHANNEL,
     CURRENT_SHARE_ROLLFORWARD_DERIVATION,
+    STANDARD_CLAIM_TRANSITION_EVENT_CONCEPTS,
     CanonicalShareEventFactMaterialization,
     CanonicalShareEventMemberBinding,
+    CorporateActionCoverageLedgerV2,
+    CurrentShareBundleEvidenceClosure,
+    CurrentShareEvidenceClosureV2,
+    GroupBoundClaimTransitionReconciliation,
+    GroupBoundDilutionClaimAuthority,
     ShareEventNumericConsumption,
     _canonical_event_source_locator,
     _output_share_source_locator,
     _primary_member_source_id,
     _reserved_output_share_fact_id,
     current_share_integration_code_sha256,
+)
+
+# Retain the predecessor module seam for direct/issued compatibility and the frozen sparse-graph
+# tests.  Rich graph-owned canonical groups never route through this symbol.
+derive_current_share_evidence_closure = _derive_predecessor_evidence_closure
+_V2_CLOSURE_CONTRACT_TYPES = (
+    CorporateActionCoverageLedgerV2,
+    CurrentShareBundleEvidenceClosure,
+    CurrentShareEvidenceClosureV2,
+    GroupBoundClaimTransitionReconciliation,
 )
 
 CURRENT_SHARE_COMPILATION_POLICY_ID = "quote-date-current-common-shares-compilation"
@@ -96,7 +119,7 @@ def _unique_sorted(values: tuple[str, ...], label: str) -> tuple[str, ...]:
     return tuple(sorted(values))
 
 
-def _decimal(value: object, label: str, *, allow_zero: bool = False) -> Decimal:
+def _decimal(value: object, label: str, *, allow_zero: bool = False) -> int:
     try:
         parsed = Decimal(str(value))
     except (InvalidOperation, ValueError) as exc:
@@ -107,7 +130,7 @@ def _decimal(value: object, label: str, *, allow_zero: bool = False) -> Decimal:
         or (parsed < 0 if allow_zero else parsed <= 0)
     ):
         raise ValueError(f"{label} is not an eligible integer magnitude")
-    return parsed
+    return int(parsed)
 
 
 @dataclass(frozen=True, slots=True)
@@ -194,7 +217,6 @@ class CanonicalRollforwardResult:
         if (
             not self.opening_share_fact_id
             or not self.output_share_fact_id
-            or not materials
             or len(material_groups) != len(set(material_groups))
             or material_groups != consumption_groups
             or any(
@@ -232,7 +254,7 @@ class CurrentShareCompilationResult:
     status: str
     output_fact: Fact | None
     share_basis_decision: ShareBasisDecision | None
-    evidence_closure: CurrentShareEvidenceClosure | None
+    evidence_closure: CurrentShareEvidenceClosure | CurrentShareEvidenceClosureV2 | None
     path_decisions: tuple[CurrentSharePathDecision, ...]
     issue_codes: tuple[str, ...]
     canonical_rollforward: CanonicalRollforwardResult | None = None
@@ -304,7 +326,7 @@ def _result(
     issues: tuple[str, ...],
     output_fact: Fact | None = None,
     decision: ShareBasisDecision | None = None,
-    closure: CurrentShareEvidenceClosure | None = None,
+    closure: CurrentShareEvidenceClosure | CurrentShareEvidenceClosureV2 | None = None,
     canonical_rollforward: CanonicalRollforwardResult | None = None,
 ) -> CurrentShareCompilationResult:
     return CurrentShareCompilationResult(
@@ -333,7 +355,7 @@ def _formal_raw_share_fact(
     cutoff: date,
     documents: dict[str, SourceDocument],
     allow_zero: bool = False,
-) -> Decimal | None:
+) -> int | None:
     source = documents.get(fact.source_document_id)
     if (
         fact.issuer_id != issuer_id
@@ -358,6 +380,98 @@ def _formal_raw_share_fact(
         return None
 
 
+def _formal_window_share_fact(
+    fact: Fact,
+    *,
+    issuer_id: str,
+    opening_date: str | None,
+    quote_date: str,
+    cutoff: date,
+    documents: dict[str, SourceDocument],
+    concepts: frozenset[str],
+    allow_issued_opening: bool = False,
+    include_quote_date: bool = False,
+) -> int | None:
+    """Return one cutoff-safe formal stock Fact inside the governed share window."""
+
+    source = documents.get(fact.source_document_id)
+    measurement_date = fact.period["end"]
+    raw = fact.derivation is None and not fact.parent_fact_ids
+    issued_opening = (
+        allow_issued_opening
+        and fact.derivation == "issued-less-treasury/1.0.0"
+        and bool(fact.parent_fact_ids)
+    )
+    if (
+        fact.issuer_id != issuer_id
+        or fact.concept not in concepts
+        or fact.value_type != "number"
+        or fact.unit != "shares"
+        or fact.currency is not None
+        or fact.period["start"] is not None
+        or measurement_date is None
+        or str(measurement_date) > quote_date
+        or (str(measurement_date) == quote_date and not include_quote_date)
+        or (opening_date is not None and str(measurement_date) <= opening_date)
+        or fact.confidence != "high"
+        or not (raw or issued_opening)
+        or source is None
+        or source.issuer_id != issuer_id
+        or source.authority_level not in OFFICIAL_AUTHORITY_LEVELS
+        or date.fromisoformat(source.published_date) > cutoff
+    ):
+        return None
+    try:
+        return _decimal(fact.value, fact.concept)
+    except ValueError:
+        return None
+
+
+def _v2_coverage_authority_state(
+    graph: ContractGraph,
+    *,
+    issuer_id: str,
+    opening_date: str,
+    quote_date: str,
+    data_cutoff_date: str,
+) -> str:
+    """Classify target-bound governed coverage without using unrelated graph presence."""
+
+    target_window = tuple(
+        item
+        for item in graph.source_search_receipts
+        if item.issuer_id == issuer_id
+        and item.cutoff_date == data_cutoff_date
+        and str(item.period["start"]) <= opening_date
+        and str(item.period["end"]) >= quote_date
+    )
+    v2_trace = tuple(
+        item
+        for item in target_window
+        if item.tool_version.startswith(COVERAGE_SEARCH_TOOL_NAMESPACE)
+    )
+    if not v2_trace:
+        return "absent"
+    if (
+        len(v2_trace) != len(SOURCE_FAMILIES)
+        or {item.source_family for item in v2_trace} != set(SOURCE_FAMILIES)
+        or len({str(item.query_scope["cik"]) for item in v2_trace}) != 1
+        or any(
+            item.status != "completed"
+            or item.issues
+            or item.tool_version != COVERAGE_SEARCH_TOOL_VERSION
+            or item.searched_endpoints
+            != COVERAGE_SEARCH_ENDPOINTS.get(item.source_family)
+            or not SHARE_COVERAGE_SEARCH_EVENT_TYPES.issubset(
+                set(item.query_scope["event_types"])
+            )
+            for item in v2_trace
+        )
+    ):
+        return "incomplete"
+    return "complete"
+
+
 def _authoritative_ids(graph: ContractGraph) -> set[str]:
     return {
         item.authoritative_fact_id
@@ -369,7 +483,7 @@ def _authoritative_ids(graph: ContractGraph) -> set[str]:
 def _select_equivalent(
     facts: tuple[Fact, ...],
     *,
-    values: dict[str, Decimal],
+    values: dict[str, int],
     documents: dict[str, SourceDocument],
     authoritative_ids: set[str],
 ) -> tuple[Fact | None, bool]:
@@ -405,7 +519,7 @@ def _derived_fact(
     *,
     issuer_id: str,
     quote_date: str,
-    value: Decimal,
+    value: int,
     derivation: str,
     parents: tuple[Fact, ...],
     documents: dict[str, SourceDocument],
@@ -414,7 +528,7 @@ def _derived_fact(
         {
             "issuer_id": issuer_id,
             "quote_date": quote_date,
-            "value": format(value, "f"),
+            "value": str(value),
             "derivation": derivation,
             "parents": tuple(sorted((item.fact_id, item.fingerprint) for item in parents)),
         }
@@ -438,7 +552,71 @@ def _derived_fact(
     )
 
 
-def _corporate_evidence_ids(closure: CurrentShareEvidenceClosure) -> tuple[str, ...]:
+def _corporate_evidence_ids(
+    closure: CurrentShareEvidenceClosure | CurrentShareEvidenceClosureV2,
+) -> tuple[str, ...]:
+    if isinstance(closure, CurrentShareEvidenceClosureV2):
+        # A V2 closure deliberately contains the complete ResearchBundle dependency graph.
+        # Only the share roll-forward, corporate-action coverage, and reviewed claim-transition
+        # subgraphs are corporate-action evidence; unrelated revenue, business-quality, or other
+        # Bundle evidence must not be relabelled as such by the Snapshot.
+        identifiers = {
+            closure.opening_share_fact.fact_id,
+            closure.opening_share_fact.source_document_id,
+        }
+        for materialization in closure.materializations:
+            identifiers.update(
+                {
+                    materialization.canonical_event_fact.fact_id,
+                    materialization.canonical_event_fact.source_document_id,
+                }
+            )
+            for member in materialization.members:
+                identifiers.update(
+                    {
+                        member.fact.fact_id,
+                        member.source_document.document_id,
+                    }
+                )
+        coverage = closure.coverage_ledger
+        identifiers.update(item.document_id for item in coverage.result_source_documents)
+        for entry in coverage.entries:
+            identifiers.update(item.fact_id for item in entry.observed_member_facts)
+            identifiers.update(
+                item.document_id for item in entry.observed_member_source_documents
+            )
+            if entry.zero_fact is not None:
+                identifiers.update(
+                    {entry.zero_fact.fact_id, entry.zero_fact.source_document_id}
+                )
+            if entry.not_applicable_claim is not None:
+                identifiers.add(entry.not_applicable_claim.claim_id)
+            for fact in (
+                *entry.not_applicable_supporting_facts,
+                *entry.not_applicable_counterevidence_facts,
+            ):
+                identifiers.update({fact.fact_id, fact.source_document_id})
+        for transition in closure.claim_transition_reconciliation.records:
+            identifiers.update(
+                {
+                    transition.affected_claim_root_fact.fact_id,
+                    transition.affected_claim_source_document.document_id,
+                    transition.remaining_claim_fact.fact_id,
+                    transition.remaining_claim_source_document.document_id,
+                }
+            )
+            for fact in transition.evidence_facts:
+                identifiers.update({fact.fact_id, fact.source_document_id})
+            identifiers.update(item.document_id for item in transition.evidence_source_documents)
+            identifiers.update(item.claim_id for item in transition.claims)
+        available = {
+            object_id
+            for contract_type, object_id, _ in closure.object_fingerprints
+            if contract_type in {"SourceDocument", "Fact", "Claim"}
+        }
+        if not identifiers.issubset(available):
+            raise ValueError("V2 corporate-action evidence is outside its recursive closure")
+        return tuple(sorted(identifiers))
     return tuple(
         sorted(
             {
@@ -455,14 +633,14 @@ def _path_decision(
     facts: tuple[Fact, ...],
     *,
     status: str,
-    value: Decimal | None = None,
+    value: int | None = None,
     issue: str | None = None,
 ) -> CurrentSharePathDecision:
     return CurrentSharePathDecision(
         path_kind=path,
         candidate_fact_ids=tuple(item.fact_id for item in facts),
         status=status,
-        output_value_decimal=format(value, "f") if value is not None else None,
+        output_value_decimal=str(value) if value is not None else None,
         issue_codes=(issue,) if issue is not None else (),
     )
 
@@ -474,6 +652,50 @@ def _overlay(graph: ContractGraph, fact: Fact) -> ContractGraph:
         raise ValueError("derived current-share Fact identity collides")
     facts = graph.facts if prior is not None else (*graph.facts, fact)
     return replace(graph, facts=facts)
+
+
+def derive_current_share_evidence_closure_v2(
+    *,
+    graph,
+    grouping_result,
+    opening_share_fact,
+    security_compilation_result,
+    claim_control_authority,
+    quote_date,
+    data_cutoff_date,
+    expected_research_bundle_id=None,
+):
+    """Construct the protected V2 closure through the production vertical implementation."""
+
+    if expected_research_bundle_id is None:
+        matching_bundles = tuple(
+            item
+            for item in graph.research_bundles
+            if item.issuer_id == grouping_result.issuer_id
+            and item.data_cutoff_date == data_cutoff_date
+        )
+        if len(matching_bundles) != 1:
+            raise ValueError("current-share V2 closure lacks one exact ResearchBundle")
+        expected_research_bundle_id = matching_bundles[0].bundle_id
+
+    closure = derive_v2_closure(
+        graph=graph,
+        grouping_result=grouping_result,
+        opening_share_fact=opening_share_fact,
+        security_compilation_result=security_compilation_result,
+        claim_control_authority=claim_control_authority,
+        quote_date=quote_date,
+        data_cutoff_date=data_cutoff_date,
+        expected_research_bundle_id=expected_research_bundle_id,
+    )
+    if type(closure) is not CurrentShareEvidenceClosureV2:
+        raise ValueError("current-share V2 derivation returned the wrong closure type")
+    return closure
+
+
+def _derive_predecessor_closure(**kwargs: Any) -> CurrentShareEvidenceClosure:
+    closure_builder = derive_current_share_evidence_closure
+    return closure_builder(**kwargs)
 
 
 def _canonical_member_binding(
@@ -657,7 +879,7 @@ def _canonical_rollforward(
             canonical_share_magnitude=group.identity.canonical_share_magnitude,
         )
         value += (
-            COMPLETED_SHARE_EVENT_SIGNS[group.identity.event_concept]
+            int(COMPLETED_SHARE_EVENT_SIGNS[group.identity.event_concept])
             * _decimal(
                 group.identity.canonical_share_magnitude,
                 "canonical share-event magnitude",
@@ -705,6 +927,33 @@ def _canonical_rollforward(
         rollforward_fingerprint=canonical_sha256(rollforward_payload),
     )
     return output, rollforward, tuple(canonical_facts)
+
+
+def _canonical_rollforward_from_v2(
+    closure: CurrentShareEvidenceClosureV2,
+) -> CanonicalRollforwardResult:
+    """Project the already-validated V2 numeric lineage into the compatibility result."""
+
+    magnitudes = {
+        item.group_id: item.canonical_share_magnitude for item in closure.materializations
+    }
+    numeric_consumptions = tuple(
+        CanonicalShareEventNumericConsumption(
+            record=item,
+            canonical_share_magnitude=magnitudes[item.group_id],
+        )
+        for item in closure.numeric_consumptions
+    )
+    payload = {
+        "opening_share_fact_id": closure.opening_share_fact_id,
+        "output_share_fact_id": closure.output_share_fact_id,
+        "materializations": closure.materializations,
+        "numeric_consumptions": numeric_consumptions,
+    }
+    return CanonicalRollforwardResult(
+        **payload,
+        rollforward_fingerprint=canonical_sha256(payload),
+    )
 
 
 def compile_quote_date_current_common_shares(
@@ -817,12 +1066,13 @@ def compile_quote_date_current_common_shares(
     cutoff = date.fromisoformat(str(artifact["data_cutoff_date"]))
     documents = {item.document_id: item for item in graph.documents}
     authority_ids = _authoritative_ids(graph)
-    path_outputs: list[tuple[str, Fact, Decimal]] = []
+    path_outputs: list[tuple[str, Fact, int]] = []
     path_decisions: list[CurrentSharePathDecision] = []
     canonical_rollforward: CanonicalRollforwardResult | None = None
     canonical_event_facts: tuple[Fact, ...] = ()
+    canonical_v2_closure: CurrentShareEvidenceClosureV2 | None = None
 
-    direct_values: dict[str, Decimal] = {}
+    direct_values: dict[str, int] = {}
     direct_candidates: list[Fact] = []
     for fact in graph.facts:
         value = _formal_raw_share_fact(
@@ -872,7 +1122,7 @@ def compile_quote_date_current_common_shares(
             )
         )
 
-    issued_candidates: dict[str, tuple[list[Fact], dict[str, Decimal]]] = {
+    issued_candidates: dict[str, tuple[list[Fact], dict[str, int]]] = {
         "common_shares_issued": ([], {}),
         "treasury_shares": ([], {}),
     }
@@ -960,17 +1210,17 @@ def compile_quote_date_current_common_shares(
     opening_candidates = tuple(
         item
         for item in graph.facts
-        if item.concept == "common_shares_outstanding"
-        and item.period["start"] is None
-        and item.period["end"] is not None
-        and str(item.period["end"]) < quote_date
-        and item.unit == "shares"
-        and item.currency is None
-        and item.confidence == "high"
-        and (
-            (item.derivation is None and not item.parent_fact_ids)
-            or item.derivation == "issued-less-treasury/1.0.0"
+        if _formal_window_share_fact(
+            item,
+            issuer_id=security.issuer_id,
+            opening_date=None,
+            quote_date=quote_date,
+            cutoff=cutoff,
+            documents=documents,
+            concepts=frozenset({"common_shares_outstanding"}),
+            allow_issued_opening=True,
         )
+        is not None
     )
     latest_opening_date = max(
         (str(item.period["end"]) for item in opening_candidates), default=None
@@ -990,20 +1240,58 @@ def compile_quote_date_current_common_shares(
     event_facts = tuple(
         item
         for item in graph.facts
-        if item.concept in COMPLETED_SHARE_EVENT_SIGNS
-        and latest_opening_date is not None
-        and item.period["start"] is None
-        and item.period["end"] is not None
-        and latest_opening_date < str(item.period["end"]) <= quote_date
+        if latest_opening_date is not None
+        and _formal_window_share_fact(
+            item,
+            issuer_id=security.issuer_id,
+            opening_date=latest_opening_date,
+            quote_date=quote_date,
+            cutoff=cutoff,
+            documents=documents,
+            concepts=frozenset(COMPLETED_SHARE_EVENT_SIGNS),
+            include_quote_date=True,
+        )
+        is not None
     )
     split_facts = tuple(
         item
         for item in graph.facts
-        if item.concept in _SPLIT_EVENT_CONCEPTS
-        and latest_opening_date is not None
-        and item.period["end"] is not None
-        and latest_opening_date < str(item.period["end"]) <= quote_date
+        if latest_opening_date is not None
+        and _formal_window_share_fact(
+            item,
+            issuer_id=security.issuer_id,
+            opening_date=latest_opening_date,
+            quote_date=quote_date,
+            cutoff=cutoff,
+            documents=documents,
+            concepts=_SPLIT_EVENT_CONCEPTS,
+            include_quote_date=True,
+        )
+        is not None
     )
+    reviewed_event_fact_ids = {
+        str(binding["fact_id"])
+        for event in graph.capital_allocation_events
+        if event.issuer_id == security.issuer_id
+        for binding in event.fact_bindings
+    }
+    reviewed_path = reviewed_event_fact_ids.intersection(
+        item.fact_id for item in event_facts
+    )
+    coverage_authority_state = (
+        _v2_coverage_authority_state(
+            graph,
+            issuer_id=security.issuer_id,
+            opening_date=latest_opening_date,
+            quote_date=quote_date,
+            data_cutoff_date=str(artifact["data_cutoff_date"]),
+        )
+        if latest_opening_date is not None
+        else "absent"
+    )
+    # Reviewed event identity is shared by the preserved sparse canonical path.  Only the
+    # target-window V2 search authority distinguishes the richer Bundle/coverage contract.
+    v2_authority_present = coverage_authority_state != "absent"
     if split_facts:
         return _result(
             artifact=artifact,
@@ -1022,15 +1310,85 @@ def compile_quote_date_current_common_shares(
                 issue="current_share_evidence_ambiguous",
             )
         )
-    elif opening is not None and event_facts:
+    elif opening is not None and (event_facts or v2_authority_present):
         try:
-            reviewed_event_fact_ids = {
-                str(binding["fact_id"])
-                for event in graph.capital_allocation_events
-                for binding in event.fact_bindings
-            }
-            canonical = (
-                _canonical_rollforward(
+            if coverage_authority_state == "incomplete":
+                raise ValueError("target-bound V2 coverage authority is incomplete")
+            if v2_authority_present and event_facts and not reviewed_path:
+                raise ValueError(
+                    "in-window completed share-event evidence lacks reviewed identity"
+                )
+            canonical_grouping = (
+                group_governed_completed_share_events(
+                    graph=graph,
+                    issuer_id=security.issuer_id,
+                    security_compilation_result=replayed_security,
+                    opening_date=str(opening.period["end"]),
+                    quote_date=quote_date,
+                    data_cutoff_date=str(artifact["data_cutoff_date"]),
+                )
+                if reviewed_path or (v2_authority_present and not event_facts)
+                else None
+            )
+            if canonical_grouping is not None and canonical_grouping.status != "grouped":
+                raise ValueError("canonical share-event grouping is blocked")
+            if canonical_grouping is not None:
+                grouped_raw_fact_ids = {
+                    member.fact_id for member in canonical_grouping.members
+                }
+                ungrouped_event_fact_ids = {
+                    item.fact_id
+                    for item in event_facts
+                    if item.derivation != CANONICAL_EVENT_DERIVATION
+                    and item.fact_id not in grouped_raw_fact_ids
+                }
+                if ungrouped_event_fact_ids:
+                    raise ValueError(
+                        "in-window completed share-event evidence is outside reviewed grouping"
+                    )
+            if (
+                canonical_grouping is not None
+                and v2_authority_present
+            ):
+                # The V2 Bundle constructor validates the official-occurrence collision domain
+                # before its closure is projected into the compatibility roll-forward result.
+                requires_claim_authority = any(
+                    group.identity.event_concept in STANDARD_CLAIM_TRANSITION_EVENT_CONCEPTS
+                    for group in canonical_grouping.groups
+                )
+                v2_claim_authority = (
+                    GroupBoundDilutionClaimAuthority.from_price_blind_freeze(
+                        freeze=loaded,
+                        validation_graph=graph,
+                    )
+                    if requires_claim_authority
+                    else None
+                )
+                canonical_v2_closure = derive_current_share_evidence_closure_v2(
+                    graph=graph,
+                    grouping_result=canonical_grouping,
+                    opening_share_fact=opening,
+                    security_compilation_result=replayed_security,
+                    claim_control_authority=v2_claim_authority,
+                    quote_date=quote_date,
+                    data_cutoff_date=str(artifact["data_cutoff_date"]),
+                    expected_research_bundle_id=str(
+                        artifact["research_bundle"]["bundle_id"]
+                    ),
+                )
+                output = canonical_v2_closure.output_share_fact
+                canonical_rollforward = _canonical_rollforward_from_v2(canonical_v2_closure)
+                canonical_event_facts = tuple(
+                    item.canonical_event_fact for item in canonical_v2_closure.materializations
+                )
+                canonical = (output, canonical_rollforward, canonical_event_facts)
+            elif canonical_grouping is not None:
+                if (
+                    derive_current_share_evidence_closure
+                    is _derive_predecessor_evidence_closure
+                ):
+                    raise ValueError("reviewed canonical path lacks V2 evidence authority")
+                canonical = _canonical_rollforward(
                     graph=graph,
                     opening=opening,
                     security=replayed_security,
@@ -1038,11 +1396,8 @@ def compile_quote_date_current_common_shares(
                     quote_date=quote_date,
                     data_cutoff_date=str(artifact["data_cutoff_date"]),
                 )
-                if reviewed_event_fact_ids.intersection(
-                    item.fact_id for item in event_facts
-                )
-                else None
-            )
+            else:
+                canonical = None
         except (KeyError, ShareEventGroupingError, ValueError):
             path_decisions.append(
                 _path_decision(
@@ -1070,11 +1425,11 @@ def compile_quote_date_current_common_shares(
                     try:
                         value = _decimal(opening.value, "opening common shares") + sum(
                             (
-                                COMPLETED_SHARE_EVENT_SIGNS[item.concept]
+                                int(COMPLETED_SHARE_EVENT_SIGNS[item.concept])
                                 * _decimal(item.value, "completed share event")
                                 for item in event_facts
                             ),
-                            Decimal("0"),
+                            0,
                         )
                         output = _derived_fact(
                             issuer_id=security.issuer_id,
@@ -1105,17 +1460,31 @@ def compile_quote_date_current_common_shares(
                             )
                         )
             else:
-                output, canonical_rollforward, canonical_event_facts = canonical
-                value = _decimal(output.value, "canonical current shares")
-                path_outputs.append(("completed_event_rollforward", output, value))
-                path_decisions.append(
-                    _path_decision(
-                        "completed_event_rollforward",
-                        (opening, *canonical_event_facts),
-                        status="eligible",
-                        value=value,
+                try:
+                    output, canonical_rollforward, canonical_event_facts = canonical
+                    value = _decimal(output.value, "canonical current shares")
+                except ValueError:
+                    canonical_rollforward = None
+                    canonical_event_facts = ()
+                    canonical_v2_closure = None
+                    path_decisions.append(
+                        _path_decision(
+                            "completed_event_rollforward",
+                            (opening, *event_facts),
+                            status="blocked",
+                            issue="current_share_lineage_invalid",
+                        )
                     )
-                )
+                else:
+                    path_outputs.append(("completed_event_rollforward", output, value))
+                    path_decisions.append(
+                        _path_decision(
+                            "completed_event_rollforward",
+                            (opening, *canonical_event_facts),
+                            status="eligible",
+                            value=value,
+                        )
+                    )
     else:
         path_decisions.append(
             _path_decision(
@@ -1191,33 +1560,40 @@ def compile_quote_date_current_common_shares(
         reason_codes=(),
     )
     try:
-        replay_graph = graph
-        for derived_fact in (*selected_canonical_event_facts, selected_fact):
-            replay_graph = _overlay(replay_graph, derived_fact)
-        closure = derive_current_share_evidence_closure(
-            graph=replay_graph,
-            share_fact=selected_fact,
-            evidence_kind=selected_kind,
-            trading_date=quote_date,
-            data_cutoff_date=str(artifact["data_cutoff_date"]),
-            security_compilation_result=replayed_security,
-            share_basis_decision=provisional,
-            claim_control_authority=claim_authority,
-        )
-        decision = replace(
-            provisional,
-            corporate_action_evidence_ids=_corporate_evidence_ids(closure),
-        )
-        closure = derive_current_share_evidence_closure(
-            graph=replay_graph,
-            share_fact=selected_fact,
-            evidence_kind=selected_kind,
-            trading_date=quote_date,
-            data_cutoff_date=str(artifact["data_cutoff_date"]),
-            security_compilation_result=replayed_security,
-            share_basis_decision=decision,
-            claim_control_authority=claim_authority,
-        )
+        if selected_kind == "completed_event_rollforward" and canonical_v2_closure is not None:
+            closure = canonical_v2_closure
+            decision = replace(
+                provisional,
+                corporate_action_evidence_ids=_corporate_evidence_ids(closure),
+            )
+        else:
+            replay_graph = graph
+            for derived_fact in (*selected_canonical_event_facts, selected_fact):
+                replay_graph = _overlay(replay_graph, derived_fact)
+            closure = _derive_predecessor_closure(
+                graph=replay_graph,
+                share_fact=selected_fact,
+                evidence_kind=selected_kind,
+                trading_date=quote_date,
+                data_cutoff_date=str(artifact["data_cutoff_date"]),
+                security_compilation_result=replayed_security,
+                share_basis_decision=provisional,
+                claim_control_authority=claim_authority,
+            )
+            decision = replace(
+                provisional,
+                corporate_action_evidence_ids=_corporate_evidence_ids(closure),
+            )
+            closure = _derive_predecessor_closure(
+                graph=replay_graph,
+                share_fact=selected_fact,
+                evidence_kind=selected_kind,
+                trading_date=quote_date,
+                data_cutoff_date=str(artifact["data_cutoff_date"]),
+                security_compilation_result=replayed_security,
+                share_basis_decision=decision,
+                claim_control_authority=claim_authority,
+            )
     except (CurrentShareEvidenceError, ValueError):
         return _result(
             artifact=artifact,

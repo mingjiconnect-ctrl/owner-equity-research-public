@@ -7,11 +7,15 @@ authority from the frozen Phase 5C bridge while current-share numeric lineage re
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from .fingerprints import canonical_sha256, to_json_value
 from .valuation_market_access import MarketAccessResult
-from .valuation_price_blind_freeze import PriceBlindInputArtifact
+from .valuation_price_blind_freeze import (
+    PriceBlindFreezeCompilationResult,
+    PriceBlindInputArtifact,
+)
 from .valuation_security_identity import SecurityIdentityCompilationResult
 
 
@@ -211,11 +215,36 @@ class MarketReferenceValidationContext:
     market_access_result: MarketAccessResult
     current_share_compilation_result: Any
     raw_evidence_locator: str
+    raw_evidence_path: Path | None = field(default=None, repr=False, compare=False)
+    provider_evidence_sha256: str | None = None
+    price_blind_artifact_directory: Path | None = field(
+        default=None,
+        repr=False,
+        compare=False,
+    )
+    price_blind_freeze_result: PriceBlindFreezeCompilationResult | None = field(
+        default=None,
+        repr=False,
+        compare=False,
+    )
+    market_reference_request: Any = field(default=None, repr=False, compare=False)
+    reviewed_quote: Any = field(default=None, repr=False, compare=False)
+    authorization_reservation: Any = field(default=None, repr=False, compare=False)
+    authorization_consumption: Any = field(default=None, repr=False, compare=False)
+    review_file_path: Path | None = field(default=None, repr=False, compare=False)
     claim_control_authority: Phase5CDilutionClaimAuthority = field(init=False)
 
     def __post_init__(self) -> None:
         if not self.context_id.strip() or not self.raw_evidence_locator.strip():
             raise ValueError("market-reference validation context identity is required")
+        if self.provider_evidence_sha256 is not None and (
+            len(self.provider_evidence_sha256) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in self.provider_evidence_sha256
+            )
+        ):
+            raise ValueError("provider evidence must be a lowercase SHA-256")
         if type(self.price_blind_artifact) is not PriceBlindInputArtifact:
             raise TypeError("validation context requires the exact price-blind artifact type")
         if type(self.security_compilation_result) is not SecurityIdentityCompilationResult:
@@ -266,6 +295,66 @@ class MarketReferenceValidationContext:
             or share_basis.quote_date != access.receipt.receipt.trading_date
         ):
             raise ValueError("validation context share basis is not eligible")
+        if receipt.evidence_mode == "human_reviewed_file":
+            from .valuation_market_provider import (
+                MarketAuthorizationConsumption,
+                MarketAuthorizationReservation,
+                MarketReferenceRequest,
+                RawMarketQuote,
+            )
+
+            if (
+                self.price_blind_artifact_directory is None
+                or self.price_blind_freeze_result is None
+                or self.raw_evidence_path is None
+                or self.review_file_path is None
+                or type(self.market_reference_request) is not MarketReferenceRequest
+                or type(self.reviewed_quote) is not RawMarketQuote
+                or type(self.authorization_reservation)
+                is not MarketAuthorizationReservation
+                or type(self.authorization_consumption)
+                is not MarketAuthorizationConsumption
+                or self.price_blind_freeze_result.artifact.fingerprint
+                != self.price_blind_artifact.fingerprint
+                or self.market_reference_request.authorization_handoff_id
+                != access.authorization_handoff_id
+                or self.reviewed_quote.review_receipt_sha256
+                != self.provider_evidence_sha256
+                or self.authorization_consumption.authorization_handoff_id
+                != access.authorization_handoff_id
+                or self.authorization_reservation.authorization_handoff_id
+                != access.authorization_handoff_id
+                or self.authorization_reservation.request_fingerprint
+                != self.market_reference_request.request_fingerprint
+                or self.authorization_consumption.reservation_fingerprint
+                != self.authorization_reservation.fingerprint
+                or self.authorization_consumption.request_fingerprint
+                != self.market_reference_request.request_fingerprint
+                or self.authorization_consumption.market_access_result_fingerprint
+                != access.fingerprint
+                or self.authorization_consumption.quote_fingerprint
+                != self.reviewed_quote.fingerprint
+            ):
+                raise ValueError(
+                    "human-reviewed validation context lacks replayable provider evidence"
+                )
+        elif any(
+            value is not None
+            for value in (
+                self.provider_evidence_sha256,
+                self.price_blind_artifact_directory,
+                self.price_blind_freeze_result,
+                self.raw_evidence_path,
+                self.review_file_path,
+                self.market_reference_request,
+                self.reviewed_quote,
+                self.authorization_reservation,
+                self.authorization_consumption,
+            )
+        ):
+            raise ValueError(
+                "non-reviewed market context cannot carry reviewed-file replay authority"
+            )
         authority = Phase5CDilutionClaimAuthority.from_price_blind_artifact(
             self.price_blind_artifact
         )
@@ -299,6 +388,27 @@ class MarketReferenceValidationContext:
                 self.current_share_compilation_result.to_dict()
             ),
             "raw_evidence_locator": self.raw_evidence_locator,
+            "provider_evidence_sha256": self.provider_evidence_sha256,
+            "market_reference_request": (
+                to_json_value(self.market_reference_request)
+                if self.market_reference_request is not None
+                else None
+            ),
+            "reviewed_quote": (
+                self.reviewed_quote.to_dict()
+                if self.reviewed_quote is not None
+                else None
+            ),
+            "authorization_consumption": (
+                self.authorization_consumption.to_dict()
+                if self.authorization_consumption is not None
+                else None
+            ),
+            "authorization_reservation": (
+                self.authorization_reservation.to_dict()
+                if self.authorization_reservation is not None
+                else None
+            ),
             "claim_control_authority": self.claim_control_authority.to_dict(),
         }
 
