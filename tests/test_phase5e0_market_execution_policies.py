@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import ast
 import json
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 from pathlib import Path
 
 import pytest
@@ -156,7 +156,7 @@ def _shares(**changes: object) -> ShareBasisDecision:
 
 def _request_receipt(**changes: object) -> FinalRequestCompilationReceipt:
     payload: dict[str, object] = {
-        "receipt_id": "request-receipt:fixture",
+        "receipt_id": "",
         "policy_id": FINAL_REQUEST_POLICY_ID,
         "policy_version": FINAL_REQUEST_POLICY_VERSION,
         "issuer_id": "issuer:fixture",
@@ -186,12 +186,21 @@ def _request_receipt(**changes: object) -> FinalRequestCompilationReceipt:
         "reason_codes": (),
     }
     payload.update(changes)
+    payload["added_source_ids"] = tuple(sorted(payload["added_source_ids"]))  # type: ignore[arg-type]
+    payload["added_fact_ids"] = tuple(sorted(payload["added_fact_ids"]))  # type: ignore[arg-type]
+    payload["reason_codes"] = tuple(sorted(set(payload["reason_codes"])))  # type: ignore[arg-type]
+    receipt_payload = dict(payload)
+    receipt_payload.pop("receipt_id")
+    payload["receipt_id"] = (
+        f"final-request-receipt:{payload['issuer_id']}:"
+        f"{canonical_sha256(receipt_payload)[:24]}"
+    )
     return FinalRequestCompilationReceipt(**payload)  # type: ignore[arg-type]
 
 
 def _kernel_receipt(**changes: object) -> KernelExecutionReceipt:
     payload: dict[str, object] = {
-        "receipt_id": "kernel-execution:fixture",
+        "receipt_id": "",
         "policy_id": KERNEL_EXECUTION_POLICY_ID,
         "policy_version": KERNEL_EXECUTION_POLICY_VERSION,
         "repository": "mingjiconnect-ctrl/owner-valuation-kernel",
@@ -237,6 +246,12 @@ def _kernel_receipt(**changes: object) -> KernelExecutionReceipt:
         "reason_codes": (),
     }
     payload.update(changes)
+    payload["reason_codes"] = tuple(sorted(set(payload["reason_codes"])))  # type: ignore[arg-type]
+    receipt_payload = dict(payload)
+    receipt_payload.pop("receipt_id")
+    payload["receipt_id"] = (
+        f"kernel-execution-receipt:{canonical_sha256(receipt_payload)[:24]}"
+    )
     return KernelExecutionReceipt(**payload)  # type: ignore[arg-type]
 
 
@@ -442,6 +457,13 @@ def test_kernel_execution_schema_map_is_frozen() -> None:
     receipt = _kernel_receipt()
     with pytest.raises(TypeError):
         receipt.schema_sha256["schemas/fact-ledger.schema.json"] = SHA_F  # type: ignore[index]
+
+
+def test_request_and_kernel_receipt_ids_are_deterministic() -> None:
+    with pytest.raises(ValueError, match="final-request receipt ID is not deterministic"):
+        replace(_request_receipt(), receipt_id="final-request-receipt:forged")
+    with pytest.raises(ValueError, match="kernel-execution receipt ID is not deterministic"):
+        replace(_kernel_receipt(), receipt_id="kernel-execution-receipt:forged")
 
 
 def test_phase5e0_fixture_and_forbidden_production_surfaces() -> None:

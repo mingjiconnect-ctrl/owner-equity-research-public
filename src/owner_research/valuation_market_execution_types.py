@@ -470,6 +470,14 @@ class FinalRequestCompilationReceipt:
         object.__setattr__(self, "added_source_ids", tuple(sorted(self.added_source_ids)))
         object.__setattr__(self, "added_fact_ids", tuple(sorted(self.added_fact_ids)))
         object.__setattr__(self, "reason_codes", reasons)
+        payload = to_json_value(self)
+        supplied_receipt_id = payload.pop("receipt_id")
+        expected_receipt_id = (
+            f"final-request-receipt:{self.issuer_id}:"
+            f"{canonical_sha256(payload)[:24]}"
+        )
+        if supplied_receipt_id != expected_receipt_id:
+            raise ValueError("final-request receipt ID is not deterministic")
 
     def to_dict(self) -> dict[str, Any]:
         return to_json_value(self)
@@ -624,6 +632,13 @@ class KernelExecutionReceipt:
             raise ValueError("blocked kernel execution requires a reason code")
         object.__setattr__(self, "schema_sha256", schema_sha256)
         object.__setattr__(self, "reason_codes", reasons)
+        payload = to_json_value(self)
+        supplied_receipt_id = payload.pop("receipt_id")
+        expected_receipt_id = (
+            f"kernel-execution-receipt:{canonical_sha256(payload)[:24]}"
+        )
+        if supplied_receipt_id != expected_receipt_id:
+            raise ValueError("kernel-execution receipt ID is not deterministic")
 
     def to_dict(self) -> dict[str, Any]:
         return to_json_value(self)
