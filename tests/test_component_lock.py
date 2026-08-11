@@ -4,11 +4,14 @@ import json
 import os
 from pathlib import Path
 
+import pytest
+
 from owner_research import __version__
 from owner_research.component_lock import (
     load_component_lock,
     verify_component_lock,
     verify_future_mapping_contract,
+    verify_kernel_runtime_lock,
     verify_research_schema_lock,
 )
 
@@ -48,6 +51,53 @@ def test_component_lock_has_exact_pinned_identity() -> None:
     store = authority["authorization_consumption_store"]
     assert store["policy_id"] == "handoff-global-filesystem-reservation"
     assert store["root_policy"] == "module_import_user_state_home"
+    runtime = lock["valuation_kernel_runtime"]
+    assert set(runtime) == {
+        "authority_version",
+        "runtime_authority",
+        "materializer_code",
+        "runner_code",
+        "expected_release_wheel_sha256",
+        "manifest_policy_id",
+        "manifest_policy_version",
+    }
+    assert runtime["expected_release_wheel_sha256"] == (
+        "fb27d01b1ee75fbd542371510150e890516d306218d33f3608f2aa3caa0e55a5"
+    )
+
+
+def test_kernel_runtime_lock_binds_packaged_authority_and_code() -> None:
+    result = verify_kernel_runtime_lock()
+    assert result.ok, "\n".join(result.errors)
+
+
+def test_kernel_runtime_lock_rejects_drift_and_duplicate_json_keys(tmp_path: Path) -> None:
+    lock = load_component_lock(ROOT / "component-lock.json")
+    lock["valuation_kernel_runtime"]["runner_code"]["sha256"] = "0" * 64
+    drifted = tmp_path / "drifted.json"
+    drifted.write_text(json.dumps(lock), encoding="utf-8")
+    result = verify_kernel_runtime_lock(drifted)
+    assert not result.ok
+    assert "runner_code hash mismatch" in "\n".join(result.errors)
+
+    duplicate = tmp_path / "duplicate.json"
+    duplicate.write_text('{"lock_version":"1.2.0","lock_version":"9.9.9"}', encoding="utf-8")
+    with pytest.raises(ValueError, match="duplicate JSON key"):
+        load_component_lock(duplicate)
+
+
+def test_kernel_runtime_lock_rejects_alternate_authority_paths(tmp_path: Path) -> None:
+    lock = load_component_lock(ROOT / "component-lock.json")
+    lock["valuation_kernel_runtime"]["runtime_authority"]["path"] = (
+        "resources/market_access/provider-registry.json"
+    )
+    path = tmp_path / "alternate.json"
+    path.write_text(json.dumps(lock), encoding="utf-8")
+    result = verify_kernel_runtime_lock(path)
+    assert not result.ok
+    assert "runtime_authority path is not the closed package member" in "\n".join(
+        result.errors
+    )
 
 
 def test_component_lock_matches_pinned_local_checkout() -> None:
