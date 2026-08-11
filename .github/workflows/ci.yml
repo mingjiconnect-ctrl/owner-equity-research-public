@@ -353,8 +353,8 @@ jobs:
           host_gid=$2
           candidate_uid=$3
           candidate_gid=$4
-          workspace=$5
-          kernel_checkout=$6
+          workspace_source=$5
+          kernel_source=$6
           wheelhouse=$7
           supply_lock=$8
           validator=$9
@@ -367,6 +367,12 @@ jobs:
           mount --make-rprivate /
           test "$(readlink -f /var/run)" = /run
           mount -t tmpfs -o mode=0755,nosuid,nodev,noexec tmpfs /run
+          mkdir -m 0755 /run/owner-research
+          mkdir -m 0755 \
+            /run/owner-research/workspace \
+            /run/owner-research/private-kernel
+          workspace=/run/owner-research/workspace
+          kernel_checkout=/run/owner-research/private-kernel
           stage_code=71
           for privileged_channel in /usr/bin/docker /usr/bin/sudo; do
             test -e "$privileged_channel"
@@ -374,16 +380,18 @@ jobs:
             mount -o remount,bind,ro,noexec,nosuid,nodev "$privileged_channel"
           done
           stage_code=72
-          mount --bind "$workspace" "$workspace"
+          mount --bind "$workspace_source" "$workspace"
           mount -o remount,bind,ro "$workspace"
           stage_code=73
-          test -z "$(find "$kernel_checkout" -xdev \
+          test -z "$(find "$kernel_source" -xdev \
             \( -type b -o -type c -o -type p -o -type s -o -type f -links +1 \) \
             -print -quit)"
-          chown -R --no-dereference "$candidate_uid:$candidate_gid" "$kernel_checkout"
-          test -z "$(find "$kernel_checkout" -xdev \
+          chown -R --no-dereference "$candidate_uid:$candidate_gid" "$kernel_source"
+          test -z "$(find "$kernel_source" -xdev \
             \( ! -user "$candidate_uid" -o ! -group "$candidate_gid" \) -print -quit)"
-          mount --bind "$kernel_checkout" "$kernel_checkout"
+          mount --bind "$kernel_source" "$kernel_source"
+          mount -o remount,bind,ro "$kernel_source"
+          mount --bind "$kernel_source" "$kernel_checkout"
           mount -o remount,bind,ro "$kernel_checkout"
           stage_code=74
           /usr/bin/git config --file "$private_root/home/.gitconfig" \

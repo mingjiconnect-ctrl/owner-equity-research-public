@@ -47,6 +47,7 @@ def test_kernel_reader_ci_closed_projection_is_accepted() -> None:
         "missing_log_recheck",
         "missing_container_git_authority",
         "missing_private_checkout_ownership",
+        "writable_private_checkout_source_alias",
         "workspace_candidate_ownership",
         "top_level_defaults",
         "semantic_secret",
@@ -127,15 +128,22 @@ def test_kernel_reader_ci_adversarial_mutations_are_rejected(mutation: str) -> N
     elif mutation == "missing_private_checkout_ownership":
         steps[7]["run"] = steps[7]["run"].replace(
             'chown -R --no-dereference "$candidate_uid:$candidate_gid" '
-            '"$kernel_checkout"\n',
+            '"$kernel_source"\n',
+            "",
+            1,
+        )
+    elif mutation == "writable_private_checkout_source_alias":
+        steps[7]["run"] = steps[7]["run"].replace(
+            'mount --bind "$kernel_source" "$kernel_source"\n'
+            'mount -o remount,bind,ro "$kernel_source"\n',
             "",
             1,
         )
     elif mutation == "workspace_candidate_ownership":
         steps[7]["run"] = steps[7]["run"].replace(
-            'mount --bind "$workspace" "$workspace"\n',
+            'mount --bind "$workspace_source" "$workspace"\n',
             'chown -R --no-dereference "$candidate_uid:$candidate_gid" '
-            '"$workspace"\nmount --bind "$workspace" "$workspace"\n',
+            '"$workspace_source"\nmount --bind "$workspace_source" "$workspace"\n',
             1,
         )
     elif mutation == "top_level_defaults":

@@ -185,16 +185,20 @@ def test_private_runtime_supply_and_containment_order_is_closed() -> None:
         "mount --make-rprivate /",
         'test "$(readlink -f /var/run)" = /run',
         "mount -t tmpfs -o mode=0755,nosuid,nodev,noexec tmpfs /run",
+        "workspace=/run/owner-research/workspace",
+        "kernel_checkout=/run/owner-research/private-kernel",
         "stage_code=70",
         "stage_code=75",
         "for privileged_channel in /usr/bin/docker /usr/bin/sudo",
         'mount --bind /dev/null "$privileged_channel"',
-        'find "$kernel_checkout" -xdev',
+        'find "$kernel_source" -xdev',
         "-type f -links +1",
         'chown -R --no-dereference "$candidate_uid:$candidate_gid" '
-        '"$kernel_checkout"',
+        '"$kernel_source"',
         '! -user "$candidate_uid"',
         '! -group "$candidate_gid"',
+        'mount --bind "$kernel_source" "$kernel_source"',
+        'mount -o remount,bind,ro "$kernel_source"',
         '/usr/bin/git config --file "$private_root/home/.gitconfig"',
         '--add safe.directory "$workspace"',
         '--add safe.directory "$kernel_checkout"',
@@ -291,6 +295,14 @@ def test_private_runtime_supply_and_containment_order_is_closed() -> None:
         not in candidate_run
     )
     assert (
+        'chown -R --no-dereference "$candidate_uid:$candidate_gid" '
+        '"$workspace_source"' not in candidate_run
+    )
+    assert (
+        'chown --no-dereference "$candidate_uid:$candidate_gid" "$workspace_source"'
+        not in candidate_run
+    )
+    assert (
         'chown -R --no-dereference "$candidate_uid:$candidate_gid" "$private_root"'
         not in candidate_run
     )
@@ -307,8 +319,11 @@ def test_private_runtime_supply_and_containment_order_is_closed() -> None:
     )
     assert candidate_run.index(
         'chown -R --no-dereference "$candidate_uid:$candidate_gid" '
-        '"$kernel_checkout"'
-    ) < candidate_run.index('mount --bind "$kernel_checkout" "$kernel_checkout"')
+        '"$kernel_source"'
+    ) < candidate_run.index('mount --bind "$kernel_source" "$kernel_source"')
+    assert candidate_run.index(
+        'mount -o remount,bind,ro "$kernel_source"'
+    ) < candidate_run.index('mount --bind "$kernel_source" "$kernel_checkout"')
     assert candidate_run.index("exec /usr/bin/setpriv") < candidate_run.index(
         '"$runner_python" -I "$validator"'
     )

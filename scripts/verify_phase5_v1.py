@@ -34,8 +34,8 @@ REQUIRED_CHECKS = [
     "phase5/semantic-audit",
 ]
 PRIORITIES = ("P0", "P1", "P2", "P3")
-VERIFY_JOB_CANONICAL_SHA256 = "09defb07da3f37fa56223328a3c0b661a4586ed4a0d653a0cbc68c662c0e9b32"
-CI_WORKFLOW_SHA256 = "3ba2dbf07b863f060a1e3497ffd27c56ac899676cac8205f80e8b697e1dd8949"
+VERIFY_JOB_CANONICAL_SHA256 = "e3f246c8ae35b707ef7b6dbd5263ccb02031770cd17bf0d311d9579367e71a7b"
+CI_WORKFLOW_SHA256 = "620372f1567f70ce26d31785e72076b39e53ddc87e5827b0c190341706321609"
 ACTIVE_WORKFLOW_NAMES = {"ci.yml", "phase5e2b12a-acceptance-gate.yml"}
 ACTIVE_WORKFLOW_SHA256 = {
     "ci.yml": CI_WORKFLOW_SHA256,
@@ -445,16 +445,20 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
                 "mount --make-rprivate /",
                 'test "$(readlink -f /var/run)" = /run',
                 "mount -t tmpfs -o mode=0755,nosuid,nodev,noexec tmpfs /run",
+                "workspace=/run/owner-research/workspace",
+                "kernel_checkout=/run/owner-research/private-kernel",
                 "stage_code=70",
                 "stage_code=75",
                 "for privileged_channel in /usr/bin/docker /usr/bin/sudo",
                 'mount --bind /dev/null "$privileged_channel"',
-                'find "$kernel_checkout" -xdev',
+                'find "$kernel_source" -xdev',
                 "-type f -links +1",
                 'chown -R --no-dereference "$candidate_uid:$candidate_gid" '
-                '"$kernel_checkout"',
+                '"$kernel_source"',
                 '! -user "$candidate_uid"',
                 '! -group "$candidate_gid"',
+                'mount --bind "$kernel_source" "$kernel_source"',
+                'mount -o remount,bind,ro "$kernel_source"',
                 '/usr/bin/git config --file "$private_root/home/.gitconfig"',
                 '--add safe.directory "$workspace"',
                 '--add safe.directory "$kernel_checkout"',
@@ -553,6 +557,8 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
                 'chown --no-dereference "$candidate_uid:$candidate_gid" "$private_root"',
                 'chown -R --no-dereference "$candidate_uid:$candidate_gid" "$workspace"',
                 'chown --no-dereference "$candidate_uid:$candidate_gid" "$workspace"',
+                'chown -R --no-dereference "$candidate_uid:$candidate_gid" "$workspace_source"',
+                'chown --no-dereference "$candidate_uid:$candidate_gid" "$workspace_source"',
             )
         )
         or test_run.count(
@@ -567,9 +573,11 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
         >= test_run.index("exec /usr/bin/setpriv")
         or test_run.index(
             'chown -R --no-dereference "$candidate_uid:$candidate_gid" '
-            '"$kernel_checkout"'
+            '"$kernel_source"'
         )
-        >= test_run.index('mount --bind "$kernel_checkout" "$kernel_checkout"')
+        >= test_run.index('mount --bind "$kernel_source" "$kernel_source"')
+        or test_run.index('mount -o remount,bind,ro "$kernel_source"')
+        >= test_run.index('mount --bind "$kernel_source" "$kernel_checkout"')
         or test_run.index("exec /usr/bin/setpriv")
         >= test_run.index('"$runner_python" -I "$validator"')
     ):
