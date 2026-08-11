@@ -776,3 +776,42 @@ def test_snapshot_contract_exports_no_callable_compiler_or_writer() -> None:
             "write_valuation_artifacts",
         }
     )
+
+
+def test_replacement_root_must_quarantine_snapshot_bound_to_prior_authorization(
+    sample_payloads,
+    monkeypatch,
+    tmp_path,
+) -> None:
+    graph, snapshot, _context, _access, _calculation = valid_snapshot_graph(
+        sample_payloads,
+        monkeypatch,
+        tmp_path,
+    )
+    old_root = graph.valuation_handoffs[0]
+    prior_authorization = graph.valuation_handoffs[-1]
+    replacement = replace(
+        old_root,
+        handoff_id=f"{old_root.handoff_id}:replacement",
+        handoff_run_id=f"{old_root.handoff_run_id}:replacement",
+        transitioned_at="2026-08-01T00:00:00Z",
+        supersedes_handoff_id=prior_authorization.handoff_id,
+        quarantined_market_reference_snapshot_ids=(),
+    )
+    with pytest.raises(
+        ContractGraphError,
+        match="did not quarantine prior market evidence",
+    ):
+        replace_graph(
+            graph,
+            valuation_handoffs=(*graph.valuation_handoffs, replacement),
+        ).validate()
+
+    quarantined = replace(
+        replacement,
+        quarantined_market_reference_snapshot_ids=(snapshot.snapshot_id,),
+    )
+    replace_graph(
+        graph,
+        valuation_handoffs=(*graph.valuation_handoffs, quarantined),
+    ).validate()

@@ -737,11 +737,19 @@ def _validate_handoffs(
                 or root.predecessor_handoff_id is not None
             ):
                 raise ValuationHandoffValidationError("Replacement Handoff root is invalid")
+            prior_run_handoff_ids = {
+                item.handoff_id for item in by_run[prior.handoff_run_id]
+            }
             prior_run_snapshots = {
                 item.market_reference_snapshot_id
                 for item in by_run[prior.handoff_run_id]
                 if item.market_reference_snapshot_id is not None
             }
+            prior_run_snapshots.update(
+                snapshot.snapshot_id
+                for snapshot in snapshots.values()
+                if snapshot.authorization_handoff_id in prior_run_handoff_ids
+            )
             if not prior_run_snapshots.issubset(
                 set(root.quarantined_market_reference_snapshot_ids)
             ):
