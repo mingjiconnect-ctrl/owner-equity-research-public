@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 from dataclasses import replace
+from datetime import datetime, timedelta
 
 import pytest
 from phase4a_support import replace_graph
@@ -274,6 +275,75 @@ def test_market_reference_round_trips_quote_shares_and_calculation(
     sample_payloads, monkeypatch, tmp_path
 ) -> None:
     _valid_market_graph(sample_payloads, monkeypatch, tmp_path).validate()
+
+
+def _execution_handoff_chain(graph):
+    authorization = graph.valuation_handoffs[-1]
+    snapshot = graph.market_reference_snapshots[0]
+    allowed_at = datetime.fromisoformat(
+        authorization.transitioned_at.replace("Z", "+00:00")
+    )
+    request = replace(
+        authorization,
+        handoff_id=f"{authorization.handoff_id}:request",
+        handoff_version=authorization.handoff_version + 1,
+        transitioned_at=(allowed_at + timedelta(microseconds=1)).isoformat().replace(
+            "+00:00", "Z"
+        ),
+        state="request_compiled",
+        predecessor_handoff_id=authorization.handoff_id,
+        market_reference_snapshot_id=snapshot.snapshot_id,
+        valuation_request_sha256="a" * 64,
+        valuation_result_sha256=None,
+        missing_evidence=(),
+    )
+    frozen = replace(
+        request,
+        handoff_id=f"{authorization.handoff_id}:result",
+        handoff_version=request.handoff_version + 1,
+        transitioned_at=(allowed_at + timedelta(microseconds=2)).isoformat().replace(
+            "+00:00", "Z"
+        ),
+        state="kernel_result_frozen",
+        predecessor_handoff_id=request.handoff_id,
+        valuation_result_sha256="b" * 64,
+        missing_evidence=(),
+    )
+    return (*graph.valuation_handoffs, request, frozen)
+
+
+def test_handoff_request_and_result_slots_advance_adjacent_to_market_authorization(
+    sample_payloads, monkeypatch, tmp_path
+) -> None:
+    graph = _valid_market_graph(sample_payloads, monkeypatch, tmp_path)
+    chain = _execution_handoff_chain(graph)
+    replace_graph(graph, valuation_handoffs=chain).validate()
+
+
+def test_handoff_rejects_early_artifacts_and_request_or_market_drift(
+    sample_payloads, monkeypatch, tmp_path
+) -> None:
+    graph = _valid_market_graph(sample_payloads, monkeypatch, tmp_path)
+    chain = _execution_handoff_chain(graph)
+    authorization = chain[-3]
+    request = chain[-2]
+    frozen = chain[-1]
+
+    with pytest.raises(Exception, match="not of type 'null'"):
+        replace(
+            authorization,
+            market_reference_snapshot_id=graph.market_reference_snapshots[0].snapshot_id,
+        )
+
+    with pytest.raises(Exception, match="not of type 'null'"):
+        replace(request, valuation_result_sha256="b" * 64)
+
+    drifted = replace(frozen, valuation_request_sha256="c" * 64)
+    with pytest.raises(ContractGraphError, match="request identity changed"):
+        replace_graph(
+            graph,
+            valuation_handoffs=(*chain[:-1], drifted),
+        ).validate()
 
 
 @pytest.mark.parametrize(
