@@ -182,6 +182,7 @@ class FinalFactLedgerCompilationResult:
     policy_id: str
     policy_version: str
     base_ledger_sha256: str
+    base_ledger_payload: FrozenMap
     base_source_fingerprints: tuple[tuple[str, str], ...]
     base_fact_fingerprints: tuple[tuple[str, str], ...]
     current_share_projection: CurrentShareKernelProjection
@@ -220,6 +221,7 @@ class FinalFactLedgerCompilationResult:
         facts = tuple(sorted(self.base_fact_fingerprints))
         added_sources = tuple(sorted(set(self.added_source_ids)))
         added_facts = tuple(sorted(set(self.added_fact_ids)))
+        base_payload = freeze(self.base_ledger_payload)
         payload = freeze(self.fact_ledger_payload)
         if not added_sources or not added_facts:
             raise ValueError("final FactLedger did not append market lineage")
@@ -262,8 +264,63 @@ class FinalFactLedgerCompilationResult:
                 raise ValueError("final FactLedger contains an invalid evidence fingerprint")
         source_index = {item["source_id"]: item for item in payload["sources"]}
         fact_index = {item["fact_id"]: item for item in payload["facts"]}
-        if len(source_index) != len(payload["sources"]) or len(fact_index) != len(payload["facts"]):
+        base_source_index = {item["source_id"]: item for item in base_payload["sources"]}
+        base_fact_index = {item["fact_id"]: item for item in base_payload["facts"]}
+        if (
+            len(source_index) != len(payload["sources"])
+            or len(fact_index) != len(payload["facts"])
+            or len(base_source_index) != len(base_payload["sources"])
+            or len(base_fact_index) != len(base_payload["facts"])
+        ):
             raise ValueError("final FactLedger repeats evidence identity")
+        base_source_ids = tuple(identifier for identifier, _fingerprint in sources)
+        base_fact_ids = tuple(identifier for identifier, _fingerprint in facts)
+        final_source_ids = tuple(item["source_id"] for item in payload["sources"])
+        final_fact_ids = tuple(item["fact_id"] for item in payload["facts"])
+        if (
+            len(base_source_ids) != len(set(base_source_ids))
+            or len(base_fact_ids) != len(set(base_fact_ids))
+            or set(base_source_ids).intersection(added_sources)
+            or set(base_fact_ids).intersection(added_facts)
+            or set(final_source_ids) != set(base_source_ids).union(added_sources)
+            or set(final_fact_ids) != set(base_fact_ids).union(added_facts)
+            or final_source_ids != tuple(sorted(final_source_ids))
+            or final_fact_ids != tuple(sorted(final_fact_ids))
+            or set(base_source_index) != set(base_source_ids)
+            or set(base_fact_index) != set(base_fact_ids)
+            or any(
+                identifier not in source_index
+                or identifier not in base_source_index
+                or source_index[identifier] != base_source_index[identifier]
+                or canonical_sha256(base_source_index[identifier]) != fingerprint
+                for identifier, fingerprint in sources
+            )
+            or any(
+                identifier not in fact_index
+                or identifier not in base_fact_index
+                or fact_index[identifier] != base_fact_index[identifier]
+                or canonical_sha256(base_fact_index[identifier]) != fingerprint
+                for identifier, fingerprint in facts
+            )
+        ):
+            raise ValueError("final FactLedger does not replay its append-only base receipts")
+        if (
+            tuple(base_payload.keys())
+            != (
+                "entity_id",
+                "facts",
+                "reporting_currency",
+                "schema_version",
+                "sources",
+                "valuation_date",
+            )
+            or base_payload["schema_version"] != payload["schema_version"]
+            or base_payload["entity_id"] != payload["entity_id"]
+            or base_payload["valuation_date"] != payload["valuation_date"]
+            or base_payload["reporting_currency"] != payload["reporting_currency"]
+            or canonical_sha256(base_payload) != self.base_ledger_sha256
+        ):
+            raise ValueError("final FactLedger base fingerprint does not replay")
         market_source = source_index.get(self.market_source_document_id)
         quote = fact_index.get(self.market_quote_fact_id)
         market = fact_index.get(f"derived:{self.market_equity_calculation_id}")
@@ -321,6 +378,7 @@ class FinalFactLedgerCompilationResult:
         object.__setattr__(self, "base_fact_fingerprints", facts)
         object.__setattr__(self, "added_source_ids", added_sources)
         object.__setattr__(self, "added_fact_ids", added_facts)
+        object.__setattr__(self, "base_ledger_payload", base_payload)
         object.__setattr__(self, "fact_ledger_payload", payload)
 
     def to_dict(self) -> dict[str, Any]:
@@ -974,6 +1032,7 @@ def _compile_fact_ledger(
         policy_id=FINAL_REQUEST_POLICY_ID,
         policy_version=FINAL_REQUEST_POLICY_VERSION,
         base_ledger_sha256=canonical_sha256(base_ledger),
+        base_ledger_payload=freeze(base_ledger),
         base_source_fingerprints=base_source_fingerprints,
         base_fact_fingerprints=base_fact_fingerprints,
         current_share_projection=projection,

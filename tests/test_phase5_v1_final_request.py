@@ -890,6 +890,26 @@ def test_final_request_is_append_only_rebinds_assumptions_and_runs_rc2() -> None
 
 
 @requires_private_kernel
+def test_final_fact_ledger_rejects_stale_base_receipts_after_value_substitution() -> None:
+    artifact, prepared, _example = _request_ready_case()
+    result = _compile_from_artifact(
+        prepared=prepared,
+        artifact=artifact,
+        kernel_repository=KERNEL,
+    )
+    assert result.status == "compiled"
+    assert result.fact_ledger_result is not None
+    mutated = to_json_value(result.fact_ledger_result.fact_ledger_payload)
+    base_fact = next(item for item in mutated["facts"] if item["fact_id"] == "fact-revenue")
+    base_fact["value"] = 200.0
+    with pytest.raises(ValueError, match="append-only base receipts"):
+        replace(
+            result.fact_ledger_result,
+            fact_ledger_payload=freeze(mutated),
+        )
+
+
+@requires_private_kernel
 def test_request_compile_is_decimal_context_independent_and_does_not_execute_checkout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
