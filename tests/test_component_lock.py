@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -82,6 +83,14 @@ def test_kernel_runtime_extension_preserves_frozen_market_kernel_and_schema_maps
     )
     assert canonical_sha256(lock["owner_equity_research"]["public_schema_sha256"]) == (
         "23c7b640337b6cae5e54881579d16ac9f298e67b0709661589f6528b891a75d4"
+    )
+    raw = (ROOT / "component-lock.json").read_bytes()
+    start = raw.index(b'  "market_access_authority": {')
+    end = raw.index(b'  "valuation_kernel_runtime": {')
+    frozen_market_block = raw[start:end]
+    assert len(frozen_market_block) == 2073
+    assert hashlib.sha256(frozen_market_block).hexdigest() == (
+        "bd41027bf0411159220368de0b96939011ffea026fb679c554e253aa4404b530"
     )
 
 
