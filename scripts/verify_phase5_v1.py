@@ -34,8 +34,8 @@ REQUIRED_CHECKS = [
     "phase5/semantic-audit",
 ]
 PRIORITIES = ("P0", "P1", "P2", "P3")
-VERIFY_JOB_CANONICAL_SHA256 = "929f5e4b2f88d89bd9ffaa68d6e90df82715ca0cc0d2afad69804b410bd08d88"
-CI_WORKFLOW_SHA256 = "02adf409128885d5f91724fc5ffdf2bb8e55d5e069580b1611a09846ee45c83a"
+VERIFY_JOB_CANONICAL_SHA256 = "c539c37270a93e21425122b274f7bcdfa22347f399572728b5218cea0e87382f"
+CI_WORKFLOW_SHA256 = "348abdbf50d65bf85ce48d42011e7c05bb1b4e613ea2d36c5abd707c97f53678"
 ACTIVE_WORKFLOW_NAMES = {"ci.yml", "phase5e2b12a-acceptance-gate.yml"}
 ACTIVE_WORKFLOW_SHA256 = {
     "ci.yml": CI_WORKFLOW_SHA256,
@@ -68,6 +68,14 @@ PHASE5_V1_TEST_GLOBS = (
     "test_human_reviewed_file_provider.py",
     "test_prepare_owner_valuation.py",
 )
+PR2_SEMANTIC_TEST_PATHS = {
+    "tests/test_phase5_v1_ci_runtime_supply.py",
+    "tests/test_phase5_v1_final_request.py",
+    "tests/test_phase5_v1_kernel_materializer.py",
+    "tests/test_phase5_v1_kernel_execution.py",
+    "tests/test_phase5_v1_dual_panel_e2e.py",
+    "tests/test_phase5_v1_owner_execution.py",
+}
 
 
 @dataclass(frozen=True)
@@ -126,6 +134,8 @@ def _pytest(
         "-m",
         "pytest",
         "-q",
+        "-p",
+        "no:cacheprovider",
         f"--junitxml={junit_path}",
     ]
     if ignore_legacy:
@@ -137,6 +147,33 @@ def _pytest(
     if result != 0 and counts["failed"] == 0:
         counts["failed"] = 1
     return result, counts
+
+
+def _verify_research_wheel(temporary_directory: Path) -> int:
+    wheel_directory = temporary_directory / "research-wheel"
+    wheel_directory.mkdir()
+    build_result = _run(
+        [
+            sys.executable,
+            "-m",
+            "build",
+            "--wheel",
+            "--no-isolation",
+            "--outdir",
+            str(wheel_directory),
+            str(ROOT),
+        ]
+    )
+    if build_result:
+        return build_result
+    wheels = [
+        item
+        for item in wheel_directory.iterdir()
+        if item.is_file() and not item.is_symlink() and item.suffix == ".whl"
+    ]
+    if len(wheels) != 1 or len(tuple(wheel_directory.iterdir())) != 1:
+        return 1
+    return _run([sys.executable, "-I", str(ROOT / "scripts/verify_wheel.py"), str(wheels[0])])
 
 
 def _phase5_v1_test_paths() -> list[str]:
@@ -258,14 +295,15 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
         return [Finding("P1", code, "kernel-reader verify job is not the exact closed projection")]
     expected_step_names = [
         "Check out the exact current candidate",
+        "Set up fixed Python without a post-job package cache",
+        "Prefetch and seal the exact binary supply before private access",
         "Mint the scoped private-kernel reader token",
         "Check out the exact private-kernel source without persisted credentials",
         "Verify the pinned kernel and remove its remote",
         "Revoke the private-kernel reader token before candidate code runs",
-        "Set up Python",
-        "Install current project and verification dependencies",
-        "Run the non-legacy suite without network access",
-        "Upload the canonical verification summary",
+        "Stage netless, then verify in the authorized 3.11 container",
+        "Delete private channels and rebuild one allowlisted canonical summary",
+        "Upload only the allowlisted canonical verification summary",
     ]
     if (
         not isinstance(verify, dict)
@@ -280,17 +318,63 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
     workflow_env = parsed.get("env")
     if workflow_env != {
         "KERNEL_COMMIT": "be9b0773d5a78f5f8a33ba982494512668df85fe",
+        "KERNEL_RUNTIME_IMAGE": (
+            "docker.io/library/python@sha256:"
+            "eaeffb6e8511935426934aac863940fbd004ef31dab0d7fc27a129bb7c19d9a8"
+        ),
+        "KERNEL_RUNTIME_IMAGE_ID": (
+            "sha256:d299dee73063206fe64248b8eb62cbef36f6baedfc2c5e2ef4c7618ad18efb3a"
+        ),
         "KERNEL_TAG": "v2.0.0-rc.2",
         "KERNEL_TAG_OBJECT": "4e19ce6a59bc4321ebcd368e807ed764f4e8abde",
     }:
         return [Finding("P1", code, "kernel identity environment drifted")]
-    token_step = steps[1]
-    kernel_checkout = steps[2]
-    verify_kernel = steps[3]
-    revoke = steps[4]
+    setup_python = steps[1]
+    prefetch = steps[2]
+    token_step = steps[3]
+    kernel_checkout = steps[4]
+    verify_kernel = steps[5]
+    revoke = steps[6]
     run_tests = steps[7]
-    if set(token_step) != {"name", "id", "uses", "with"} or token_step != {
+    sanitize = steps[8]
+    upload = steps[9]
+    if setup_python != {
         "name": expected_step_names[1],
+        "id": "python",
+        "uses": "actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c",
+        "with": {
+            "python-version": "${{ matrix.python-version }}",
+            "check-latest": False,
+        },
+    }:
+        return [Finding("P1", code, "verify Python setup or cache boundary drifted")]
+    prefetch_run = prefetch.get("run") if isinstance(prefetch, dict) else None
+    if (
+        set(prefetch) != {"name", "id", "shell", "run"}
+        or prefetch.get("id") != "supply"
+        or prefetch.get("shell") != "bash"
+        or not isinstance(prefetch_run, str)
+        or not all(
+            marker in prefetch_run
+            for marker in (
+                "-I -m pip download",
+                "--require-hashes",
+                "--only-binary=:all:",
+                "--no-deps",
+                "--no-cache-dir",
+                "/usr/bin/docker pull --platform linux/amd64",
+                'test "$(command -v docker)" = /usr/bin/docker',
+                "candidate-tree=$candidate_tree",
+            )
+        )
+        or any(
+            marker in prefetch_run
+            for marker in ("pip download .", " -e ", "git+", "--no-binary")
+        )
+    ):
+        return [Finding("P1", code, "binary or container prefetch boundary drifted")]
+    if set(token_step) != {"name", "id", "uses", "with"} or token_step != {
+        "name": expected_step_names[3],
         "id": "kernel-reader-token",
         "uses": "actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1",
         "with": {
@@ -305,7 +389,7 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
     }:
         return [Finding("P1", code, "kernel-reader token step is not the closed projection")]
     if set(kernel_checkout) != {"name", "uses", "with"} or kernel_checkout != {
-        "name": expected_step_names[2],
+        "name": expected_step_names[4],
         "uses": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
         "with": {
             "repository": "mingjiconnect-ctrl/owner-valuation-kernel",
@@ -330,7 +414,7 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
     ):
         return [Finding("P1", code, "kernel identity or remote-removal step drifted")]
     if revoke != {
-        "name": expected_step_names[4],
+        "name": expected_step_names[6],
         "if": "always() && steps.kernel-reader-token.outputs.token != ''",
         "env": {"GH_TOKEN": "${{ steps.kernel-reader-token.outputs.token }}"},
         "run": "gh api --method DELETE /installation/token",
@@ -338,15 +422,101 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
         return [Finding("P1", code, "kernel-reader revocation step is not fail-closed")]
     test_run = run_tests.get("run") if isinstance(run_tests, dict) else None
     if (
-        set(run_tests) != {"name", "shell", "env", "run"}
+        set(run_tests) != {"name", "shell", "run"}
         or run_tests.get("shell") != "bash"
-        or run_tests.get("env")
-        != {"OWNER_VALUATION_REPO": "${{ github.workspace }}/_kernel_source"}
         or not isinstance(test_run, str)
-        or "sudo unshare --net --" not in test_run
-        or 'env OWNER_VALUATION_REPO="$OWNER_VALUATION_REPO"' not in test_run
+        or not all(
+            marker in test_run
+            for marker in (
+                "unshare --user --map-root-user --mount --net --pid --fork --kill-child",
+                "mount -t tmpfs -o mode=0755,nosuid,nodev,noexec tmpfs /run",
+                "mount --bind /dev/null /usr/bin/docker",
+                "test ! -x /usr/bin/docker",
+                "test ! -S /var/run/docker.sock",
+                "env -i",
+                "PIP_NO_INDEX=1",
+                "--no-index",
+                "--no-isolation",
+                "/usr/bin/docker run --rm --interactive --pull=never",
+                "--platform=linux/amd64",
+                "--network=none",
+                "--read-only",
+                "--cap-drop=ALL",
+                "--security-opt=no-new-privileges:true",
+                "--mount=\"type=bind,src=$GITHUB_WORKSPACE,dst=/workspace,readonly\"",
+                "--mount=\"type=bind,src=$private_kernel,dst=/private-kernel,readonly\"",
+                "--mount=\"type=bind,src=$attestation_directory,dst=/run/owner-research,readonly\"",
+                "--mount=\"type=bind,src=$private_root/output,dst=/output\"",
+                "--entrypoint=/usr/bin/env",
+                "OWNER_VALUATION_REPO",
+                "OWNER_RESEARCH_KERNEL_CAS",
+                "OWNER_RESEARCH_KERNEL_RUNTIME_MANIFEST",
+                "OWNER_RESEARCH_KERNEL_RUNTIME_MANIFEST_FILE_SHA256",
+                "OWNER_RESEARCH_TRUSTED_CONTAINER_ATTESTATION_SHA256",
+                "PHASE5_V1_KERNEL_EXECUTION_REQUIRED=0",
+                "PHASE5_V1_KERNEL_EXECUTION_REQUIRED=1",
+                "stage.stdout",
+                "stage.stderr",
+                "container.stdout",
+                "container.stderr",
+            )
+        )
+        or any(
+            marker in test_run
+            for marker in (
+                "sudo unshare",
+                "docker pull",
+                "OWNER_RESEARCH_KERNEL_PYTHON",
+                "OWNER_RESEARCH_TRUSTED_CONTAINER_ATTESTATION=/",
+                "GITHUB_ENV",
+                "GITHUB_OUTPUT",
+                "GITHUB_PATH",
+                "GITHUB_STEP_SUMMARY",
+                "--mount=/var/run/docker.sock",
+                "src=/var/run/docker.sock",
+            )
+        )
     ):
         return [Finding("P1", code, "candidate verification is not pinned and netless")]
+    sanitize_run = sanitize.get("run") if isinstance(sanitize, dict) else None
+    if (
+        set(sanitize) != {"name", "id", "if", "shell", "run"}
+        or sanitize.get("id") != "sanitize"
+        or sanitize.get("if") != "always()"
+        or sanitize.get("shell") != "bash"
+        or not isinstance(sanitize_run, str)
+        or not all(
+            marker in sanitize_run
+            for marker in (
+                "os.O_NOFOLLOW",
+                "MAXIMUM_RAW_BYTES = 1024 * 1024",
+                '"/usr/bin/sudo", "/bin/rm", "-rf"',
+                "finding code is duplicated",
+                "upload directory is not a single regular file",
+                'raise SystemExit("canonical summary unavailable")',
+            )
+        )
+        or "owner_research" in sanitize_run
+    ):
+        return [Finding("P1", code, "trusted summary sanitizer boundary drifted")]
+    if upload != {
+        "name": expected_step_names[9],
+        "if": "always() && steps.sanitize.outcome == 'success'",
+        "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+        "with": {
+            "name": (
+                "phase5-v1-verify-${{ matrix.python-version }}-${{ "
+                "github.event.pull_request.head.sha || github.sha }}"
+            ),
+            "path": (
+                "${{ runner.temp }}/phase5-v1-upload-${{ matrix.python-version }}/"
+                "phase5-v1-verify.json"
+            ),
+            "retention-days": 30,
+            "if-no-files-found": "error",
+        },
+    }:
+        return [Finding("P1", code, "canonical summary upload boundary drifted")]
     if any("continue-on-error" in step for step in steps):
         return [Finding("P1", code, "kernel-reader steps may not continue on error")]
     token_marker = "${{ steps.kernel-reader-token.outputs.token }}"
@@ -362,13 +532,13 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
         if re.search(r"\bvars\s*(?:\.|\[)", item)
     }
     token_paths = {path for path, item in scalar_paths if token_marker in item}
-    if secret_paths != {("jobs", "verify", "steps", 1, "with", "private-key")}:
+    if secret_paths != {("jobs", "verify", "steps", 3, "with", "private-key")}:
         return [Finding("P1", code, "an Actions secret escaped the exact token input")]
-    if variable_paths != {("jobs", "verify", "steps", 1, "with", "app-id")}:
+    if variable_paths != {("jobs", "verify", "steps", 3, "with", "app-id")}:
         return [Finding("P1", code, "an Actions variable escaped the exact token input")]
     if token_paths != {
-        ("jobs", "verify", "steps", 2, "with", "token"),
-        ("jobs", "verify", "steps", 4, "env", "GH_TOKEN"),
+        ("jobs", "verify", "steps", 4, "with", "token"),
+        ("jobs", "verify", "steps", 6, "env", "GH_TOKEN"),
     }:
         return [Finding("P1", code, "kernel-reader token escaped checkout or revocation")]
     return []
@@ -812,7 +982,18 @@ def main() -> int:
             tests["excluded_legacy_paths"] = list(LEGACY_TEST_PATHS)
             if result != 0:
                 findings.append(Finding("P0", "P5V1-TESTS", "non-legacy test suite failed"))
-            if _run([sys.executable, "-m", "ruff", "check", "src", "tests", "scripts"]):
+            if _run(
+                [
+                    sys.executable,
+                    "-m",
+                    "ruff",
+                    "check",
+                    "--no-cache",
+                    "src",
+                    "tests",
+                    "scripts",
+                ]
+            ):
                 findings.append(Finding("P1", "P5V1-RUFF", "ruff verification failed"))
             environment = os.environ.copy()
             environment["PYTHONPYCACHEPREFIX"] = str(temporary_directory / "pycache")
@@ -826,17 +1007,23 @@ def main() -> int:
                 findings.append(
                     Finding("P1", "P5V1-COMPILE", "Python syntax compilation failed")
                 )
+            if _verify_research_wheel(temporary_directory):
+                findings.append(
+                    Finding("P0", "P5V1-WHEEL", "research wheel build or verification failed")
+                )
         else:
             paths = _semantic_paths()
             phase5_v1_paths = _phase5_v1_test_paths()
-            if not any("current_share" in path for path in phase5_v1_paths) or not any(
-                "market" in path for path in phase5_v1_paths
+            if (
+                not any("current_share" in path for path in phase5_v1_paths)
+                or not any("market" in path for path in phase5_v1_paths)
+                or not PR2_SEMANTIC_TEST_PATHS.issubset(phase5_v1_paths)
             ):
                 findings.append(
                     Finding(
                         "P0",
                         "P5V1-TEST-SURFACE",
-                        "Phase 5 v1 tests do not cover both current shares and market reference",
+                        "Phase 5 v1 tests do not cover the complete PR1 and PR2 semantic surface",
                     )
                 )
             result, tests = _pytest(
@@ -881,7 +1068,7 @@ def main() -> int:
     for priority in PRIORITIES:
         print(f"{priority}={counts[priority]}")
     return int(any(counts[priority] for priority in required_zero) or any(
-        finding.code in {"P5V1-TESTS", "P5V1-RUFF", "P5V1-COMPILE"}
+        finding.code in {"P5V1-TESTS", "P5V1-RUFF", "P5V1-COMPILE", "P5V1-WHEEL"}
         for finding in findings
     ))
 
