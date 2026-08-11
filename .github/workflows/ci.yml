@@ -469,8 +469,8 @@ jobs:
           test ! -x /usr/bin/sudo
           test ! -S /var/run/docker.sock
           test ! -S /run/docker.sock
-          test -z "$(command -v docker || true)"
-          test -z "$(command -v sudo || true)"
+          test "$(command -v docker)" = /usr/bin/docker
+          test "$(command -v sudo)" = /usr/bin/sudo
           mapfile -t network_interfaces < <(
             awk -F: 'NR > 2 {
               gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1); print $1

@@ -216,6 +216,8 @@ def test_private_runtime_supply_and_containment_order_is_closed() -> None:
         "test ! -x /usr/bin/sudo",
         "test ! -S /var/run/docker.sock",
         "test ! -S /run/docker.sock",
+        'test "$(command -v docker)" = /usr/bin/docker',
+        'test "$(command -v sudo)" = /usr/bin/sudo',
         "/usr/bin/env -i",
         'GIT_CONFIG_GLOBAL="$private_root/home/.gitconfig"',
         "GIT_CONFIG_COUNT=2",

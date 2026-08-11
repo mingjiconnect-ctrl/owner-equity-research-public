@@ -34,8 +34,8 @@ REQUIRED_CHECKS = [
     "phase5/semantic-audit",
 ]
 PRIORITIES = ("P0", "P1", "P2", "P3")
-VERIFY_JOB_CANONICAL_SHA256 = "5ddf8dc1f87071ebc7698023b6f5e935d4800fa707b0e9434b10b94ccd3259fb"
-CI_WORKFLOW_SHA256 = "11cb0c272f9d298586717c09e752d8624db0c755dfd97ada4c8f5d7ac459bcf5"
+VERIFY_JOB_CANONICAL_SHA256 = "8f0df9395a3f31c79139e6c087734ca694dade45be5ea255b436d8cebca9a73c"
+CI_WORKFLOW_SHA256 = "638bf22e7704f2bf28765fdbc9e2facc8b257abb5dc64f81e5767dc48a93c7bc"
 ACTIVE_WORKFLOW_NAMES = {"ci.yml", "phase5e2b12a-acceptance-gate.yml"}
 ACTIVE_WORKFLOW_SHA256 = {
     "ci.yml": CI_WORKFLOW_SHA256,
@@ -476,6 +476,8 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
                 "test ! -x /usr/bin/sudo",
                 "test ! -S /var/run/docker.sock",
                 "test ! -S /run/docker.sock",
+                'test "$(command -v docker)" = /usr/bin/docker',
+                'test "$(command -v sudo)" = /usr/bin/sudo',
                 "/usr/bin/env -i",
                 'GIT_CONFIG_GLOBAL="$private_root/home/.gitconfig"',
                 "GIT_CONFIG_COUNT=2",
