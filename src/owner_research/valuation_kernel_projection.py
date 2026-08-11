@@ -15,7 +15,19 @@ import math
 import struct
 import sys
 from dataclasses import dataclass
-from decimal import Decimal, InvalidOperation
+from decimal import (
+    MAX_EMAX,
+    MIN_EMIN,
+    Decimal,
+    DecimalException,
+    DivisionByZero,
+    Inexact,
+    InvalidOperation,
+    Overflow,
+    Rounded,
+    Underflow,
+    localcontext,
+)
 from typing import Any
 
 from .contracts import Fact, SourceDocument
@@ -43,9 +55,7 @@ _EVENT_CONCEPTS = {
     "common_shares_retired_or_cancelled_completed": "completed_common_share_retirement",
     "option_shares_exercised_completed": "completed_option_exercise_shares",
     "rsu_shares_settled_completed": "completed_rsu_settlement_shares",
-    "acquisition_consideration_shares_issued_completed": (
-        "completed_common_share_issuance"
-    ),
+    "acquisition_consideration_shares_issued_completed": ("completed_common_share_issuance"),
 }
 _SPECIALIST_EVENT_CONCEPTS = frozenset(
     {
@@ -60,6 +70,15 @@ _EVENT_SIGNS = {
     "completed_option_exercise_shares": 1,
     "completed_rsu_settlement_shares": 1,
 }
+_DECIMAL_TRAPS = (
+    DivisionByZero,
+    Inexact,
+    InvalidOperation,
+    Overflow,
+    Rounded,
+    Underflow,
+)
+_MAX_DECIMAL_OPERATION_PRECISION = 100_000
 
 
 def _checked_binary64(value: object, label: str) -> float:
@@ -69,6 +88,8 @@ def _checked_binary64(value: object, label: str) -> float:
         raise KernelProjectionError(f"{label} cannot be represented as binary64") from exc
     if not math.isfinite(projected):
         raise KernelProjectionError(f"{label} cannot be represented as finite binary64")
+    if projected == 0.0 and isinstance(value, Decimal) and value != 0:
+        raise KernelProjectionError(f"{label} underflows binary64")
     if projected != 0.0 and abs(projected) < sys.float_info.min:
         raise KernelProjectionError(f"{label} is subnormal in binary64")
     return projected
@@ -79,9 +100,73 @@ def _canonical_decimal(value: object, label: str, *, allow_zero: bool = False) -
         parsed = Decimal(str(value))
     except (InvalidOperation, ValueError) as exc:
         raise KernelProjectionError(f"{label} is not an exact decimal") from exc
-    if not parsed.is_finite() or (parsed < 0 if allow_zero else parsed <= 0):
+    if (
+        not parsed.is_finite()
+        or (parsed < 0 if allow_zero else parsed <= 0)
+        or (parsed == 0 and parsed.is_signed())
+    ):
         raise KernelProjectionError(f"{label} must be finite and positive")
     return parsed
+
+
+def _operation_precision(*values: Decimal) -> int:
+    finite = tuple(value for value in values if value.is_finite())
+    if not finite:
+        return 64
+    lowest_exponent = min(value.as_tuple().exponent for value in finite)
+    nonzero = tuple(value for value in finite if value != 0)
+    highest_adjusted = max((value.adjusted() for value in nonzero), default=0)
+    coefficient_digits = sum(len(value.as_tuple().digits) for value in finite)
+    precision = max(
+        64,
+        coefficient_digits + max(0, highest_adjusted - lowest_exponent) + 16,
+    )
+    if precision > _MAX_DECIMAL_OPERATION_PRECISION:
+        raise KernelProjectionError("exact Decimal operation exceeds the precision limit")
+    return precision
+
+
+def _exact_decimal_operation(
+    left: Decimal,
+    right: Decimal,
+    *,
+    operation: str,
+    label: str,
+) -> Decimal:
+    try:
+        with localcontext() as context:
+            context.prec = _operation_precision(left, right)
+            context.Emax = MAX_EMAX
+            context.Emin = MIN_EMIN
+            for signal in _DECIMAL_TRAPS:
+                context.traps[signal] = True
+            if operation == "add":
+                return left + right
+            if operation == "subtract":
+                return left - right
+            if operation == "multiply":
+                return left * right
+            if operation == "divide":
+                return left / right
+    except DecimalException as exc:
+        raise KernelProjectionError(f"{label} is not an exact Decimal operation") from exc
+    raise KernelProjectionError(f"{label} uses an unknown Decimal operation")
+
+
+def _exact_decimal_add(left: Decimal, right: Decimal, label: str) -> Decimal:
+    return _exact_decimal_operation(left, right, operation="add", label=label)
+
+
+def _exact_decimal_subtract(left: Decimal, right: Decimal, label: str) -> Decimal:
+    return _exact_decimal_operation(left, right, operation="subtract", label=label)
+
+
+def _exact_decimal_multiply(left: Decimal, right: Decimal, label: str) -> Decimal:
+    return _exact_decimal_operation(left, right, operation="multiply", label=label)
+
+
+def _exact_decimal_divide(left: Decimal, right: Decimal, label: str) -> Decimal:
+    return _exact_decimal_operation(left, right, operation="divide", label=label)
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +180,7 @@ class KernelNumericProjectionWitness:
     canonical_json_number_token: str
     binary64_hex: str
     exact_binary64_decimal: str
+    projection_delta_decimal: str
     shortest_roundtrip_decimal: str
 
     def __post_init__(self) -> None:
@@ -112,7 +198,14 @@ class KernelNumericProjectionWitness:
             f"{self.label} model value",
             allow_zero=True,
         )
-        if authoritative / divisor != model:
+        if (
+            _exact_decimal_divide(
+                authoritative,
+                divisor,
+                f"{self.label} scale",
+            )
+            != model
+        ):
             raise ValueError("numeric projection scale does not replay")
         try:
             parsed_json = json.loads(self.canonical_json_number_token)
@@ -124,6 +217,8 @@ class KernelNumericProjectionWitness:
             projected = _checked_binary64(parsed_json, f"{self.label} JSON projection")
         except KernelProjectionError as exc:
             raise ValueError(str(exc)) from exc
+        if projected == 0.0 and model != 0:
+            raise ValueError(f"{self.label} underflows binary64 arithmetic")
         if self.canonical_json_number_token != json.dumps(
             projected,
             allow_nan=False,
@@ -132,15 +227,19 @@ class KernelNumericProjectionWitness:
             raise ValueError("numeric projection JSON token is not canonical")
         if struct.pack(">d", projected).hex() != self.binary64_hex:
             raise ValueError("numeric projection binary64 witness mismatch")
-        if format(Decimal.from_float(projected), "f") != self.exact_binary64_decimal:
+        exact_binary64 = Decimal.from_float(projected)
+        if format(exact_binary64, "f") != self.exact_binary64_decimal:
             raise ValueError("numeric projection exact binary64 decimal mismatch")
+        projection_delta = _exact_decimal_subtract(
+            exact_binary64,
+            model,
+            f"{self.label} projection delta",
+        )
+        if format(projection_delta, "f") != self.projection_delta_decimal:
+            raise ValueError("numeric projection exact delta mismatch")
         if repr(projected) != self.shortest_roundtrip_decimal:
             raise ValueError("numeric projection round-trip decimal mismatch")
-        if Decimal(str(projected)) != model:
-            raise ValueError("authoritative Decimal does not round-trip through binary64")
-        replayed = json.loads(
-            json.dumps(projected, allow_nan=False, separators=(",", ":"))
-        )
+        replayed = json.loads(json.dumps(projected, allow_nan=False, separators=(",", ":")))
         if struct.pack(">d", float(replayed)).hex() != self.binary64_hex:
             raise ValueError("canonical JSON changes the projected binary64 value")
 
@@ -152,12 +251,18 @@ class KernelNumericProjectionWitness:
         authoritative_decimal: Decimal,
         scale_divisor: Decimal = Decimal(1),
     ) -> KernelNumericProjectionWitness:
-        model = authoritative_decimal / scale_divisor
+        model = _exact_decimal_divide(
+            authoritative_decimal,
+            scale_divisor,
+            f"{label} scale",
+        )
         projected = _checked_binary64(model, label)
-        if Decimal(str(projected)) != model:
-            raise KernelProjectionError(
-                f"{label} cannot be transported to rc.2 without numeric drift"
-            )
+        exact_binary64 = Decimal.from_float(projected)
+        delta = _exact_decimal_subtract(
+            exact_binary64,
+            model,
+            f"{label} projection delta",
+        )
         token = json.dumps(projected, allow_nan=False, separators=(",", ":"))
         return cls(
             label=label,
@@ -166,7 +271,8 @@ class KernelNumericProjectionWitness:
             model_decimal=format(model, "f"),
             canonical_json_number_token=token,
             binary64_hex=struct.pack(">d", projected).hex(),
-            exact_binary64_decimal=format(Decimal.from_float(projected), "f"),
+            exact_binary64_decimal=format(exact_binary64, "f"),
+            projection_delta_decimal=format(delta, "f"),
             shortest_roundtrip_decimal=repr(projected),
         )
 
@@ -181,12 +287,20 @@ class KernelNumericProjectionWitness:
     ) -> KernelNumericProjectionWitness:
         """Bind a projection calculated from upstream binary64 operands."""
 
-        model = authoritative_decimal / scale_divisor
+        model = _exact_decimal_divide(
+            authoritative_decimal,
+            scale_divisor,
+            f"{label} scale",
+        )
         projected_value = _checked_binary64(projected_value, label)
-        if Decimal(str(projected_value)) != model:
-            raise KernelProjectionError(
-                f"{label} upstream binary64 arithmetic does not equal the authoritative Decimal"
-            )
+        if projected_value == 0.0 and model != 0:
+            raise KernelProjectionError(f"{label} underflows binary64 arithmetic")
+        exact_binary64 = Decimal.from_float(projected_value)
+        delta = _exact_decimal_subtract(
+            exact_binary64,
+            model,
+            f"{label} projection delta",
+        )
         token = json.dumps(projected_value, allow_nan=False, separators=(",", ":"))
         return cls(
             label=label,
@@ -195,7 +309,8 @@ class KernelNumericProjectionWitness:
             model_decimal=format(model, "f"),
             canonical_json_number_token=token,
             binary64_hex=struct.pack(">d", projected_value).hex(),
-            exact_binary64_decimal=format(Decimal.from_float(projected_value), "f"),
+            exact_binary64_decimal=format(exact_binary64, "f"),
+            projection_delta_decimal=format(delta, "f"),
             shortest_roundtrip_decimal=repr(projected_value),
         )
 
@@ -267,18 +382,21 @@ class CurrentShareKernelProjection:
                 or self.current_share_fact_id not in {item["fact_id"] for item in facts}
             ):
                 raise ValueError("eligible current-share projection is incomplete")
-        elif any(
-            (
-                self.current_share_fact_id,
-                self.evidence_kind,
-                sources,
-                facts,
-                witnesses,
-                arithmetic,
-                attestation,
-                self.research_evidence_sha256,
+        elif (
+            any(
+                (
+                    self.current_share_fact_id,
+                    self.evidence_kind,
+                    sources,
+                    facts,
+                    witnesses,
+                    arithmetic,
+                    attestation,
+                    self.research_evidence_sha256,
+                )
             )
-        ) or not issues:
+            or not issues
+        ):
             raise ValueError("non-eligible current-share projection promoted evidence")
         object.__setattr__(self, "sources", sources)
         object.__setattr__(self, "facts", facts)
@@ -312,9 +430,7 @@ def _blocked(*issues: str, specialist: bool = False) -> CurrentShareKernelProjec
 
 def _document_for_fact(prepared: PreparedMarketReference, fact: Fact) -> SourceDocument:
     matches = tuple(
-        item
-        for item in prepared.graph.documents
-        if item.document_id == fact.source_document_id
+        item for item in prepared.graph.documents if item.document_id == fact.source_document_id
     )
     if len(matches) != 1:
         raise KernelProjectionError("share Fact source is unavailable or ambiguous")
@@ -462,17 +578,40 @@ def _project_opening(
         sources.append(source)
         facts.append(raw)
         witnesses.append(witness)
-    output_witness = KernelNumericProjectionWitness.compile(
-        label=f"share:{fact.fact_id}",
-        authoritative_decimal=_canonical_decimal(fact.value, "issued share output"),
-        scale_divisor=Decimal(1_000_000),
+    authoritative_issued = _canonical_decimal(
+        by_concept["common_shares_issued"].value,
+        "issued share parent",
+        allow_zero=True,
     )
+    authoritative_treasury = _canonical_decimal(
+        by_concept["treasury_shares"].value,
+        "treasury share parent",
+        allow_zero=True,
+    )
+    authoritative_output = _canonical_decimal(fact.value, "issued share output")
+    if (
+        _exact_decimal_subtract(
+            authoritative_issued,
+            authoritative_treasury,
+            "issued-minus-treasury research replay",
+        )
+        != authoritative_output
+    ):
+        raise KernelProjectionError("issued-minus-treasury research lineage does not replay")
     issued_value = next(
         item["value"] for item in facts if item["concept"] == "common_shares_issued"
     )
     treasury_value = next(item["value"] for item in facts if item["concept"] == "treasury_shares")
-    if output_witness.kernel_value != issued_value - treasury_value:
-        raise KernelProjectionError("issued-minus-treasury projection is not exact in binary64")
+    projected_output = _checked_binary64(
+        issued_value - treasury_value,
+        "issued-minus-treasury binary64 replay",
+    )
+    output_witness = KernelNumericProjectionWitness.compile_from_projected_binary64(
+        label=f"share:{fact.fact_id}",
+        authoritative_decimal=authoritative_output,
+        projected_value=projected_output,
+        scale_divisor=Decimal(1_000_000),
+    )
     output_source = _source_ref(_document_for_fact(prepared, fact))
     sources.append(output_source)
     facts.append(
@@ -552,6 +691,7 @@ def project_current_share_lineage(
                     "operation": "direct",
                     "input_fact_ids": [output.fact_id],
                     "output_binary64_hex": witness.binary64_hex,
+                    "output_projection_delta_decimal": witness.projection_delta_decimal,
                 }
             )
         elif evidence_kind == "issued_less_treasury":
@@ -581,6 +721,11 @@ def project_current_share_lineage(
                         for item in witnesses
                         if item.label == f"share:{output.fact_id}"
                     ),
+                    "output_projection_delta_decimal": next(
+                        item.projection_delta_decimal
+                        for item in witnesses
+                        if item.label == f"share:{output.fact_id}"
+                    ),
                 }
             )
         elif evidence_kind == "completed_event_rollforward":
@@ -591,6 +736,10 @@ def project_current_share_lineage(
                 or rollforward.output_share_fact_id != output.fact_id
             ):
                 raise KernelProjectionError("V2 canonical roll-forward is unavailable")
+            if not rollforward.materializations:
+                raise KernelProjectionError(
+                    "completed-event roll-forward requires at least one completed event"
+                )
             opening = index.get(rollforward.opening_share_fact_id)
             if opening is None:
                 raise KernelProjectionError("roll-forward opening Fact is unavailable")
@@ -604,9 +753,12 @@ def project_current_share_lineage(
             witnesses.extend(opening_witnesses)
             parent_ids = [opening.fact_id]
             replay = next(
-                item["value"]
-                for item in opening_facts
-                if item["fact_id"] == opening.fact_id
+                item["value"] for item in opening_facts if item["fact_id"] == opening.fact_id
+            )
+            authoritative_replay = _canonical_decimal(
+                opening.value,
+                "roll-forward opening",
+                allow_zero=True,
             )
             arithmetic_steps.append(
                 {
@@ -614,6 +766,11 @@ def project_current_share_lineage(
                     "operation": "opening",
                     "input_fact_ids": [opening.fact_id],
                     "output_binary64_hex": struct.pack(">d", float(replay)).hex(),
+                    "output_projection_delta_decimal": next(
+                        item.projection_delta_decimal
+                        for item in opening_witnesses
+                        if item.label == f"share:{opening.fact_id}"
+                    ),
                 }
             )
             for materialization in sorted(
@@ -631,8 +788,7 @@ def project_current_share_lineage(
                 if (
                     not members
                     or canonical.period["end"] is None
-                    or set(canonical.parent_fact_ids)
-                    != {item.fact_id for item in member_facts}
+                    or set(canonical.parent_fact_ids) != {item.fact_id for item in member_facts}
                     or any(
                         item.concept != canonical.concept
                         or item.period["end"] != canonical.period["end"]
@@ -674,20 +830,49 @@ def project_current_share_lineage(
                 facts.append(raw)
                 witnesses.append(witness)
                 parent_ids.append(raw["fact_id"])
-                replay += _EVENT_SIGNS[kernel_concept] * raw["value"]
+                sign = _EVENT_SIGNS[kernel_concept]
+                authoritative_event = _canonical_decimal(
+                    canonical.value,
+                    "completed share event",
+                    allow_zero=True,
+                )
+                authoritative_replay = (
+                    _exact_decimal_add(
+                        authoritative_replay,
+                        authoritative_event,
+                        "completed-event research addition",
+                    )
+                    if sign > 0
+                    else _exact_decimal_subtract(
+                        authoritative_replay,
+                        authoritative_event,
+                        "completed-event research subtraction",
+                    )
+                )
+                replay = _checked_binary64(
+                    replay + sign * raw["value"],
+                    "completed-event binary64 replay",
+                )
+                running_witness = KernelNumericProjectionWitness.compile_from_projected_binary64(
+                    label=f"share-rollforward-step:{materialization.group_id}",
+                    authoritative_decimal=authoritative_replay,
+                    projected_value=replay,
+                    scale_divisor=Decimal(1_000_000),
+                )
+                witnesses.append(running_witness)
                 arithmetic_steps.append(
                     {
                         "step": len(arithmetic_steps),
-                        "operation": (
-                            "add" if _EVENT_SIGNS[kernel_concept] > 0 else "subtract"
-                        ),
+                        "operation": ("add" if _EVENT_SIGNS[kernel_concept] > 0 else "subtract"),
                         "group_id": materialization.group_id,
                         "representative_fact_id": raw["fact_id"],
-                        "corroborating_member_fact_ids": sorted(
-                            item.fact_id for item in members
-                        ),
+                        "corroborating_member_fact_ids": sorted(item.fact_id for item in members),
                         "input_binary64_hex": witness.binary64_hex,
                         "running_output_binary64_hex": struct.pack(">d", float(replay)).hex(),
+                        "running_projection_delta_decimal": (
+                            running_witness.projection_delta_decimal
+                        ),
+                        "running_projection_witness_fingerprint": (running_witness.fingerprint),
                     }
                 )
                 attestation["objects"].append(
@@ -697,6 +882,7 @@ def project_current_share_lineage(
                         materialization.materialization_fingerprint,
                     )
                 )
+                attestation["objects"].append(("Fact", canonical.fact_id, canonical.fingerprint))
                 attestation["objects"].extend(
                     ("Fact", item.fact.fact_id, item.fact.fingerprint) for item in members
                 )
@@ -708,13 +894,18 @@ def project_current_share_lineage(
                     )
                     for item in members
                 )
-            output_witness = KernelNumericProjectionWitness.compile(
+            authoritative_output = _canonical_decimal(
+                output.value,
+                "roll-forward output",
+            )
+            if authoritative_replay != authoritative_output:
+                raise KernelProjectionError("completed-event research roll-forward does not replay")
+            output_witness = KernelNumericProjectionWitness.compile_from_projected_binary64(
                 label=f"share:{output.fact_id}",
-                authoritative_decimal=_canonical_decimal(output.value, "roll-forward output"),
+                authoritative_decimal=authoritative_output,
+                projected_value=replay,
                 scale_divisor=Decimal(1_000_000),
             )
-            if output_witness.kernel_value != replay:
-                raise KernelProjectionError("roll-forward projection is not exact in binary64")
             output_source = _source_ref(_document_for_fact(prepared, output))
             sources.append(output_source)
             facts.append(

@@ -10,9 +10,9 @@ the resulting FactLedger fingerprint.
 from __future__ import annotations
 
 import json
-import os
+import math
 import subprocess
-import sys
+import unicodedata
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -23,9 +23,16 @@ from referencing import Registry, Resource
 
 from .component_lock import file_sha256
 from .fingerprints import FrozenMap, canonical_json, canonical_sha256, freeze, to_json_value
+from .research_bundle_policies import dependency_closure_sha256
+from .research_bundle_validation import (
+    ResearchBundleValidationError,
+    dependency_closure,
+)
+from .valuation_fact_mapping import _source_is_registered
 from .valuation_kernel_projection import (
     CurrentShareKernelProjection,
     KernelNumericProjectionWitness,
+    _exact_decimal_multiply,
     project_current_share_lineage,
 )
 from .valuation_market_execution_policies import (
@@ -46,9 +53,7 @@ class FinalRequestCompilationError(ValueError):
 
 _KERNEL_TAG_OBJECT = "4e19ce6a59bc4321ebcd368e807ed764f4e8abde"
 _MODEL_SHARE_UNIT = "millions shares"
-_MARKET_EQUITY_DERIVATION = (
-    "market_price_per_current_common_share * common_shares_outstanding"
-)
+_MARKET_EQUITY_DERIVATION = "market_price_per_current_common_share * common_shares_outstanding"
 
 
 def _git(repository: Path, *args: str) -> str:
@@ -66,10 +71,8 @@ def _verify_kernel(repository: Path) -> tuple[Path, dict[str, dict[str, Any]]]:
     kernel = Path(repository).expanduser().resolve()
     if (
         _git(kernel, "rev-parse", "HEAD") != PINNED_KERNEL_COMMIT
-        or _git(kernel, "rev-parse", f"{PINNED_KERNEL_TAG}^{{}}")
-        != PINNED_KERNEL_COMMIT
-        or _git(kernel, "rev-parse", f"refs/tags/{PINNED_KERNEL_TAG}")
-        != _KERNEL_TAG_OBJECT
+        or _git(kernel, "rev-parse", f"{PINNED_KERNEL_TAG}^{{}}") != PINNED_KERNEL_COMMIT
+        or _git(kernel, "rev-parse", f"refs/tags/{PINNED_KERNEL_TAG}") != _KERNEL_TAG_OBJECT
     ):
         raise FinalRequestCompilationError("kernel tag, commit, or tag object changed")
     schemas: dict[str, dict[str, Any]] = {}
@@ -86,9 +89,7 @@ def _verify_kernel(repository: Path) -> tuple[Path, dict[str, dict[str, Any]]]:
     return kernel, schemas
 
 
-def _validate_request_schema(
-    request: dict[str, Any], schemas: dict[str, dict[str, Any]]
-) -> None:
+def _validate_request_schema(request: dict[str, Any], schemas: dict[str, dict[str, Any]]) -> None:
     fact_schema = schemas["schemas/fact-ledger.schema.json"]
     assumption_schema = schemas["schemas/assumption-ledger.schema.json"]
     request_schema = schemas["schemas/valuation-request.schema.json"]
@@ -115,54 +116,6 @@ def _validate_request_schema(
         )
 
 
-def _runtime_ledger_preflight(kernel: Path, request: dict[str, Any]) -> None:
-    """Use only rc.2 immutable input types; valuation functions remain untouched."""
-
-    script = r"""
-import json
-import sys
-from owner_valuation.assumptions import AssumptionLedger
-from owner_valuation.contracts import validate_request
-from owner_valuation.facts import FactLedger
-
-payload = json.load(sys.stdin)
-validate_request(payload)
-ledger = FactLedger.from_dict(payload["fact_ledger"])
-assumptions = AssumptionLedger.from_dict(payload["assumption_ledger"], ledger)
-if ledger.to_dict() != payload["fact_ledger"]:
-    raise RuntimeError("FactLedger canonical bytes changed")
-json.dump({"fact_ledger_fingerprint": ledger.fingerprint,
-           "assumption_count": len(assumptions.assumptions)}, sys.stdout,
-          sort_keys=True, separators=(",", ":"))
-"""
-    environment = {
-        "PATH": os.environ.get("PATH", ""),
-        "PYTHONPATH": str(kernel / "src"),
-        "PYTHONDONTWRITEBYTECODE": "1",
-    }
-    try:
-        completed = subprocess.run(
-            [sys.executable, "-c", script],
-            input=canonical_json(request),
-            text=True,
-            capture_output=True,
-            check=True,
-            env=environment,
-            timeout=30,
-        )
-        replay = json.loads(completed.stdout)
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, json.JSONDecodeError) as exc:
-        raise FinalRequestCompilationError(
-            "pinned rc.2 input types rejected the compiled request"
-        ) from exc
-    if replay.get("fact_ledger_fingerprint") != canonical_sha256(
-        request["fact_ledger"]
-    ) or replay.get("assumption_count") != len(
-        request["assumption_ledger"]["assumptions"]
-    ):
-        raise FinalRequestCompilationError("pinned input-type fingerprints do not replay")
-
-
 @dataclass(frozen=True, slots=True)
 class FinalFactLedgerCompilationResult:
     policy_id: str
@@ -173,6 +126,9 @@ class FinalFactLedgerCompilationResult:
     current_share_projection: CurrentShareKernelProjection
     quote_projection_witness: KernelNumericProjectionWitness
     market_equity_projection_witness: KernelNumericProjectionWitness
+    market_provider_id: str
+    market_provider_receipt_id: str
+    market_provider_receipt_fingerprint: str
     added_source_ids: tuple[str, ...]
     added_fact_ids: tuple[str, ...]
     fact_ledger_payload: FrozenMap
@@ -192,6 +148,14 @@ class FinalFactLedgerCompilationResult:
         payload = freeze(self.fact_ledger_payload)
         if not added_sources or not added_facts:
             raise ValueError("final FactLedger did not append market lineage")
+        if not all(
+            (
+                self.market_provider_id,
+                self.market_provider_receipt_id,
+                self.market_provider_receipt_fingerprint,
+            )
+        ):
+            raise ValueError("final FactLedger lacks governed market-provider identity")
         object.__setattr__(self, "base_source_fingerprints", sources)
         object.__setattr__(self, "base_fact_fingerprints", facts)
         object.__setattr__(self, "added_source_ids", added_sources)
@@ -238,6 +202,8 @@ class FinalValuationRequestCompilationResult:
     valuation_date: str
     price_blind_input_fingerprint: str
     prepared_market_reference_fingerprint: str | None
+    company_name_fact_id: str | None
+    company_name_source_document_id: str | None
     fact_ledger_result: FinalFactLedgerCompilationResult | None
     assumption_ledger_result: FinalAssumptionLedgerCompilationResult | None
     request_payload: FrozenMap | None
@@ -257,22 +223,85 @@ class FinalValuationRequestCompilationResult:
                 or self.canonical_request_json is None
                 or self.request_sha256 is None
                 or self.prepared_market_reference_fingerprint is None
+                or self.company_name_fact_id is None
+                or self.company_name_source_document_id is None
                 or issues
                 or canonical_json(self.request_payload) != self.canonical_request_json
                 or canonical_sha256(self.request_payload) != self.request_sha256
             ):
                 raise ValueError("compiled valuation request is incomplete")
-        elif any(
-            item is not None
-            for item in (
-                self.fact_ledger_result,
-                self.assumption_ledger_result,
-                self.request_payload,
-                self.canonical_request_json,
-                self.request_sha256,
-                self.prepared_market_reference_fingerprint,
+            request = to_json_value(self.request_payload)
+            fact_payload = to_json_value(self.fact_ledger_result.fact_ledger_payload)
+            assumption_payload = to_json_value(
+                self.assumption_ledger_result.assumption_ledger_payload
             )
-        ) or not issues:
+            if (
+                canonical_json(request.get("fact_ledger")) != canonical_json(fact_payload)
+                or canonical_json(request.get("assumption_ledger"))
+                != canonical_json(assumption_payload)
+                or self.issuer_id != fact_payload.get("entity_id")
+                or self.valuation_date != fact_payload.get("valuation_date")
+            ):
+                raise ValueError("compiled valuation request does not bind its ledger receipts")
+            fact_index = {item["fact_id"]: item for item in fact_payload.get("facts", ())}
+            if len(fact_index) != len(fact_payload.get("facts", ())):
+                raise ValueError("compiled valuation request repeats a Fact ID")
+            current_share_id = (
+                self.fact_ledger_result.current_share_projection.current_share_fact_id
+            )
+            market_facts = tuple(
+                item
+                for fact_id in self.fact_ledger_result.added_fact_ids
+                if (item := fact_index.get(fact_id)) is not None
+                and item.get("concept") == "market_equity_value"
+            )
+            if (
+                current_share_id not in fact_index
+                or len(market_facts) != 1
+                or request.get("mckinsey", {})
+                .get("equity_bridge", {})
+                .get("share_denominator_fact_id")
+                != current_share_id
+                or request.get("penman", {}).get("market_equity_value_fact_id")
+                != market_facts[0]["fact_id"]
+                or tuple(market_facts[0].get("parent_fact_ids", ()))[-1:] != (current_share_id,)
+            ):
+                raise ValueError("compiled valuation request does not bind generated market Facts")
+            referenced_fact_ids = set(request.get("company", {}).get("source_fact_ids", ()))
+            referenced_fact_ids.update(
+                fact_id
+                for assessment in request.get("routing_assessments", {}).values()
+                for fact_id in assessment.get("source_fact_ids", ())
+            )
+            for adjustments in request.get("method_views", {}).values():
+                for adjustment in adjustments:
+                    referenced_fact_ids.update(
+                        (
+                            adjustment.get("target_fact_id"),
+                            adjustment.get("amount_fact_id"),
+                        )
+                    )
+            referenced_fact_ids.discard(None)
+            if not referenced_fact_ids.issubset(fact_index):
+                raise ValueError(
+                    "compiled valuation request contains dangling governed Fact bindings"
+                )
+        elif (
+            any(
+                item is not None
+                for item in (
+                    self.fact_ledger_result,
+                    self.assumption_ledger_result,
+                    self.request_payload,
+                    self.canonical_request_json,
+                    self.request_sha256,
+                    self.prepared_market_reference_fingerprint,
+                    self.company_name_fact_id,
+                    self.company_name_source_document_id,
+                )
+            )
+            or not issues
+        ):
             raise ValueError("non-compiled valuation request promoted an artifact")
         object.__setattr__(
             self,
@@ -301,6 +330,8 @@ def _noncompiled(
         valuation_date=preparation.data_cutoff_date,
         price_blind_input_fingerprint=preparation.price_blind_input_fingerprint,
         prepared_market_reference_fingerprint=None,
+        company_name_fact_id=None,
+        company_name_source_document_id=None,
         fact_ledger_result=None,
         assumption_ledger_result=None,
         request_payload=None,
@@ -331,24 +362,72 @@ def _append_by_id(
     return [index[key] for key in sorted(index)], tuple(sorted(added))
 
 
-def _market_source(prepared: PreparedMarketReference) -> dict[str, Any]:
+def _governed_market_authority(prepared: PreparedMarketReference) -> dict[str, str]:
+    snapshot = prepared.snapshot
+    contexts = tuple(
+        item
+        for item in prepared.graph.market_reference_validation_contexts
+        if item.market_access_result.fingerprint == snapshot.market_access_result_fingerprint
+    )
+    if len(contexts) != 1:
+        raise FinalRequestCompilationError("market reference lacks one matched validation context")
+    context = contexts[0]
+    access = context.market_access_result
+    request = access.request
+    governed = access.receipt
+    if request is None or governed is None:
+        raise FinalRequestCompilationError("market validation context is incomplete")
+    receipt = governed.receipt
+    snapshot_request = snapshot.market_quote_request
+    snapshot_receipt = snapshot.governed_market_quote_receipt
+    if (
+        request.request_id != snapshot_request["request_id"]
+        or request.request_fingerprint != snapshot_request["request_fingerprint"]
+        or receipt.receipt_id != snapshot_receipt["receipt_id"]
+        or governed.fingerprint != snapshot_receipt["receipt_fingerprint"]
+        or request.provider_id != receipt.provider_id
+        or request.security_id != snapshot.security["security_id"]
+        or receipt.security_id != snapshot.security["security_id"]
+        or request.authorization_handoff_id != snapshot.authorization_handoff_id
+        or receipt.authorization_handoff_id != snapshot.authorization_handoff_id
+        or request.data_cutoff_date != snapshot.data_cutoff_date
+        or receipt.data_cutoff_date != snapshot.data_cutoff_date
+    ):
+        raise FinalRequestCompilationError(
+            "market provider identity does not replay the validated Snapshot"
+        )
+    if not request.provider_id.strip() or not request.price_basis.strip():
+        raise FinalRequestCompilationError("market provider identity is empty")
+    return {
+        "provider_id": request.provider_id,
+        "price_basis": request.price_basis,
+        "receipt_id": receipt.receipt_id,
+        "receipt_fingerprint": governed.fingerprint,
+    }
+
+
+def _market_source(
+    prepared: PreparedMarketReference,
+    authority: dict[str, str],
+) -> dict[str, Any]:
     document = prepared.market_source
     if (
         document.document_id != prepared.snapshot.quote_source_document_id
         or document.authority_level != "market_reference"
-        or document.content_sha256
-        != prepared.snapshot.raw_evidence["raw_response_sha256"]
+        or document.content_sha256 != prepared.snapshot.raw_evidence["raw_response_sha256"]
     ):
         raise FinalRequestCompilationError("market SourceDocument does not replay Snapshot")
+    security_id = prepared.snapshot.security["security_id"]
     return {
         "source_id": document.document_id,
-        "title": f"Reviewed market close ({document.document_type})",
-        "publisher": document.issuer_id,
+        "title": (
+            f"{authority['provider_id']} {authority['price_basis']} "
+            f"for {security_id} on {prepared.snapshot.trading_date}"
+        ),
+        "publisher": authority["provider_id"],
         "published_date": document.published_date,
         "retrieved_at": document.retrieved_at,
-        "locator": (
-            f"document_id={document.document_id};content_sha256={document.content_sha256}"
-        ),
+        "locator": (f"document_id={document.document_id};content_sha256={document.content_sha256}"),
         "url": document.source_url,
         "local_path": None,
         "primary": False,
@@ -384,9 +463,12 @@ def _market_facts(
         projected_value=projected_market_value,
         scale_divisor=Decimal(1_000_000),
     )
-    if market_decimal != quote_decimal * Decimal(snapshot.share_basis[
-        "current_common_shares_outstanding_decimal"
-    ]):
+    authoritative_market_equity = _exact_decimal_multiply(
+        quote_decimal,
+        Decimal(snapshot.share_basis["current_common_shares_outstanding_decimal"]),
+        "authoritative market equity",
+    )
+    if market_decimal != authoritative_market_equity:
         raise FinalRequestCompilationError("authoritative market-equity Decimal changed")
     quote = prepared.quote_fact
     if (
@@ -450,6 +532,43 @@ def _market_facts(
     return quote_fact, market_fact, quote_witness, market_witness
 
 
+def _validate_price_blind_base_ledger(
+    base_ledger: dict[str, Any],
+    prepared: PreparedMarketReference,
+) -> None:
+    forbidden_concepts = {
+        "market_price_per_current_common_share",
+        "market_equity_value",
+    }
+    sources = tuple(base_ledger["sources"])
+    source_ids = tuple(str(item["source_id"]) for item in sources)
+    source_id_set = set(source_ids)
+    if len(source_ids) != len(source_id_set):
+        raise FinalRequestCompilationError("price-blind FactLedger repeats a SourceRef")
+    market_source_id = prepared.market_source.document_id
+    if market_source_id in source_id_set:
+        raise FinalRequestCompilationError(
+            "price-blind FactLedger already contains the governed market source"
+        )
+    facts = tuple(base_ledger["facts"])
+    fact_ids = tuple(str(item["fact_id"]) for item in facts)
+    if len(fact_ids) != len(set(fact_ids)):
+        raise FinalRequestCompilationError("price-blind FactLedger repeats a Fact")
+    for item in facts:
+        if (
+            item.get("concept") in forbidden_concepts
+            or item.get("category") == "market_price"
+            or item.get("source_id") == market_source_id
+        ):
+            raise FinalRequestCompilationError(
+                "price-blind FactLedger contains market-price lineage"
+            )
+        if item.get("source_id") not in source_id_set:
+            raise FinalRequestCompilationError(
+                "price-blind FactLedger contains dangling source lineage"
+            )
+
+
 def _compile_fact_ledger(
     *,
     base_ledger: dict[str, Any],
@@ -464,12 +583,14 @@ def _compile_fact_ledger(
         raise FinalRequestCompilationError(
             "market reference and price-blind FactLedger identity/date/currency differ"
         )
+    _validate_price_blind_base_ledger(base_ledger, prepared)
     projection = project_current_share_lineage(prepared)
     if projection.status == "specialist_required":
         raise FinalRequestCompilationError("current-share lineage requires specialist routing")
     if projection.status != "eligible":
         raise FinalRequestCompilationError("current-share lineage is not kernel eligible")
     reporting_currency = str(base_ledger["reporting_currency"])
+    market_authority = _governed_market_authority(prepared)
     quote, market, quote_witness, market_witness = _market_facts(
         prepared,
         projection,
@@ -489,7 +610,7 @@ def _compile_fact_ledger(
         projected_sources,
         field="source_id",
     )
-    market_source = _market_source(prepared)
+    market_source = _market_source(prepared, market_authority)
     sources, market_source_ids = _append_by_id(
         sources,
         (market_source,),
@@ -523,6 +644,9 @@ def _compile_fact_ledger(
         current_share_projection=projection,
         quote_projection_witness=quote_witness,
         market_equity_projection_witness=market_witness,
+        market_provider_id=market_authority["provider_id"],
+        market_provider_receipt_id=market_authority["receipt_id"],
+        market_provider_receipt_fingerprint=market_authority["receipt_fingerprint"],
         added_source_ids=(*share_source_ids, *market_source_ids),
         added_fact_ids=(*share_fact_ids, *market_fact_ids),
         fact_ledger_payload=freeze(payload),
@@ -534,6 +658,37 @@ def _compile_assumption_ledger(
     final_fact_ledger: dict[str, Any],
 ) -> FinalAssumptionLedgerCompilationResult:
     assumptions_before = to_json_value(base["assumptions"])
+    assumption_ids = tuple(str(item.get("assumption_id", "")) for item in assumptions_before)
+    if (
+        any(not identifier for identifier in assumption_ids)
+        or len(assumption_ids) != len(set(assumption_ids))
+        or assumption_ids != tuple(sorted(assumption_ids))
+    ):
+        raise FinalRequestCompilationError(
+            "AssumptionLedger entries are not uniquely sorted by assumption_id"
+        )
+    normalized_entries: list[dict[str, Any]] = []
+    for item in assumptions_before:
+        value = item.get("value")
+        try:
+            projected = float(value)
+        except (OverflowError, TypeError, ValueError) as exc:
+            raise FinalRequestCompilationError(
+                "AssumptionLedger value is not a finite rc.2 number"
+            ) from exc
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(projected)
+        ):
+            raise FinalRequestCompilationError("AssumptionLedger value is not a finite rc.2 number")
+        normalized = dict(item)
+        normalized["value"] = projected
+        normalized_entries.append(normalized)
+    if canonical_json(assumptions_before) != canonical_json(normalized_entries):
+        raise FinalRequestCompilationError(
+            "AssumptionLedger entries are not in canonical rc.2 representation"
+        )
     entries_sha = canonical_sha256(assumptions_before)
     final_fingerprint = canonical_sha256(final_fact_ledger)
     payload = {
@@ -551,10 +706,103 @@ def _compile_assumption_ledger(
     )
 
 
-def _request_company(phase5c: dict[str, Any], prepared: PreparedMarketReference) -> dict[str, Any]:
-    classification = phase5c["reconciliation_result"]["phase5b_readiness_result"][
-        "classification"
+def _bound_research_bundle_closure(
+    prepared: PreparedMarketReference,
+) -> dict[str, tuple[str, Any]]:
+    snapshot = prepared.snapshot
+    handoffs = tuple(
+        item
+        for item in prepared.graph.valuation_handoffs
+        if item.handoff_id == snapshot.authorization_handoff_id
+    )
+    if len(handoffs) != 1:
+        raise FinalRequestCompilationError("company identity lacks one authorization Handoff")
+    handoff = handoffs[0]
+    bundles = tuple(
+        item
+        for item in prepared.graph.research_bundles
+        if item.bundle_id == handoff.research_bundle_id
+    )
+    if len(bundles) != 1:
+        raise FinalRequestCompilationError("company identity lacks one bound ResearchBundle")
+    bundle = bundles[0]
+    if (
+        handoff.issuer_id != snapshot.issuer_id
+        or handoff.data_cutoff_date != snapshot.data_cutoff_date
+        or bundle.issuer_id != snapshot.issuer_id
+        or bundle.data_cutoff_date != snapshot.data_cutoff_date
+        or handoff.research_bundle_fingerprint != bundle.bundle_fingerprint
+        or handoff.research_bundle_dependency_sha256 != bundle.dependency_closure_sha256
+        or handoff.component_lock_sha256 != snapshot.component_lock_sha256
+    ):
+        raise FinalRequestCompilationError(
+            "company identity ResearchBundle binding does not replay"
+        )
+    roots = tuple(
+        object_id for reference in bundle.module_references for object_id in reference["object_ids"]
+    )
+    try:
+        closure = dependency_closure(prepared.graph, roots)
+    except ResearchBundleValidationError as exc:
+        raise FinalRequestCompilationError(
+            "company identity ResearchBundle dependency closure is invalid"
+        ) from exc
+    closure_entries = [
+        (kind, identifier, item.fingerprint) for identifier, (kind, item) in closure.items()
     ]
+    if dependency_closure_sha256(closure_entries) != bundle.dependency_closure_sha256:
+        raise FinalRequestCompilationError(
+            "company identity ResearchBundle dependency hash does not replay"
+        )
+    return closure
+
+
+def _governed_company_name(
+    prepared: PreparedMarketReference,
+) -> tuple[str, str, str]:
+    snapshot = prepared.snapshot
+    closure = _bound_research_bundle_closure(prepared)
+    documents = {item.document_id: item for item in prepared.graph.documents}
+    candidates: list[tuple[Any, Any]] = []
+    for fact in prepared.graph.facts:
+        document = documents.get(fact.source_document_id)
+        if (
+            fact.issuer_id == snapshot.issuer_id
+            and fact.concept == "issuer_legal_name"
+            and fact.value_type == "text"
+            and isinstance(fact.value, str)
+            and fact.derivation is None
+            and not fact.parent_fact_ids
+            and fact.confidence in {"high", "medium"}
+            and fact.period["end"] is not None
+            and fact.period["end"] <= snapshot.data_cutoff_date
+            and document is not None
+            and document.issuer_id == snapshot.issuer_id
+            and document.authority_level in {"primary_regulatory", "company_primary"}
+            and document.published_date <= snapshot.data_cutoff_date
+            and _source_is_registered(document)
+            and closure.get(fact.fact_id) == ("Fact", fact)
+            and closure.get(document.document_id) == ("SourceDocument", document)
+        ):
+            candidates.append((fact, document))
+    if len(candidates) != 1:
+        raise FinalRequestCompilationError("company legal name lacks one official cutoff-safe Fact")
+    fact, document = candidates[0]
+    canonical_name = unicodedata.normalize("NFC", fact.value)
+    if (
+        canonical_name != fact.value
+        or canonical_name != " ".join(canonical_name.split())
+        or not canonical_name
+    ):
+        raise FinalRequestCompilationError("company legal name is not canonical text")
+    return canonical_name, fact.fact_id, document.document_id
+
+
+def _request_company(
+    phase5c: dict[str, Any],
+    prepared: PreparedMarketReference,
+) -> tuple[dict[str, Any], str, str]:
+    classification = phase5c["reconciliation_result"]["phase5b_readiness_result"]["classification"]
     if (
         classification["specialist_route"] != "none"
         or classification["company_type"] != "nonfinancial_operating_company"
@@ -563,28 +811,27 @@ def _request_company(phase5c: dict[str, Any], prepared: PreparedMarketReference)
     source_fact_ids = tuple(sorted(classification["mapped_fact_ids"]))
     if not source_fact_ids:
         raise FinalRequestCompilationError("company classification lacks mapped evidence")
-    return {
-        "name": prepared.snapshot.issuer_id,
-        "type": classification["company_type"],
-        "classification_rationale": classification["rationale"],
-        "source_fact_ids": list(source_fact_ids),
-    }
+    legal_name, legal_name_fact_id, legal_name_source_id = _governed_company_name(prepared)
+    return (
+        {
+            "name": legal_name,
+            "type": classification["company_type"],
+            "classification_rationale": classification["rationale"],
+            "source_fact_ids": list(source_fact_ids),
+        },
+        legal_name_fact_id,
+        legal_name_source_id,
+    )
 
 
-def _request_routing(
-    phase5c: dict[str, Any], assumptions: dict[str, Any]
-) -> dict[str, Any]:
+def _request_routing(phase5c: dict[str, Any], assumptions: dict[str, Any]) -> dict[str, Any]:
     if phase5c["specialist_route"] != "none" or any(
         phase5c["method_panels"][method]["status"] != "ready_for_phase5d"
         for method in ("mckinsey", "penman")
     ):
         raise FinalRequestCompilationError("Phase 5C is not ready for the core dual panel")
     assumption_fact_ids = sorted(
-        {
-            fact_id
-            for item in assumptions["assumptions"]
-            for fact_id in item["source_fact_ids"]
-        }
+        {fact_id for item in assumptions["assumptions"] for fact_id in item["source_fact_ids"]}
     )
     if not assumption_fact_ids:
         raise FinalRequestCompilationError("near-term assumptions lack source Facts")
@@ -615,15 +862,14 @@ def _request_routing(
     return output
 
 
-def _request_accounting(
-    phase5c: dict[str, Any], final_ledger: dict[str, Any]
-) -> dict[str, Any]:
+def _request_accounting(phase5c: dict[str, Any], final_ledger: dict[str, Any]) -> dict[str, Any]:
     checks = phase5c["reconciliation_result"]["checks"]
     balance = checks["balance_sheet"]
     clean = checks["clean_surplus"]
-    if balance["status"] != "reconciles_independently" or clean[
-        "status"
-    ] != "reconciles_independently":
+    if (
+        balance["status"] != "reconciles_independently"
+        or clean["status"] != "reconciles_independently"
+    ):
         raise FinalRequestCompilationError("accounting checks are not independently reconciled")
     quality = phase5c["quality_result"]
     if any(quality["status_by_method"][method] != "pass" for method in ("mckinsey", "penman")):
@@ -678,8 +924,7 @@ def _request_accounting(
         and ledger_facts[fact_id]["period_start"] is None
         and ledger_facts[fact_id]["period_end"] is None
         and ledger_facts[fact_id]["currency"] == final_ledger["reporting_currency"]
-        and ledger_facts[fact_id]["unit"]
-        == f"{final_ledger['reporting_currency']} millions"
+        and ledger_facts[fact_id]["unit"] == f"{final_ledger['reporting_currency']} millions"
     )
     if len(total_liabilities) != 1:
         raise FinalRequestCompilationError(
@@ -697,8 +942,7 @@ def _request_accounting(
         len({item["as_of_date"] for item in balance_facts}) != 1
         or any(item["period_start"] is not None for item in balance_facts)
         or any(item["period_end"] is not None for item in balance_facts)
-        or {item["currency"] for item in balance_facts}
-        != {final_ledger["reporting_currency"]}
+        or {item["currency"] for item in balance_facts} != {final_ledger["reporting_currency"]}
         or {item["unit"] for item in balance_facts}
         != {f"{final_ledger['reporting_currency']} millions"}
     ):
@@ -712,15 +956,11 @@ def _request_accounting(
             "equity_fact_id": balance["role_fact_ids"]["common_equity"],
         },
         "clean_surplus": {
-            "beginning_equity_fact_id": clean["role_fact_ids"][
-                "beginning_common_equity"
-            ],
+            "beginning_equity_fact_id": clean["role_fact_ids"]["beginning_common_equity"],
             "comprehensive_income_fact_id": clean["role_fact_ids"][
                 "comprehensive_income_attributable_to_common"
             ],
-            "net_distributions_fact_id": clean["role_fact_ids"][
-                "net_distributions_to_owners"
-            ],
+            "net_distributions_fact_id": clean["role_fact_ids"]["net_distributions_to_owners"],
             "ending_equity_fact_id": clean["role_fact_ids"]["ending_common_equity"],
         },
         "quality_issues": issues,
@@ -765,37 +1005,31 @@ def _validate_forecast_axis(
 
     anchor = date.fromisoformat(valuation_date)
 
-    def anniversary(offset: int) -> date:
-        try:
-            return anchor.replace(year=anchor.year + offset)
-        except ValueError:
-            # A February 29 valuation date uses the last valid day in later
-            # non-leap years; the rule is deterministic and price blind.
-            return anchor.replace(year=anchor.year + offset, day=28)
-
     def annual_axis(
         rows: list[dict[str, Any]],
         label: str,
         *,
-        first_offset: int,
+        start: date,
     ) -> tuple[str, ...]:
         if not rows:
             raise FinalRequestCompilationError(f"{label} forecast is empty")
+        previous = start
         values: list[str] = []
-        for index, row in enumerate(rows, start=first_offset):
+        for row in rows:
             current = date.fromisoformat(row["period_end"])
-            if current != anniversary(index):
+            if not 360 <= (current - previous).days <= 373:
                 raise FinalRequestCompilationError(
                     f"{label} forecast is not based on the final valuation-date annual axis"
                 )
             values.append(current.isoformat())
+            previous = current
         return tuple(values)
 
     scenario_axes = {
         annual_axis(
             list(item["forecast"]),
             f"McKinsey {item['name']}",
-            first_offset=1,
+            start=anchor,
         )
         for item in mckinsey_scenarios
     }
@@ -804,7 +1038,7 @@ def _validate_forecast_axis(
     penman_axis = annual_axis(
         list(penman_payload["forecast"]),
         "Penman",
-        first_offset=1,
+        start=anchor,
     )
     mckinsey_axis = next(iter(scenario_axes))
     if penman_axis != mckinsey_axis[: len(penman_axis)]:
@@ -812,7 +1046,7 @@ def _validate_forecast_axis(
     annual_axis(
         list(penman_payload["market_challenge_path"]),
         "Penman challenge",
-        first_offset=len(penman_axis) + 1,
+        start=date.fromisoformat(penman_axis[-1]),
     )
 
 
@@ -824,15 +1058,13 @@ def _compile_from_artifact(
 ) -> FinalValuationRequestCompilationResult:
     """Compile from a replayed artifact; kept internal for deterministic tests."""
 
-    kernel, schemas = _verify_kernel(kernel_repository)
+    _kernel, schemas = _verify_kernel(kernel_repository)
     snapshot = prepared.snapshot
     if (
         artifact["issuer_id"] != snapshot.issuer_id
         or artifact["data_cutoff_date"] != snapshot.data_cutoff_date
-        or artifact["price_blind_input_fingerprint"]
-        != snapshot.price_blind_input_fingerprint
-        or artifact["protected_mckinsey_sha256"]
-        != snapshot.protected_mckinsey_sha256
+        or artifact["price_blind_input_fingerprint"] != snapshot.price_blind_input_fingerprint
+        or artifact["protected_mckinsey_sha256"] != snapshot.protected_mckinsey_sha256
         or artifact["protected_penman_assumptions_sha256"]
         != snapshot.protected_penman_assumptions_sha256
         or artifact["component_lock_sha256"] != snapshot.component_lock_sha256
@@ -866,12 +1098,14 @@ def _compile_from_artifact(
         fact_id
         for fact_id in fact_result.added_fact_ids
         if fact_id.startswith("derived:")
-        and next(item for item in final_ledger["facts"] if item["fact_id"] == fact_id)[
-            "concept"
-        ]
+        and next(item for item in final_ledger["facts"] if item["fact_id"] == fact_id)["concept"]
         == "market_equity_value"
     )
     bridge = phase5c["equity_bridge_result"]
+    company, company_name_fact_id, company_name_source_id = _request_company(
+        phase5c,
+        prepared,
+    )
     _validate_forecast_axis(
         valuation_date=final_ledger["valuation_date"],
         mckinsey_scenarios=mckinsey["scenario_payload"]["scenarios"],
@@ -883,14 +1117,12 @@ def _compile_from_artifact(
         "share_unit": _MODEL_SHARE_UNIT,
         "fact_ledger": final_ledger,
         "assumption_ledger": final_assumptions,
-        "company": _request_company(phase5c, prepared),
+        "company": company,
         "routing_assessments": _request_routing(phase5c, final_assumptions),
         "accounting_checks": _request_accounting(phase5c, final_ledger),
         "method_views": _request_method_views(phase5c),
         "mckinsey": {
-            "base_invested_capital_fact_id": mckinsey[
-                "base_invested_capital_fact_id"
-            ],
+            "base_invested_capital_fact_id": mckinsey["base_invested_capital_fact_id"],
             "scenarios": mckinsey["scenario_payload"]["scenarios"],
             "equity_bridge": {
                 "share_denominator_fact_id": current_fact_id,
@@ -905,9 +1137,7 @@ def _compile_from_artifact(
         "penman": {
             "current_noa_fact_id": penman["current_noa_fact_id"],
             "market_equity_value_fact_id": market_fact_id,
-            "net_financial_obligations_fact_id": penman[
-                "net_financial_obligations_fact_id"
-            ],
+            "net_financial_obligations_fact_id": penman["net_financial_obligations_fact_id"],
             **penman["penman_payload"],
         },
     }
@@ -918,13 +1148,14 @@ def _compile_from_artifact(
     ):
         raise FinalRequestCompilationError("McKinsey and Penman use different share Facts")
     _validate_request_schema(request, schemas)
-    _runtime_ledger_preflight(kernel, request)
     return FinalValuationRequestCompilationResult(
         status="compiled",
         issuer_id=snapshot.issuer_id,
         valuation_date=snapshot.trading_date,
         price_blind_input_fingerprint=artifact["price_blind_input_fingerprint"],
         prepared_market_reference_fingerprint=prepared.fingerprint,
+        company_name_fact_id=company_name_fact_id,
+        company_name_source_document_id=company_name_source_id,
         fact_ledger_result=fact_result,
         assumption_ledger_result=assumption_result,
         request_payload=freeze(request),
@@ -946,9 +1177,7 @@ def compile_final_valuation_request(
         return _noncompiled(
             preparation=preparation,
             status=(
-                "specialist_required"
-                if preparation.status == "specialist_required"
-                else "blocked"
+                "specialist_required" if preparation.status == "specialist_required" else "blocked"
             ),
             issue="preparation_not_ready",
         )
@@ -957,10 +1186,8 @@ def compile_final_valuation_request(
     if (
         preparation.issuer_id != artifact["issuer_id"]
         or preparation.data_cutoff_date != artifact["data_cutoff_date"]
-        or preparation.price_blind_input_fingerprint
-        != artifact["price_blind_input_fingerprint"]
-        or prepared.snapshot.authorization_handoff_id
-        != expected_freeze.handoffs[-1].handoff_id
+        or preparation.price_blind_input_fingerprint != artifact["price_blind_input_fingerprint"]
+        or prepared.snapshot.authorization_handoff_id != expected_freeze.handoffs[-1].handoff_id
         or prepared.snapshot.authorization_handoff_fingerprint
         != expected_freeze.handoffs[-1].fingerprint
     ):
