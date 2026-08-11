@@ -217,7 +217,9 @@ def verify_kernel_runtime_snapshot(
     if not isinstance(kernel, dict):
         return VerificationResult(("Kernel component-lock identity is not an object",))
     if _canonical_payload_sha256(kernel) != _PINNED_KERNEL_LOCK_CANONICAL_SHA256:
-        errors.append("Kernel component-lock identity drifted from pinned rc.2")
+        return VerificationResult(
+            ("Kernel component-lock identity drifted from pinned rc.2",)
+        )
     if lock.get("lock_version") != "1.2.0":
         errors.append("Kernel runtime requires component-lock 1.2.0")
     if runtime.get("authority_version") != "1.0.0":
@@ -273,6 +275,7 @@ def verify_kernel_runtime_snapshot(
         != _PINNED_RUNTIME_AUTHORITY_CANONICAL_SHA256
     ):
         errors.append("Kernel runtime authority drifted from its closed 1.0.0 payload")
+        return VerificationResult(tuple(errors))
     authority_kernel = authority["kernel"]
 
     if authority.get("schema_version") != runtime.get("authority_version"):

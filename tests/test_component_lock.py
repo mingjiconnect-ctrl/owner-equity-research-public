@@ -167,6 +167,8 @@ def test_kernel_runtime_snapshot_rejects_duplicate_lock_keys() -> None:
     ("section", "field", "replacement"),
     (
         ("build", "backend", "unregistered.backend"),
+        ("kernel", "schema_sha256", []),
+        ("runtime", "python_minors", [[]]),
         ("container", "cap_drop", []),
     ),
 )
