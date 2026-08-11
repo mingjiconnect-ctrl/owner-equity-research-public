@@ -34,8 +34,8 @@ REQUIRED_CHECKS = [
     "phase5/semantic-audit",
 ]
 PRIORITIES = ("P0", "P1", "P2", "P3")
-VERIFY_JOB_CANONICAL_SHA256 = "4446a3ab6429108ff84ad51363f881af852ea4e454a39d5fc34d96fe3aacf885"
-CI_WORKFLOW_SHA256 = "c360729fe377a7b1abd8aaa6c93b0098f0e8f2fef7552c6a32c46acaa0f8b44f"
+VERIFY_JOB_CANONICAL_SHA256 = "578a72460d21ffff385e966ae104f4e44f64d6df08d2c4b5207b2e782c2f633e"
+CI_WORKFLOW_SHA256 = "9dd935b5e32934b40972016aa041dc8757ebdce8335722eba27805549cbafe61"
 ACTIVE_WORKFLOW_NAMES = {"ci.yml", "phase5e2b12a-acceptance-gate.yml"}
 ACTIVE_WORKFLOW_SHA256 = {
     "ci.yml": CI_WORKFLOW_SHA256,
@@ -364,6 +364,8 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
                 "--no-cache-dir",
                 "/usr/bin/docker pull --platform linux/amd64",
                 'test "$(command -v docker)" = /usr/bin/docker',
+                "--entrypoint=/bin/sh",
+                '-ceu \'test "$(command -v git)" = /usr/bin/git\'',
                 "candidate-tree=$candidate_tree",
             )
         )
@@ -428,16 +430,76 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
         or not all(
             marker in test_run
             for marker in (
-                "unshare --user --map-root-user --mount --net --pid --fork --kill-child",
+                "/usr/bin/sudo -n /usr/bin/unshare",
+                "--mount --net --pid --fork --kill-child --mount-proc",
+                "candidate_uid=65534",
+                "candidate_gid=65534",
+                ': > "$private_root/stage.stdout"',
+                ': > "$private_root/stage.stderr"',
+                ': > "$private_root/container.stdout"',
+                ': > "$private_root/container.stderr"',
+                'test "$host_uid" -gt 0 && test "$host_gid" -gt 0',
+                'test "$candidate_uid" -ne "$host_uid"',
+                "test -x /usr/bin/setpriv",
+                'test "$(id -u)" -eq 0',
+                "mount --make-rprivate /",
+                'test "$(readlink -f /var/run)" = /run',
                 "mount -t tmpfs -o mode=0755,nosuid,nodev,noexec tmpfs /run",
-                "mount --bind /dev/null /usr/bin/docker",
+                "for privileged_channel in /usr/bin/docker /usr/bin/sudo",
+                'mount --bind /dev/null "$privileged_channel"',
+                'find "$kernel_checkout" -xdev',
+                "-type f -links +1",
+                'chown -R --no-dereference "$candidate_uid:$candidate_gid" '
+                '"$kernel_checkout"',
+                '! -user "$candidate_uid"',
+                '! -group "$candidate_gid"',
+                '/usr/bin/git config --file "$private_root/home/.gitconfig"',
+                '--add safe.directory "$workspace"',
+                '--add safe.directory "$kernel_checkout"',
+                'chown -R --no-dereference "$candidate_uid:$candidate_gid"',
+                '"$private_root/venv"',
+                '"$private_root/kernel-cas"',
+                'chmod 0711 "$private_root"',
+                'chmod 0755 "$private_root/output"',
+                "stat -c '%u:%g:%a' \"$private_root\"",
+                "stat -c '%u:%g:%a:%h' \"$protected_path\"",
+                "/usr/bin/setpriv",
+                '--reuid="$candidate_uid"',
+                '--regid="$candidate_gid"',
+                "--clear-groups",
+                "--inh-caps=-all",
+                "--ambient-caps=-all",
+                "--bounding-set=-all",
+                "--no-new-privs",
+                'test ! -w "$private_root"',
                 "test ! -x /usr/bin/docker",
+                "test ! -x /usr/bin/sudo",
                 "test ! -S /var/run/docker.sock",
-                "env -i",
+                "test ! -S /run/docker.sock",
+                "/usr/bin/env -i",
+                'GIT_CONFIG_GLOBAL="$private_root/home/.gitconfig"',
+                "GIT_CONFIG_COUNT=2",
+                "GIT_CONFIG_GLOBAL=/dev/null",
+                "GIT_CONFIG_KEY_0=safe.directory",
+                "GIT_CONFIG_KEY_1=safe.directory",
+                "GIT_CONFIG_NOSYSTEM=1",
+                "GIT_CONFIG_VALUE_0=/workspace",
+                "GIT_CONFIG_VALUE_1=/private-kernel",
+                "GIT_OPTIONAL_LOCKS=0",
+                'test "$(command -v git)" = /usr/bin/git',
+                'git -C "$workspace" rev-parse --show-toplevel',
+                "git -C /private-kernel rev-parse --show-toplevel",
+                "CapInh CapPrm CapEff CapBnd CapAmb",
+                'NoNewPrivs:/ {print $2}',
+                'test "${network_interfaces[*]}" = lo',
+                'test "$(wc -l < /proc/net/route)" -eq 1',
+                'findmnt -n -o OPTIONS --target "$workspace"',
+                'findmnt -n -o OPTIONS --target "$kernel_checkout"',
                 "PIP_NO_INDEX=1",
                 "--no-index",
                 "--no-isolation",
                 "/usr/bin/docker run --rm --interactive --pull=never",
+                '--user="$candidate_uid:$candidate_gid"',
                 "--platform=linux/amd64",
                 "--network=none",
                 "--read-only",
@@ -464,7 +526,11 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
         or any(
             marker in test_run
             for marker in (
-                "sudo unshare",
+                "unshare --user",
+                "--map-root-user",
+                "--init-groups",
+                '--reuid="$host_uid"',
+                '--regid="$host_gid"',
                 "docker pull",
                 "OWNER_RESEARCH_KERNEL_PYTHON",
                 "OWNER_RESEARCH_TRUSTED_CONTAINER_ATTESTATION=/",
@@ -474,10 +540,31 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
                 "GITHUB_STEP_SUMMARY",
                 "--mount=/var/run/docker.sock",
                 "src=/var/run/docker.sock",
+                'chown -R --no-dereference "$candidate_uid:$candidate_gid" "$private_root"',
+                'chown --no-dereference "$candidate_uid:$candidate_gid" "$private_root"',
+                'chown -R --no-dereference "$candidate_uid:$candidate_gid" "$workspace"',
+                'chown --no-dereference "$candidate_uid:$candidate_gid" "$workspace"',
             )
         )
+        or test_run.count(
+            "for protected_log in stage.stdout stage.stderr container.stdout "
+            "container.stderr; do"
+        )
+        != 2
     ):
         return [Finding("P1", code, "candidate verification is not pinned and netless")]
+    if (
+        test_run.index("mount --make-rprivate /")
+        >= test_run.index("exec /usr/bin/setpriv")
+        or test_run.index(
+            'chown -R --no-dereference "$candidate_uid:$candidate_gid" '
+            '"$kernel_checkout"'
+        )
+        >= test_run.index('mount --bind "$kernel_checkout" "$kernel_checkout"')
+        or test_run.index("exec /usr/bin/setpriv")
+        >= test_run.index('"$runner_python" -I "$validator"')
+    ):
+        return [Finding("P1", code, "candidate code can run before the privilege drop")]
     sanitize_run = sanitize.get("run") if isinstance(sanitize, dict) else None
     if (
         set(sanitize) != {"name", "id", "if", "shell", "run"}

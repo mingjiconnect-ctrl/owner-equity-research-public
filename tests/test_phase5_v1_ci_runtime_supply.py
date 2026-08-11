@@ -134,6 +134,8 @@ def test_private_runtime_supply_and_containment_order_is_closed() -> None:
         "setuptools==80.9.0",
         "hatchling==1.27.0",
         "/usr/bin/docker pull --platform linux/amd64",
+        "--entrypoint=/bin/sh",
+        '-ceu \'test "$(command -v git)" = /usr/bin/git\'',
         'if [[ "$minor" == 3.11 ]]; then',
     ):
         assert marker in prefetch_run
@@ -168,17 +170,77 @@ def test_private_runtime_supply_and_containment_order_is_closed() -> None:
 
     candidate_run = steps[candidate]["run"]
     for marker in (
-        "unshare --user --map-root-user --mount --net --pid --fork --kill-child",
+        "/usr/bin/sudo -n /usr/bin/unshare",
+        "--mount --net --pid --fork --kill-child --mount-proc",
+        "candidate_uid=65534",
+        "candidate_gid=65534",
+        ': > "$private_root/stage.stdout"',
+        ': > "$private_root/stage.stderr"',
+        ': > "$private_root/container.stdout"',
+        ': > "$private_root/container.stderr"',
+        'test "$host_uid" -gt 0 && test "$host_gid" -gt 0',
+        'test "$candidate_uid" -ne "$host_uid"',
+        "test -x /usr/bin/setpriv",
+        'test "$(id -u)" -eq 0',
+        "mount --make-rprivate /",
+        'test "$(readlink -f /var/run)" = /run',
         "mount -t tmpfs -o mode=0755,nosuid,nodev,noexec tmpfs /run",
-        "mount --bind /dev/null /usr/bin/docker",
+        "for privileged_channel in /usr/bin/docker /usr/bin/sudo",
+        'mount --bind /dev/null "$privileged_channel"',
+        'find "$kernel_checkout" -xdev',
+        "-type f -links +1",
+        'chown -R --no-dereference "$candidate_uid:$candidate_gid" '
+        '"$kernel_checkout"',
+        '! -user "$candidate_uid"',
+        '! -group "$candidate_gid"',
+        '/usr/bin/git config --file "$private_root/home/.gitconfig"',
+        '--add safe.directory "$workspace"',
+        '--add safe.directory "$kernel_checkout"',
+        'chown -R --no-dereference "$candidate_uid:$candidate_gid"',
+        '"$private_root/venv"',
+        '"$private_root/kernel-cas"',
+        'chmod 0711 "$private_root"',
+        'chmod 0755 "$private_root/output"',
+        "stat -c '%u:%g:%a' \"$private_root\"",
+        "stat -c '%u:%g:%a:%h' \"$protected_path\"",
+        "/usr/bin/setpriv",
+        '--reuid="$candidate_uid"',
+        '--regid="$candidate_gid"',
+        "--clear-groups",
+        "--inh-caps=-all",
+        "--ambient-caps=-all",
+        "--bounding-set=-all",
+        "--no-new-privs",
+        'test ! -w "$private_root"',
         "test ! -x /usr/bin/docker",
+        "test ! -x /usr/bin/sudo",
         "test ! -S /var/run/docker.sock",
-        "env -i",
+        "test ! -S /run/docker.sock",
+        "/usr/bin/env -i",
+        'GIT_CONFIG_GLOBAL="$private_root/home/.gitconfig"',
+        "GIT_CONFIG_COUNT=2",
+        "GIT_CONFIG_GLOBAL=/dev/null",
+        "GIT_CONFIG_KEY_0=safe.directory",
+        "GIT_CONFIG_KEY_1=safe.directory",
+        "GIT_CONFIG_NOSYSTEM=1",
+        "GIT_CONFIG_VALUE_0=/workspace",
+        "GIT_CONFIG_VALUE_1=/private-kernel",
+        "GIT_OPTIONAL_LOCKS=0",
+        'test "$(command -v git)" = /usr/bin/git',
+        'git -C "$workspace" rev-parse --show-toplevel',
+        "git -C /private-kernel rev-parse --show-toplevel",
+        "CapInh CapPrm CapEff CapBnd CapAmb",
+        'NoNewPrivs:/ {print $2}',
+        'test "${network_interfaces[*]}" = lo',
+        'test "$(wc -l < /proc/net/route)" -eq 1',
+        'findmnt -n -o OPTIONS --target "$workspace"',
+        'findmnt -n -o OPTIONS --target "$kernel_checkout"',
         "PIP_NO_INDEX=1",
         "PIP_FIND_LINKS=",
         "--no-index",
         "--no-isolation",
         "/usr/bin/docker run --rm --interactive --pull=never",
+        '--user="$candidate_uid:$candidate_gid"',
         "--platform=linux/amd64",
         "--network=none",
         "--read-only",
@@ -205,7 +267,41 @@ def test_private_runtime_supply_and_containment_order_is_closed() -> None:
         "container.stderr",
     ):
         assert marker in candidate_run
-    assert "sudo unshare" not in candidate_run
+    assert "unshare --user" not in candidate_run
+    assert "--map-root-user" not in candidate_run
+    assert "--init-groups" not in candidate_run
+    assert '--reuid="$host_uid"' not in candidate_run
+    assert '--regid="$host_gid"' not in candidate_run
+    assert (
+        'chown -R --no-dereference "$candidate_uid:$candidate_gid" "$workspace"'
+        not in candidate_run
+    )
+    assert (
+        'chown --no-dereference "$candidate_uid:$candidate_gid" "$workspace"'
+        not in candidate_run
+    )
+    assert (
+        'chown -R --no-dereference "$candidate_uid:$candidate_gid" "$private_root"'
+        not in candidate_run
+    )
+    assert (
+        'chown --no-dereference "$candidate_uid:$candidate_gid" "$private_root"'
+        not in candidate_run
+    )
+    assert candidate_run.count(
+        "for protected_log in stage.stdout stage.stderr container.stdout "
+        "container.stderr; do"
+    ) == 2
+    assert candidate_run.index("mount --make-rprivate /") < candidate_run.index(
+        "exec /usr/bin/setpriv"
+    )
+    assert candidate_run.index(
+        'chown -R --no-dereference "$candidate_uid:$candidate_gid" '
+        '"$kernel_checkout"'
+    ) < candidate_run.index('mount --bind "$kernel_checkout" "$kernel_checkout"')
+    assert candidate_run.index("exec /usr/bin/setpriv") < candidate_run.index(
+        '"$runner_python" -I "$validator"'
+    )
     assert "GITHUB_ENV" not in candidate_run
     assert "GITHUB_OUTPUT" not in candidate_run
     assert "GITHUB_PATH" not in candidate_run

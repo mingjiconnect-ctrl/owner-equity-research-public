@@ -229,6 +229,13 @@ jobs:
               grep -Ex "(docker.io/library/|library/)?python@$manifest_digest"
             /usr/bin/docker image inspect --format '{{range .Config.Env}}{{println .}}{{end}}' \
               "$KERNEL_RUNTIME_IMAGE" | grep -Fx PYTHON_VERSION=3.11.15
+            /usr/bin/docker run --rm --pull=never \
+              --platform=linux/amd64 \
+              --network=none \
+              --read-only \
+              --entrypoint=/bin/sh \
+              "$KERNEL_RUNTIME_IMAGE" \
+              -ceu 'test "$(command -v git)" = /usr/bin/git'
           fi
           reviewed_commit='${{ github.event.pull_request.head.sha || github.sha }}'
           test "$(git rev-parse HEAD)" = "$reviewed_commit"
@@ -295,19 +302,121 @@ jobs:
           private_kernel="$RUNNER_TEMP/phase5-v1-kernel-source"
           runner_python=$(readlink -f '${{ steps.python.outputs.python-path }}')
           test -f "$runner_python" && test ! -L "$runner_python"
+          host_uid=$(id -u)
+          host_gid=$(id -g)
+          candidate_uid=65534
+          candidate_gid=65534
+          test "$host_uid" -gt 0 && test "$host_gid" -gt 0
+          test "$candidate_uid" -ne "$host_uid" && test "$candidate_gid" -ne "$host_gid"
+          test -x /usr/bin/setpriv
           mkdir -m 0700 "$private_root"
           mkdir -m 0700 \
             "$private_root/home" \
             "$private_root/tmp" \
             "$private_root/output" \
-            "$private_root/research-wheel"
+            "$private_root/research-wheel" \
+            "$private_root/venv" \
+            "$private_root/kernel-cas"
+          : > "$private_root/stage.stdout"
+          : > "$private_root/stage.stderr"
+          : > "$private_root/container.stdout"
+          : > "$private_root/container.stderr"
+          chmod 0600 \
+            "$private_root/stage.stdout" \
+            "$private_root/stage.stderr" \
+            "$private_root/container.stdout" \
+            "$private_root/container.stderr"
 
-          # Candidate-controlled staging is rootless, netless, offline, and cannot reach Docker.
+          # Trusted workflow code creates the namespaces and mounts; candidate code runs only
+          # after an irreversible privilege/capability drop inside that sealed boundary.
           set +e
-          unshare --user --map-root-user --mount --net --pid --fork --kill-child \
-            --mount-proc -- \
-            env -i \
+          # shellcheck disable=SC2024 # Runner-owned private logs are opened before sudo.
+          /usr/bin/sudo -n /usr/bin/unshare \
+            --mount --net --pid --fork --kill-child --mount-proc -- \
+            /bin/bash -s -- \
+              "$host_uid" \
+              "$host_gid" \
+              "$candidate_uid" \
+              "$candidate_gid" \
+              "$GITHUB_WORKSPACE" \
+              "$private_kernel" \
+              "$wheelhouse" \
+              "$supply_lock" \
+              "$validator" \
+              "$private_root" \
+              "$runner_python" \
+              '${{ matrix.python-version }}' \
+            >"$private_root/stage.stdout" \
+            2>"$private_root/stage.stderr" <<'ROOT_BASH'
+          set -euo pipefail
+          host_uid=$1
+          host_gid=$2
+          candidate_uid=$3
+          candidate_gid=$4
+          workspace=$5
+          kernel_checkout=$6
+          wheelhouse=$7
+          supply_lock=$8
+          validator=$9
+          private_root=${10}
+          runner_python=${11}
+          python_minor=${12}
+          test "$(id -u)" -eq 0
+          mount --make-rprivate /
+          test "$(readlink -f /var/run)" = /run
+          mount -t tmpfs -o mode=0755,nosuid,nodev,noexec tmpfs /run
+          for privileged_channel in /usr/bin/docker /usr/bin/sudo; do
+            test -e "$privileged_channel"
+            mount --bind /dev/null "$privileged_channel"
+            mount -o remount,bind,ro,noexec,nosuid,nodev "$privileged_channel"
+          done
+          mount --bind "$workspace" "$workspace"
+          mount -o remount,bind,ro "$workspace"
+          test -z "$(find "$kernel_checkout" -xdev \
+            \( -type b -o -type c -o -type p -o -type s -o -type f -links +1 \) \
+            -print -quit)"
+          chown -R --no-dereference "$candidate_uid:$candidate_gid" "$kernel_checkout"
+          test -z "$(find "$kernel_checkout" -xdev \
+            \( ! -user "$candidate_uid" -o ! -group "$candidate_gid" \) -print -quit)"
+          mount --bind "$kernel_checkout" "$kernel_checkout"
+          mount -o remount,bind,ro "$kernel_checkout"
+          /usr/bin/git config --file "$private_root/home/.gitconfig" \
+            --add safe.directory "$workspace"
+          /usr/bin/git config --file "$private_root/home/.gitconfig" \
+            --add safe.directory "$kernel_checkout"
+          chmod 0400 "$private_root/home/.gitconfig"
+          chown -R --no-dereference "$candidate_uid:$candidate_gid" \
+            "$private_root/home" \
+            "$private_root/tmp" \
+            "$private_root/output" \
+            "$private_root/research-wheel" \
+            "$private_root/venv" \
+            "$private_root/kernel-cas"
+          chmod 0711 "$private_root"
+          chmod 0755 "$private_root/output"
+          test "$(stat -c '%u:%g:%a' "$private_root")" = \
+            "$host_uid:$host_gid:711"
+          for protected_log in stage.stdout stage.stderr container.stdout container.stderr; do
+            protected_path="$private_root/$protected_log"
+            test -f "$protected_path" && test ! -L "$protected_path"
+            test "$(stat -c '%u:%g:%a:%h' "$protected_path")" = \
+              "$host_uid:$host_gid:600:1"
+          done
+          umask 0022
+
+          exec /usr/bin/setpriv \
+            --reuid="$candidate_uid" \
+            --regid="$candidate_gid" \
+            --clear-groups \
+            --inh-caps=-all \
+            --ambient-caps=-all \
+            --bounding-set=-all \
+            --no-new-privs \
+            /usr/bin/env -i \
               HOME="$private_root/home" \
+              GIT_CONFIG_GLOBAL="$private_root/home/.gitconfig" \
+              GIT_CONFIG_NOSYSTEM=1 \
+              GIT_OPTIONAL_LOCKS=0 \
               LANG=C.UTF-8 \
               LC_ALL=C.UTF-8 \
               PATH=/usr/local/bin:/usr/bin:/bin \
@@ -322,16 +431,16 @@ jobs:
               TMPDIR="$private_root/tmp" \
               TZ=UTC \
               /bin/bash -s -- \
-                "$GITHUB_WORKSPACE" \
-                "$private_kernel" \
+                "$workspace" \
+                "$kernel_checkout" \
                 "$wheelhouse" \
                 "$supply_lock" \
                 "$validator" \
                 "$private_root" \
                 "$runner_python" \
-                '${{ matrix.python-version }}' \
-              >"$private_root/stage.stdout" \
-              2>"$private_root/stage.stderr" <<'BASH'
+                "$python_minor" \
+                "$candidate_uid" \
+                "$candidate_gid" <<'CANDIDATE_BASH'
           set -euo pipefail
           workspace=$1
           kernel_checkout=$2
@@ -341,15 +450,34 @@ jobs:
           private_root=$6
           runner_python=$7
           python_minor=$8
-          mount -t tmpfs -o mode=0755,nosuid,nodev,noexec tmpfs /run
-          mount --bind /dev/null /usr/bin/docker
-          mount -o remount,bind,ro,noexec,nosuid,nodev /usr/bin/docker
+          expected_uid=$9
+          expected_gid=${10}
+          expected_uids="$expected_uid $expected_uid $expected_uid $expected_uid"
+          expected_gids="$expected_gid $expected_gid $expected_gid $expected_gid"
+          test "$(awk '/^Uid:/ {print $2, $3, $4, $5}' /proc/self/status)" = \
+            "$expected_uids"
+          test "$(awk '/^Gid:/ {print $2, $3, $4, $5}' /proc/self/status)" = \
+            "$expected_gids"
+          test "$(id -G)" = "$expected_gid"
+          for capability_set in CapInh CapPrm CapEff CapBnd CapAmb; do
+            test "$(awk -v key="$capability_set:" '$1 == key {print $2}' \
+              /proc/self/status)" = 0000000000000000
+          done
+          test "$(awk '/^NoNewPrivs:/ {print $2}' /proc/self/status)" = 1
+          test ! -w "$private_root"
           test ! -x /usr/bin/docker
+          test ! -x /usr/bin/sudo
           test ! -S /var/run/docker.sock
-          mount --bind "$workspace" "$workspace"
-          mount -o remount,bind,ro "$workspace"
-          mount --bind "$kernel_checkout" "$kernel_checkout"
-          mount -o remount,bind,ro "$kernel_checkout"
+          test ! -S /run/docker.sock
+          test -z "$(command -v docker || true)"
+          test -z "$(command -v sudo || true)"
+          mapfile -t network_interfaces < <(
+            find /sys/class/net -mindepth 1 -maxdepth 1 -printf '%f\n' | sort
+          )
+          test "${network_interfaces[*]}" = lo
+          test "$(wc -l < /proc/net/route)" -eq 1
+          findmnt -n -o OPTIONS --target "$workspace" | tr ',' '\n' | grep -Fx ro
+          findmnt -n -o OPTIONS --target "$kernel_checkout" | tr ',' '\n' | grep -Fx ro
           cd "$workspace"
           "$runner_python" -I "$validator" "$wheelhouse" "$python_minor"
           "$runner_python" -m venv "$private_root/venv"
@@ -414,7 +542,8 @@ jobs:
               --mode verify \
               --output "$private_root/output/raw-summary.json"
           fi
-          BASH
+          CANDIDATE_BASH
+          ROOT_BASH
           stage_status=$?
           set -e
           if [[ "$stage_status" -ne 0 || '${{ matrix.python-version }}' != 3.11 ]]; then
@@ -423,24 +552,26 @@ jobs:
 
           # Everything below is fixed workflow code. It never imports the candidate package.
           test -z "$(find "$private_root/output" -mindepth 1 -print -quit)"
-          mapfile -t manifests < <(find "$private_root/kernel-cas/manifests" \
+          mapfile -t manifests < <(/usr/bin/sudo -n /usr/bin/find \
+            "$private_root/kernel-cas/manifests" \
             -mindepth 1 -maxdepth 1 -type f -name '*.json' -print)
           test "${#manifests[@]}" -eq 1
           runtime_manifest=${manifests[0]}
-          test ! -L "$runtime_manifest"
-          runtime_manifest_sha=$(sha256sum "$runtime_manifest" | awk '{print $1}')
+          /usr/bin/sudo -n /usr/bin/test ! -L "$runtime_manifest"
+          runtime_manifest_sha=$(
+            /usr/bin/sudo -n /usr/bin/sha256sum "$runtime_manifest" | awk '{print $1}'
+          )
           test "$(basename "$runtime_manifest")" = "$runtime_manifest_sha.json"
           research_wheel="$private_root/research-wheel/owner_equity_research-0.6.0.dev2-py3-none-any.whl"
-          test -f "$research_wheel" && test ! -L "$research_wheel"
-          mapfile -t research_entries < <(find "$private_root/research-wheel" \
+          /usr/bin/sudo -n /usr/bin/test -f "$research_wheel"
+          /usr/bin/sudo -n /usr/bin/test ! -L "$research_wheel"
+          mapfile -t research_entries < <(/usr/bin/sudo -n /usr/bin/find \
+            "$private_root/research-wheel" \
             -mindepth 1 -maxdepth 1 -printf '%f\n')
           test "${research_entries[*]}" = "$(basename "$research_wheel")"
           sudo chown root:root "$private_root/research-wheel" "$research_wheel"
           sudo chmod 0555 "$private_root/research-wheel"
           sudo chmod 0444 "$research_wheel"
-          host_uid=$(id -u)
-          host_gid=$(id -g)
-          test "$host_uid" -gt 0 && test "$host_gid" -gt 0
           test "$(/usr/bin/docker image inspect --format '{{.Id}}' "$KERNEL_RUNTIME_IMAGE")" = \
             "$KERNEL_RUNTIME_IMAGE_ID"
           test "$(/usr/bin/docker image inspect --format '{{.Os}}' "$KERNEL_RUNTIME_IMAGE")" = linux
@@ -453,10 +584,10 @@ jobs:
             "$KERNEL_RUNTIME_IMAGE" | grep -Fx PYTHON_VERSION=3.11.15
 
           attestation_directory="$private_root/trusted-attestation"
-          mkdir -m 0700 "$attestation_directory"
+          /usr/bin/sudo -n /bin/mkdir -m 0700 "$attestation_directory"
           attestation="$attestation_directory/trusted-container-attestation.json"
-          '${{ steps.python.outputs.python-path }}' -I - \
-            "$attestation" "$host_uid" "$host_gid" \
+          /usr/bin/sudo -n '${{ steps.python.outputs.python-path }}' -I - \
+            "$attestation" "$candidate_uid" "$candidate_gid" \
             "$KERNEL_RUNTIME_IMAGE" "$KERNEL_RUNTIME_IMAGE_ID" <<'PY'
           import hashlib
           import json
@@ -519,11 +650,22 @@ jobs:
           finally:
               os.close(descriptor)
           PY
-          attestation_sha=$(sha256sum "$attestation" | awk '{print $1}')
+          attestation_sha=$(
+            /usr/bin/sudo -n /usr/bin/sha256sum "$attestation" | awk '{print $1}'
+          )
           sudo chown root:root "$attestation_directory" "$attestation"
           sudo chmod 0555 "$attestation_directory"
           sudo chmod 0444 "$attestation"
-          test "$(stat -c '%u:%g:%a:%h' "$attestation")" = 0:0:444:1
+          test "$(/usr/bin/sudo -n /usr/bin/stat -c '%u:%g:%a:%h' "$attestation")" = \
+            0:0:444:1
+          test "$(stat -c '%u:%g:%a' "$private_root")" = \
+            "$host_uid:$host_gid:711"
+          for protected_log in stage.stdout stage.stderr container.stdout container.stderr; do
+            protected_path="$private_root/$protected_log"
+            test -f "$protected_path" && test ! -L "$protected_path"
+            test "$(stat -c '%u:%g:%a:%h' "$protected_path")" = \
+              "$host_uid:$host_gid:600:1"
+          done
 
           set +e
           /usr/bin/docker run --rm --interactive --pull=never \
@@ -532,7 +674,7 @@ jobs:
             --read-only \
             --cap-drop=ALL \
             --security-opt=no-new-privileges:true \
-            --user="$host_uid:$host_gid" \
+            --user="$candidate_uid:$candidate_gid" \
             --pids-limit=64 \
             --memory=1610612736 \
             --memory-swap=1610612736 \
@@ -553,6 +695,14 @@ jobs:
             "$KERNEL_RUNTIME_IMAGE" \
               -i \
               HOME=/tmp/home \
+              GIT_CONFIG_COUNT=2 \
+              GIT_CONFIG_GLOBAL=/dev/null \
+              GIT_CONFIG_KEY_0=safe.directory \
+              GIT_CONFIG_KEY_1=safe.directory \
+              GIT_CONFIG_NOSYSTEM=1 \
+              GIT_CONFIG_VALUE_0=/workspace \
+              GIT_CONFIG_VALUE_1=/private-kernel \
+              GIT_OPTIONAL_LOCKS=0 \
               LANG=C.UTF-8 \
               LC_ALL=C.UTF-8 \
               PATH=/usr/local/bin:/usr/bin:/bin \
@@ -589,6 +739,9 @@ jobs:
           raw_summary=$5
           test -z "$(command -v docker || true)"
           test ! -S /var/run/docker.sock
+          test "$(command -v git)" = /usr/bin/git
+          test "$(git -C "$workspace" rev-parse --show-toplevel)" = "$workspace"
+          test "$(git -C /private-kernel rev-parse --show-toplevel)" = /private-kernel
           test "$(python3 -c 'import platform; print(platform.python_version())')" = 3.11.15
           mkdir -m 0700 "$HOME" /tmp/venv
           python3 -m venv /tmp/venv
