@@ -34,8 +34,8 @@ REQUIRED_CHECKS = [
     "phase5/semantic-audit",
 ]
 PRIORITIES = ("P0", "P1", "P2", "P3")
-VERIFY_JOB_CANONICAL_SHA256 = "c74d5c053605955e35edb8b8766344675fb2352575d2ce94ef710bfc74c0c440"
-CI_WORKFLOW_SHA256 = "9d80fc2d33a082cf3e144a7ab9bd97c496425abf9372b234e913cc9ac69cd69f"
+VERIFY_JOB_CANONICAL_SHA256 = "09defb07da3f37fa56223328a3c0b661a4586ed4a0d653a0cbc68c662c0e9b32"
+CI_WORKFLOW_SHA256 = "3ba2dbf07b863f060a1e3497ffd27c56ac899676cac8205f80e8b697e1dd8949"
 ACTIVE_WORKFLOW_NAMES = {"ci.yml", "phase5e2b12a-acceptance-gate.yml"}
 ACTIVE_WORKFLOW_SHA256 = {
     "ci.yml": CI_WORKFLOW_SHA256,
@@ -467,7 +467,7 @@ def _kernel_reader_ci_findings(ci_text: str) -> list[Finding]:
                 "stat -c '%u:%g:%a:%h' \"$protected_path\"",
                 "/usr/bin/setpriv",
                 "stage_code=80",
-                "stage_code=86",
+                "stage_code=89",
                 'trap \'exit "$stage_code"\' ERR',
                 "trap - ERR",
                 '--reuid="$candidate_uid"',

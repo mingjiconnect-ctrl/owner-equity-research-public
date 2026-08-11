@@ -207,7 +207,7 @@ def test_private_runtime_supply_and_containment_order_is_closed() -> None:
         "stat -c '%u:%g:%a:%h' \"$protected_path\"",
         "/usr/bin/setpriv",
         "stage_code=80",
-        "stage_code=86",
+        "stage_code=89",
         'trap \'exit "$stage_code"\' ERR',
         "trap - ERR",
         '--reuid="$candidate_uid"',

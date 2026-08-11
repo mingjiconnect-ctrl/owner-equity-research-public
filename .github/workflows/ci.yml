@@ -491,14 +491,16 @@ jobs:
           test -z "$(awk 'NR > 1 {print; exit}' /proc/net/route)"
           stage_code=83
           findmnt -n -o OPTIONS --target "$workspace" | tr ',' '\n' | grep -Fx ro
-          findmnt -n -o OPTIONS --target "$kernel_checkout" | tr ',' '\n' | grep -Fx ro
-          cd "$workspace"
           stage_code=84
-          "$runner_python" -I "$validator" "$wheelhouse" "$python_minor"
+          findmnt -n -o OPTIONS --target "$kernel_checkout" | tr ',' '\n' | grep -Fx ro
           stage_code=85
+          cd "$workspace"
+          stage_code=86
+          "$runner_python" -I "$validator" "$wheelhouse" "$python_minor"
+          stage_code=87
           "$runner_python" -m venv "$private_root/venv"
           venv_python="$private_root/venv/bin/python"
-          stage_code=86
+          stage_code=88
           "$venv_python" -I -m pip install \
             --require-hashes \
             --only-binary=:all: \
@@ -507,6 +509,7 @@ jobs:
             --no-cache-dir \
             --find-links "$wheelhouse" \
             --requirement "$supply_lock"
+          stage_code=89
           trap - ERR
           "$venv_python" -I -m build \
             --wheel \
