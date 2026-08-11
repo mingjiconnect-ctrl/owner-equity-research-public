@@ -104,6 +104,34 @@ def _preparation_fingerprint(preparation: OwnerValuationPreparationResult) -> st
     )
 
 
+def _validate_expected_freeze_identity(
+    preparation: OwnerValuationPreparationResult,
+    expected_freeze: PriceBlindFreezeCompilationResult,
+) -> None:
+    """Reject untyped or cross-run freeze objects before any request compilation."""
+
+    if type(expected_freeze) is not PriceBlindFreezeCompilationResult:
+        raise OwnerValuationExecutionError(
+            "owner execution requires an exact price-blind freeze result"
+        )
+    artifact = expected_freeze.artifact
+    handoffs = expected_freeze.handoffs
+    if (
+        artifact.payload["issuer_id"] != preparation.issuer_id
+        or artifact.payload["data_cutoff_date"] != preparation.data_cutoff_date
+        or artifact.fingerprint != preparation.price_blind_input_fingerprint
+        or any(
+            item.issuer_id != preparation.issuer_id
+            or item.data_cutoff_date != preparation.data_cutoff_date
+            for item in handoffs
+        )
+        or handoffs[-1].price_blind_input_fingerprint != artifact.fingerprint
+    ):
+        raise OwnerValuationExecutionError(
+            "price-blind freeze identity does not bind owner preparation"
+        )
+
+
 def _checked_sha256(value: str, label: str) -> None:
     if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
         raise OwnerValuationExecutionError(f"{label} is not a lowercase SHA-256")
@@ -463,6 +491,7 @@ class OwnerValuationExecutionResult:
             raise ValueError(
                 "owner execution changed its frozen preparation fingerprint or clock"
             )
+        _validate_expected_freeze_identity(self.preparation, self.expected_freeze)
         if self.quarantined_result_sha256 is not None:
             _checked_sha256(self.quarantined_result_sha256, "quarantined result SHA")
 
@@ -1155,6 +1184,7 @@ def execute_owner_valuation(
 ) -> OwnerValuationExecutionResult:
     """Compile once and execute once without reopening the market boundary."""
 
+    _validate_expected_freeze_identity(preparation, expected_freeze)
     final_request = compile_final_valuation_request(
         preparation=preparation,
         expected_freeze=expected_freeze,

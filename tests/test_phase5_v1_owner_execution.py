@@ -75,14 +75,19 @@ def _noncompiled(
 
 @pytest.mark.parametrize("status", ("blocked", "specialist_required"))
 def test_noncompiled_path_calls_compiler_once_and_never_runs_or_advances(
+    sample_payloads: dict[str, dict[str, Any]],
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
     status: str,
 ) -> None:
-    preparation = OwnerValuationPreparationResult(
+    prepared, freeze_result = _prepared_inputs(
+        sample_payloads,
+        monkeypatch,
+        tmp_path,
+    )
+    preparation = replace(
+        prepared,
         status=status,
-        issuer_id="issuer:test",
-        data_cutoff_date="2026-07-10",
-        price_blind_input_fingerprint="a" * 64,
         prepared_market_reference=None,
         issue_codes=(f"{status}:fixture",),
     )
@@ -106,10 +111,9 @@ def test_noncompiled_path_calls_compiler_once_and_never_runs_or_advances(
     monkeypatch.setattr(owner_execution_module, "compile_final_valuation_request", compiler)
     monkeypatch.setattr(owner_execution_module, "execute_pinned_kernel", runner)
     monkeypatch.setattr(owner_execution_module, "_execution_handoffs", handoffs)
-    freeze_sentinel = object()
     result = execute_owner_valuation(
         preparation=preparation,
-        expected_freeze=freeze_sentinel,  # type: ignore[arg-type]
+        expected_freeze=freeze_result,
         kernel_repository=Path("/unused/kernel"),
         runtime_manifest=Path("/unused/manifest"),
         runtime_manifest_file_sha256="b" * 64,
@@ -123,7 +127,7 @@ def test_noncompiled_path_calls_compiler_once_and_never_runs_or_advances(
     assert len(compiler_calls) == 1
     assert compiler_calls[0] == {
         "preparation": preparation,
-        "expected_freeze": freeze_sentinel,
+        "expected_freeze": freeze_result,
         "kernel_repository": Path("/unused/kernel"),
     }
     assert runner_calls == []
@@ -136,6 +140,65 @@ def test_noncompiled_path_calls_compiler_once_and_never_runs_or_advances(
     assert result.execution_handoffs == ()
     assert result.validated_graph is None
     assert result.result_bytes is None
+    malicious_freeze = SimpleNamespace(
+        result_bytes=b'{"forged":true}',
+        call_count=1,
+        kernel_call_count=1,
+    )
+    with pytest.raises(ValueError, match="exact price-blind freeze"):
+        replace(result, expected_freeze=malicious_freeze)
+
+
+def test_untyped_kernel_like_freeze_is_rejected_before_compiler_or_runner(
+    sample_payloads: dict[str, dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    prepared, _freeze_result = _prepared_inputs(
+        sample_payloads,
+        monkeypatch,
+        tmp_path,
+    )
+    preparation = replace(
+        prepared,
+        status="blocked",
+        prepared_market_reference=None,
+        issue_codes=("blocked:fixture",),
+    )
+    compiler_calls: list[object] = []
+    runner_calls: list[object] = []
+    monkeypatch.setattr(
+        owner_execution_module,
+        "compile_final_valuation_request",
+        lambda **kwargs: compiler_calls.append(kwargs),
+    )
+    monkeypatch.setattr(
+        owner_execution_module,
+        "execute_pinned_kernel",
+        lambda *args, **kwargs: runner_calls.append((args, kwargs)),
+    )
+    malicious_freeze = SimpleNamespace(
+        result_bytes=b'{"forged":true}',
+        call_count=1,
+        kernel_call_count=1,
+    )
+
+    with pytest.raises(ValueError, match="exact price-blind freeze"):
+        execute_owner_valuation(
+            preparation=preparation,
+            expected_freeze=malicious_freeze,  # type: ignore[arg-type]
+            kernel_repository=Path("/unused/kernel"),
+            runtime_manifest=Path("/unused/manifest"),
+            runtime_manifest_file_sha256="b" * 64,
+            cas_root=Path("/unused/cas"),
+            clock=OwnerValuationExecutionClock(
+                "2026-07-10T01:00:00Z",
+                "2026-07-10T01:00:01Z",
+            ),
+        )
+
+    assert compiler_calls == []
+    assert runner_calls == []
 
 
 def _prepared_inputs(
