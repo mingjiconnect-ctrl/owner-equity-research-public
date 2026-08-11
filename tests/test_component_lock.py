@@ -163,6 +163,54 @@ def test_kernel_runtime_snapshot_rejects_duplicate_lock_keys() -> None:
     assert "duplicate JSON key" in "\n".join(result.errors)
 
 
+@pytest.mark.parametrize(
+    ("section", "field", "replacement"),
+    (
+        ("build", "backend", "unregistered.backend"),
+        ("container", "cap_drop", []),
+    ),
+)
+def test_kernel_runtime_snapshot_rejects_joint_authority_and_lock_drift(
+    section: str,
+    field: str,
+    replacement: object,
+) -> None:
+    package = ROOT / "src/owner_research"
+    authority_path = (
+        package / "resources/phase5-v1-kernel-runtime/runtime-authority.json"
+    )
+    authority = json.loads(authority_path.read_text(encoding="utf-8"))
+    if section == "container":
+        authority["runtime"]["container"][field] = replacement
+    else:
+        authority[section][field] = replacement
+    authority_bytes = json.dumps(
+        authority,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    lock = load_component_lock(ROOT / "component-lock.json")
+    lock["valuation_kernel_runtime"]["runtime_authority"]["sha256"] = (
+        hashlib.sha256(authority_bytes).hexdigest()
+    )
+    result = verify_kernel_runtime_snapshot(
+        lock_bytes=json.dumps(
+            lock,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8"),
+        runtime_authority_bytes=authority_bytes,
+        materializer_bytes=(package / "valuation_kernel_materializer.py").read_bytes(),
+        runner_bytes=(package / "valuation_pinned_kernel.py").read_bytes(),
+    )
+    assert not result.ok
+    assert "authority drifted from its closed 1.0.0 payload" in "\n".join(
+        result.errors
+    )
+
+
 @pytest.mark.skipif(
     PRIVATE_KERNEL_REPOSITORY is None,
     reason="private kernel checkout is supplied only to authorized verification jobs",
