@@ -1,6 +1,6 @@
 ---
 name: owner-research-audit
-description: Use only when explicitly invoked with $owner-research-audit to audit the completed research and price-blind chain plus the active Phase 5 v1 vertical slice, including current-share evidence, reviewed market references, component locks, determinism, and forbidden outputs.
+description: Use only when explicitly invoked with $owner-research-audit to audit the completed research and price-blind chain plus the active Phase 5 v1 vertical slice, including current-share evidence, reviewed market references, final-request preservation, pinned isolated execution, component locks, determinism, and forbidden outputs.
 ---
 
 # Owner Research Audit
@@ -203,9 +203,16 @@ P0/P1; release audits block on P0/P1/P2/P3.
     validate `MarketReferenceSnapshot 4.0.0`, its source/security/current-share lineage, protected
     hashes, component lock, release-candidate usage scope, and single-authorization consumption.
 55. Confirm ordinary research remains price-blind and that the current slice exposes no
-    package-root/CLI market entry, final FactLedger/request, kernel invocation, archive, Score,
-    recommendation, report, PDF, or Publisher.
-56. Treat the exact PR-head Actions semantic profile as deterministic candidate replay, not as an
+    package-root/CLI market or execution entry, archive, Score, recommendation, report, PDF, or
+    Publisher.
+56. Verify PR2 consumes the accepted preparation without reacquiring a quote; preserves every
+    frozen FactLedger object and assumption entry byte-for-byte; appends only governed current-share
+    and market lineage; replays Decimal-to-binary64 arithmetic in rc.2 operation order; uses one
+    current-share Fact ID in both panels; validates all pinned schemas and runtime types; and calls
+    the exact pinned kernel once in a fresh, hash-locked, proven no-network subprocess. Treat the
+    Handoff v2 kernel identity as non-execution metadata and bind execution authority to the
+    component lock, projection witness, wheel/runtime manifest, runner, and receipt.
+57. Treat the exact PR-head Actions semantic profile as deterministic candidate replay, not as an
     independent review. Separately perform a fresh-context review, bind its exact commit/tree,
     test counts, P0-P3 counts and report SHA in PR evidence, and do not use a production parser,
     selector, builder, or compiler as its sole oracle. Normal PR acceptance requires P0=P1=0 in

@@ -2,9 +2,10 @@
 
 ## Phase boundary
 
-- Current product label: `Phase 5 v1 market-reference vertical slice`.
+- Current product label: `Phase 5 v1 final-request and pinned-kernel vertical slice`.
 - `docs/phase5-v1-status.json` is the current authority; the phase is `in_progress`, and only
-  `PR1 market-reference vertical slice` is authorized.
+  `PR2 final-request and pinned-kernel vertical slice` is authorized. PR1 is accepted on merged
+  `main`; ADR 0042 defines the PR2 execution boundary.
 - ADR 0041 retires the recursive G1-G5 and acceptance-only path from required governance.
   `docs/phase-status.json` and the former recursive controller remain frozen as
   `legacy_governance`; their closeouts are historical evidence, not current authorization.
@@ -254,9 +255,10 @@ force; ADR 0041 and `docs/phase5-v1-status.json` supersede it.
 
 - Advance Phase 5 through complete, bounded vertical slices governed by ADR 0041 and
   `docs/phase5-v1-status.json`.
-- The PR1 slice must keep market-reference evidence, current-share lineage, provider review, and
-  preparation behavior deterministic and fail closed; it still cannot invoke valuation
-  mathematics, scoring, reporting, or publishing unless separately authorized.
+- The PR2 slice consumes the accepted PR1 preparation result without reacquiring market evidence.
+  It may append only governed current-share and market lineage, compile one rc.2 request, and call
+  the byte-pinned kernel exactly once inside a proven no-network subprocess. It must remain
+  internal and cannot add scoring, reporting, publishing, a package-root API, CLI, or Skill entry.
 - The old G1-G5 controller, acceptance-only branches, dynamic successor profiles, protected status
   publication, and next-gate seeding are `legacy_governance`. The legacy workflow is manual only
   and its checks must not be required by branch protection.

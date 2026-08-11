@@ -2,7 +2,7 @@
   "lock_version": "1.2.0",
   "generated_date": "2026-07-16",
   "owner_equity_research": {
-    "plugin_version": "0.6.0-dev.1",
+    "plugin_version": "0.6.0-dev.2",
     "public_schema_sha256": {
       "schemas/accounting-quality-finding.schema.json": "0ea5d7de6520fcb19dcedddf1d3c0bc14a58faf7239beae3ef431805516dafc5",
       "schemas/accounting-quality-review.schema.json": "1019218ca7ff086dd5319e4a1b7d18631a2b5725847b14333b02b7f06ea91d46",

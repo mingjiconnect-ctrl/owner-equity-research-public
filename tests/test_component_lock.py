@@ -18,8 +18,8 @@ ROOT = Path(__file__).parents[1]
 def test_component_lock_has_exact_pinned_identity() -> None:
     lock = load_component_lock(ROOT / "component-lock.json")
     assert lock["lock_version"] == "1.2.0"
-    assert lock["owner_equity_research"]["plugin_version"] == "0.6.0-dev.1"
-    assert __version__ == "0.6.0.dev1"
+    assert lock["owner_equity_research"]["plugin_version"] == "0.6.0-dev.2"
+    assert __version__ == "0.6.0.dev2"
     kernel = lock["valuation_kernel"]
     assert kernel["repository"] == "mingjiconnect-ctrl/owner-valuation-kernel"
     assert kernel["tag"] == "v2.0.0-rc.2"

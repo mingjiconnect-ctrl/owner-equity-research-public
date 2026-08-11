@@ -1,7 +1,7 @@
 {
   "name": "owner-equity-research",
-  "version": "0.6.0-dev.1",
-  "description": "Auditable owner research with a reviewed market-reference valuation path",
+  "version": "0.6.0-dev.2",
+  "description": "Auditable owner research with reviewed market references and pinned valuation execution",
   "author": {
     "name": "mingjiconnect-ctrl",
     "url": "https://github.com/mingjiconnect-ctrl"
@@ -13,7 +13,7 @@
   "interface": {
     "displayName": "Owner Equity Research",
     "shortDescription": "Auditable owner research and valuation preparation",
-    "longDescription": "Build source-linked SEC evidence, deterministic research ledgers, a price-blind valuation freeze, quote-date current common shares, and a reviewed-file market reference. Market data enters only after explicit valuation authorization; final kernel execution remains unavailable until the next vertical slice.",
+    "longDescription": "Build source-linked SEC evidence, deterministic research ledgers, a price-blind valuation freeze, quote-date current common shares, and a reviewed-file market reference. The active internal slice compiles a final request and executes only the byte-pinned valuation kernel after explicit authorization; no implicit Skill or network entry is added.",
     "developerName": "mingjiconnect-ctrl",
     "category": "Productivity",
     "capabilities": [],

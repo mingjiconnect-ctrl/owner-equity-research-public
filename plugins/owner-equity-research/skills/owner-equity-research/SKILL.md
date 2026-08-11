@@ -164,13 +164,18 @@ workflows run only when that ledger is explicitly requested.
 38. Read [market-execution policy](references/market-execution-policy.md) before any explicit
     valuation preparation. Market evidence may enter only after the price-blind artifact reaches
     `market_reference_allowed`; ordinary research remains price-blind.
-39. The Phase 5 v1 market slice can internally compile quote-date current common shares and a
+39. The accepted Phase 5 v1 market slice can internally compile quote-date current common shares and a
     provider-neutral `MarketReferenceSnapshot 4.0.0`. A reviewed-file provider must recompute the
     external evidence hash and bind a named-human review. It cannot accept a command-line price,
-    access a network, read a trading account, or produce a final request or kernel result.
+    access a network, or read a trading account.
 40. Cross-source disclosures of one legal share event are grouped once for arithmetic while all
     corroborating evidence is retained. Conflicting amount, date, security, or remaining-claim
     evidence blocks the lineage; convertible and warrant cases remain specialist routes.
+41. The active Phase 5 v1 PR2 slice may internally consume that accepted preparation, append only
+    governed current-share and market lineage, compile one complete rc.2 request, and invoke the
+    byte-pinned kernel once in a proven no-network subprocess. This Skill cannot invoke or expose
+    those internal functions. It must never reacquire market evidence, accept caller-authored
+    routing, change frozen assumptions, weight the two panels, or write the six-file archive.
 
 ## Stop conditions
 
@@ -191,8 +196,8 @@ consumption replay; Phase 5C-4 adds only the internal equity-bridge compiler. No
 entry point, output writer, market access, complete routing request, handoff execution, or
 valuation execution. Phase 5C-5 adds only the internal successor-readiness assessor and no Skill
 entry point, output writer, market access, assumption compilation, request/result, or kernel call.
-Phase 5D remains the frozen price-blind boundary. The v1 market slice is internal and can stop only
-at a validated release-candidate Snapshot; it does not expose a package-root API, CLI, final
-valuation request, kernel execution, archive, report, or publishing surface. Recursive controller,
+Phase 5D remains the frozen price-blind boundary. The accepted v1 market slice and active PR2
+request/execution slice remain internal; neither exposes a package-root API, CLI, archive, report,
+publishing surface, or implicit Skill action. Recursive controller,
 gate-author, recovery-seal, and acceptance-only PR instructions are historical governance records
 and are not active Skill workflow.

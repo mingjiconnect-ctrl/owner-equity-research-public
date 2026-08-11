@@ -58,7 +58,7 @@ def test_skills_admit_their_current_non_production_boundary() -> None:
 
 def test_plugin_manifest_is_phase5_v1_market_slice_and_has_no_runtime_connectors() -> None:
     manifest = json.loads((PLUGIN / ".codex-plugin" / "plugin.json").read_text())
-    assert manifest["version"] == "0.6.0-dev.1"
+    assert manifest["version"] == "0.6.0-dev.2"
     assert manifest["skills"] == "./skills/"
     assert "apps" not in manifest
     assert "mcpServers" not in manifest

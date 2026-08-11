@@ -25,8 +25,8 @@ LEGACY_ARCHIVE_PATH = ROOT / "legacy_governance/phase5e2b12a-acceptance-gate.yml
 LEGACY_ARCHIVE_SHA256 = "51d3e43dffb66b507fe6a1718cd85b1e21dfac77938cb44c6a4045afeb29cf08"
 LEGACY_BASELINE_COMMIT = "e5fb637538ce57772a027746651b7527a99268c5"
 
-PHASE_LABEL = "Phase 5 v1 market-reference vertical slice"
-AUTHORIZED_NEXT = ["PR1 market-reference vertical slice"]
+PHASE_LABEL = "Phase 5 v1 final-request and pinned-kernel vertical slice"
+AUTHORIZED_NEXT = ["PR2 final-request and pinned-kernel vertical slice"]
 REQUIRED_CHECKS = [
     "verify (3.11)",
     "verify (3.12)",
