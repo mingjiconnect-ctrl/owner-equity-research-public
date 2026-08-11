@@ -142,7 +142,7 @@ def test_kernel_runtime_lock_rejects_alternate_authority_paths(tmp_path: Path) -
 
 @pytest.mark.skipif(
     PRIVATE_KERNEL_REPOSITORY is None,
-    reason="private kernel checkout is supplied only to the authorized 3.11 verification job",
+    reason="private kernel checkout is supplied only to authorized verification jobs",
 )
 def test_component_lock_matches_pinned_local_checkout() -> None:
     assert PRIVATE_KERNEL_REPOSITORY is not None
@@ -163,7 +163,7 @@ def test_component_lock_matches_research_schema_files() -> None:
 
 @pytest.mark.skipif(
     PRIVATE_KERNEL_REPOSITORY is None,
-    reason="private kernel checkout is supplied only to the authorized 3.11 verification job",
+    reason="private kernel checkout is supplied only to authorized verification jobs",
 )
 def test_compatibility_fixture_uses_only_future_mappable_numeric_fields() -> None:
     fixture = json.loads(
