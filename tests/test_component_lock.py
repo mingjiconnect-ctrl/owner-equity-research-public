@@ -22,6 +22,14 @@ ROOT = Path(__file__).parents[1]
 
 def test_component_lock_has_exact_pinned_identity() -> None:
     lock = load_component_lock(ROOT / "component-lock.json")
+    assert set(lock) == {
+        "lock_version",
+        "generated_date",
+        "owner_equity_research",
+        "market_access_authority",
+        "valuation_kernel",
+        "valuation_kernel_runtime",
+    }
     assert lock["lock_version"] == "1.2.0"
     assert lock["owner_equity_research"]["plugin_version"] == "0.6.0-dev.2"
     assert __version__ == "0.6.0.dev2"
@@ -107,6 +115,14 @@ def test_kernel_runtime_lock_rejects_drift_and_duplicate_json_keys(tmp_path: Pat
     duplicate.write_text('{"lock_version":"1.2.0","lock_version":"9.9.9"}', encoding="utf-8")
     with pytest.raises(ValueError, match="duplicate JSON key"):
         load_component_lock(duplicate)
+
+    shadowed = load_component_lock(ROOT / "component-lock.json")
+    shadowed["shadow_runtime_authority"] = {"trusted": False}
+    shadowed_path = tmp_path / "shadowed.json"
+    shadowed_path.write_text(json.dumps(shadowed), encoding="utf-8")
+    result = verify_kernel_runtime_lock(shadowed_path)
+    assert not result.ok
+    assert "top-level component-lock shape mismatch" in "\n".join(result.errors)
 
 
 def test_kernel_runtime_lock_rejects_alternate_authority_paths(tmp_path: Path) -> None:

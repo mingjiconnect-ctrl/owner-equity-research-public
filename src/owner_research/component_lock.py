@@ -129,6 +129,17 @@ def verify_kernel_runtime_lock(lock_path: Path | None = None) -> VerificationRes
     except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
         return VerificationResult((f"Kernel runtime component lock is unavailable: {exc}",))
 
+    expected_lock_keys = {
+        "lock_version",
+        "generated_date",
+        "owner_equity_research",
+        "market_access_authority",
+        "valuation_kernel",
+        "valuation_kernel_runtime",
+    }
+    if set(lock) != expected_lock_keys:
+        return VerificationResult(("Kernel runtime top-level component-lock shape mismatch",))
+
     expected_runtime_keys = {
         "authority_version",
         "runtime_authority",
