@@ -14,9 +14,11 @@ import hashlib
 import io
 import json
 import os
+import platform
 import stat
 import struct
 import subprocess
+import sys
 import tarfile
 import tempfile
 import zipfile
@@ -119,44 +121,44 @@ def _sha256_path(path: Path) -> str:
     return _sha256_bytes(_read_regular_file_nofollow(path))
 
 
-def _load_authority() -> tuple[dict[str, Any], str]:
-    from .component_lock import default_component_lock_path, verify_kernel_runtime_lock
+def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    value: dict[str, Any] = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError(f"duplicate JSON key: {key}")
+        value[key] = item
+    return value
 
-    lock_result = verify_kernel_runtime_lock()
-    if not lock_result.ok:
-        raise KernelMaterializationError(
-            "kernel runtime component lock failed: " + "; ".join(lock_result.errors)
-        )
+
+def _load_authority() -> tuple[dict[str, Any], str]:
+    from .component_lock import default_component_lock_path, verify_kernel_runtime_snapshot
+
     try:
         lock_raw = _read_regular_file_nofollow(
             default_component_lock_path(), maximum_size=8 * 1024 * 1024
         )
-        lock = json.loads(lock_raw)
-        runtime_lock = lock["valuation_kernel_runtime"]
         raw = _read_regular_file_nofollow(AUTHORITY_RESOURCE, maximum_size=1024 * 1024)
-        value = json.loads(raw)
-    except (OSError, json.JSONDecodeError, KeyError, TypeError) as exc:
-        raise KernelMaterializationError("runtime authority is unavailable or invalid") from exc
-    expected_paths = {
-        "runtime_authority": "resources/phase5-v1-kernel-runtime/runtime-authority.json",
-        "materializer_code": "valuation_kernel_materializer.py",
-        "runner_code": "valuation_pinned_kernel.py",
-    }
-    locked_raw = {
-        "runtime_authority": raw,
-        "materializer_code": _read_regular_file_nofollow(
+        materializer_raw = _read_regular_file_nofollow(
             MATERIALIZER_SOURCE, maximum_size=4 * 1024 * 1024
-        ),
-        "runner_code": _read_regular_file_nofollow(RUNNER_SOURCE, maximum_size=4 * 1024 * 1024),
-    }
-    for key, expected_path in expected_paths.items():
-        entry = runtime_lock.get(key)
-        if (
-            not isinstance(entry, dict)
-            or entry.get("path") != expected_path
-            or entry.get("sha256") != _sha256_bytes(locked_raw[key])
-        ):
-            raise KernelMaterializationError(f"runtime authority lock drifted at {key}")
+        )
+        runner_raw = _read_regular_file_nofollow(
+            RUNNER_SOURCE, maximum_size=4 * 1024 * 1024
+        )
+        result = verify_kernel_runtime_snapshot(
+            lock_bytes=lock_raw,
+            runtime_authority_bytes=raw,
+            materializer_bytes=materializer_raw,
+            runner_bytes=runner_raw,
+        )
+        if not result.ok:
+            raise KernelMaterializationError(
+                "kernel runtime component lock failed: " + "; ".join(result.errors)
+            )
+        value = json.loads(raw, object_pairs_hook=_reject_duplicate_json_keys)
+    except KernelMaterializationError:
+        raise
+    except (OSError, UnicodeError, json.JSONDecodeError, TypeError, ValueError) as exc:
+        raise KernelMaterializationError("runtime authority is unavailable or invalid") from exc
     if not isinstance(value, dict):
         raise KernelMaterializationError("runtime authority must be a JSON object")
     if (value.get("policy_id"), value.get("policy_version")) != (
@@ -488,41 +490,279 @@ def _is_within(candidate: Path, root: Path) -> bool:
         return False
 
 
+def _validate_private_directory_descriptor(descriptor: int, label: str) -> None:
+    details = os.fstat(descriptor)
+    if (
+        not stat.S_ISDIR(details.st_mode)
+        or details.st_uid != os.geteuid()
+        or stat.S_IMODE(details.st_mode) & 0o077
+    ):
+        raise KernelMaterializationError(f"{label} is not a private owned directory")
+
+
+def _open_private_directory(path: Path, *, create: bool, label: str) -> int:
+    if create:
+        try:
+            os.mkdir(path, 0o700)
+        except FileExistsError:
+            pass
+        except OSError as exc:
+            raise KernelMaterializationError(f"{label} could not be created") from exc
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as exc:
+        raise KernelMaterializationError(f"{label} is unavailable or unsafe") from exc
+    try:
+        _validate_private_directory_descriptor(descriptor, label)
+    except BaseException:
+        os.close(descriptor)
+        raise
+    return descriptor
+
+
+def _open_private_cas_subdirectory(
+    cas_root: Path, name: str, *, create: bool
+) -> tuple[Path, int]:
+    if name not in {"sha256", "manifests"}:
+        raise KernelMaterializationError("private CAS directory role is unregistered")
+    root_descriptor = _open_private_directory(
+        cas_root, create=False, label="private CAS root"
+    )
+    try:
+        if create:
+            try:
+                os.mkdir(name, 0o700, dir_fd=root_descriptor)
+            except FileExistsError:
+                pass
+            except OSError as exc:
+                raise KernelMaterializationError(
+                    f"private CAS {name} directory could not be created"
+                ) from exc
+        flags = (
+            os.O_RDONLY
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
+        )
+        try:
+            descriptor = os.open(name, flags, dir_fd=root_descriptor)
+        except OSError as exc:
+            raise KernelMaterializationError(
+                f"private CAS {name} directory is unavailable or unsafe"
+            ) from exc
+        try:
+            _validate_private_directory_descriptor(
+                descriptor, f"private CAS {name} directory"
+            )
+        except BaseException:
+            os.close(descriptor)
+            raise
+        return cas_root / name, descriptor
+    finally:
+        os.close(root_descriptor)
+
+
+def _read_private_cas_member(
+    cas_root: Path,
+    directory_name: str,
+    filename: str,
+    *,
+    maximum_size: int = 256 * 1024 * 1024,
+) -> bytes:
+    if not filename or PurePosixPath(filename).name != filename:
+        raise KernelMaterializationError("private CAS member name is unsafe")
+    _, directory_descriptor = _open_private_cas_subdirectory(
+        cas_root, directory_name, create=False
+    )
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        try:
+            descriptor = os.open(filename, flags, dir_fd=directory_descriptor)
+        except OSError as exc:
+            raise KernelMaterializationError("private CAS member is unavailable or unsafe") from exc
+        try:
+            before = os.fstat(descriptor)
+            if (
+                not stat.S_ISREG(before.st_mode)
+                or before.st_uid != os.geteuid()
+                or stat.S_IMODE(before.st_mode) & 0o077
+                or before.st_nlink != 1
+                or before.st_size > maximum_size
+            ):
+                raise KernelMaterializationError("private CAS member metadata is unsafe")
+            chunks: list[bytes] = []
+            total = 0
+            while True:
+                chunk = os.read(
+                    descriptor, min(1024 * 1024, maximum_size + 1 - total)
+                )
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                total += len(chunk)
+                if total > maximum_size:
+                    raise KernelMaterializationError("private CAS member exceeds its limit")
+            after = os.fstat(descriptor)
+            if (
+                before.st_dev,
+                before.st_ino,
+                before.st_size,
+                before.st_mtime_ns,
+                before.st_nlink,
+            ) != (
+                after.st_dev,
+                after.st_ino,
+                after.st_size,
+                after.st_mtime_ns,
+                after.st_nlink,
+            ):
+                raise KernelMaterializationError("private CAS member changed while read")
+            return b"".join(chunks)
+        finally:
+            os.close(descriptor)
+    finally:
+        os.close(directory_descriptor)
+
+
 def _validate_private_cas(cas_root: Path, kernel_checkout: Path) -> Path:
-    resolved = cas_root.expanduser().resolve()
+    requested = Path(os.path.abspath(cas_root.expanduser()))
     research_root = Path(__file__).resolve().parents[2]
     kernel_root = kernel_checkout.resolve()
+    prospective = requested.resolve(strict=False)
+    if _is_within(prospective, research_root) or _is_within(prospective, kernel_root):
+        raise KernelMaterializationError("private CAS must be outside both repositories")
+    requested.parent.mkdir(parents=True, exist_ok=True)
+    descriptor = _open_private_directory(
+        requested, create=True, label="private CAS root"
+    )
+    os.close(descriptor)
+    resolved = requested.resolve(strict=True)
     if _is_within(resolved, research_root) or _is_within(resolved, kernel_root):
         raise KernelMaterializationError("private CAS must be outside both repositories")
-    resolved.mkdir(parents=True, exist_ok=True, mode=0o700)
-    os.chmod(resolved, 0o700)
+    return resolved
+
+
+def _validate_existing_private_cas(cas_root: Path) -> Path:
+    requested = Path(os.path.abspath(cas_root.expanduser()))
+    descriptor = _open_private_directory(
+        requested, create=False, label="private CAS root"
+    )
+    os.close(descriptor)
+    resolved = requested.resolve(strict=True)
+    if _is_within(resolved, Path(__file__).resolve().parents[2]):
+        raise KernelMaterializationError("private CAS must be outside the research repository")
     return resolved
 
 
 def _store_cas_file(source: Path, cas_root: Path, sha256: str) -> Path:
-    directory = cas_root / "sha256"
-    directory.mkdir(parents=True, exist_ok=True, mode=0o700)
-    os.chmod(directory, 0o700)
-    target = directory / sha256
-    if target.exists():
-        if _sha256_path(target) != sha256:
-            raise KernelMaterializationError("private CAS object hash mismatch")
-        return target
-    source_bytes = _read_regular_file_nofollow(source)
-    if _sha256_bytes(source_bytes) != sha256:
+    return _store_cas_bytes(_read_regular_file_nofollow(source), cas_root, sha256)
+
+
+def _store_private_cas_member(
+    source_bytes: bytes,
+    cas_root: Path,
+    *,
+    directory_name: str,
+    filename: str,
+    expected_sha256: str,
+) -> Path:
+    if not filename or PurePosixPath(filename).name != filename:
+        raise KernelMaterializationError("private CAS member name is unsafe")
+    if _sha256_bytes(source_bytes) != expected_sha256:
         raise KernelMaterializationError("private CAS source hash mismatch")
-    temporary = directory / f".{sha256}.{os.getpid()}.tmp"
-    with temporary.open("xb") as outgoing:
-        os.chmod(temporary, 0o600)
-        outgoing.write(source_bytes)
-        outgoing.flush()
-        os.fsync(outgoing.fileno())
-    if _sha256_path(temporary) != sha256:
-        temporary.unlink(missing_ok=True)
-        raise KernelMaterializationError("private CAS write did not preserve bytes")
-    os.replace(temporary, target)
-    os.chmod(target, 0o600)
-    return target
+    directory, directory_descriptor = _open_private_cas_subdirectory(
+        cas_root, directory_name, create=True
+    )
+    target = directory / filename
+    temporary_name = (
+        f".{expected_sha256}.{os.getpid()}.{_sha256_bytes(os.urandom(16))}.tmp"
+    )
+    descriptor: int | None = None
+    try:
+        try:
+            probe = os.open(
+                filename,
+                os.O_RDONLY
+                | getattr(os, "O_CLOEXEC", 0)
+                | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=directory_descriptor,
+            )
+        except FileNotFoundError:
+            probe = None
+        except OSError as exc:
+            raise KernelMaterializationError(
+                "private CAS object is unavailable or unsafe"
+            ) from exc
+        if probe is not None:
+            os.close(probe)
+            existing = _read_private_cas_member(cas_root, directory_name, filename)
+            if _sha256_bytes(existing) != expected_sha256:
+                raise KernelMaterializationError("private CAS object hash mismatch")
+            return target
+        flags = (
+            os.O_WRONLY
+            | os.O_CREAT
+            | os.O_EXCL
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
+        )
+        descriptor = os.open(temporary_name, flags, 0o600, dir_fd=directory_descriptor)
+        view = memoryview(source_bytes)
+        while view:
+            written = os.write(descriptor, view)
+            if written <= 0:
+                raise KernelMaterializationError("private CAS write did not complete")
+            view = view[written:]
+        os.fsync(descriptor)
+        os.fchmod(descriptor, 0o600)
+        os.close(descriptor)
+        descriptor = None
+        try:
+            os.link(
+                temporary_name,
+                filename,
+                src_dir_fd=directory_descriptor,
+                dst_dir_fd=directory_descriptor,
+                follow_symlinks=False,
+            )
+        except FileExistsError:
+            existing = _read_private_cas_member(cas_root, directory_name, filename)
+            if _sha256_bytes(existing) != expected_sha256:
+                raise KernelMaterializationError(
+                    "private CAS object hash mismatch"
+                ) from None
+        os.unlink(temporary_name, dir_fd=directory_descriptor)
+        os.fsync(directory_descriptor)
+        if (
+            _sha256_bytes(_read_private_cas_member(cas_root, directory_name, filename))
+            != expected_sha256
+        ):
+            raise KernelMaterializationError("private CAS write did not preserve bytes")
+        return target
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        try:
+            os.unlink(temporary_name, dir_fd=directory_descriptor)
+        except FileNotFoundError:
+            pass
+        os.close(directory_descriptor)
+
+
+def _store_cas_bytes(source_bytes: bytes, cas_root: Path, sha256: str) -> Path:
+    return _store_private_cas_member(
+        source_bytes,
+        cas_root,
+        directory_name="sha256",
+        filename=sha256,
+        expected_sha256=sha256,
+    )
 
 
 def _source_sha256(path: Path) -> str:
@@ -541,21 +781,44 @@ def _validated_executable(path: Path) -> tuple[Path, str]:
     return absolute, snapshot_sha256
 
 
+def _trusted_build_python() -> tuple[Path, dict[str, str]]:
+    try:
+        executable = Path(sys.executable).resolve(strict=True)
+    except OSError as exc:
+        raise KernelMaterializationError("running build Python is unavailable") from exc
+    if (
+        sys.implementation.name != "cpython"
+        or sys.version_info[:2] != (3, 11)
+        or platform.system() != "Linux"
+        or platform.machine() not in {"x86_64", "AMD64"}
+    ):
+        raise KernelMaterializationError(
+            "materialization requires the trusted Linux x86_64 CPython 3.11 process"
+        )
+    executable, executable_sha256 = _validated_executable(executable)
+    return executable, {
+        "implementation": "cpython",
+        "python_version": platform.python_version(),
+        "platform": "linux_x86_64",
+        "executable_sha256": executable_sha256,
+    }
+
+
 def _build_release_wheel(
     *,
     checkout: Path,
-    build_python: Path,
     setuptools_wheel: Path,
     destination: Path,
     authority: Mapping[str, Any],
-) -> Path:
+) -> tuple[Path, dict[str, str]]:
     build = authority["build"]
     _verify_registered_wheel(
         setuptools_wheel,
         build["setuptools_wheel_filename"],
         build["setuptools_wheel_sha256"],
     )
-    executable, executable_sha256 = _validated_executable(build_python)
+    executable, build_python_identity = _trusted_build_python()
+    executable_sha256 = build_python_identity["executable_sha256"]
     source_dir = destination / "source"
     backend_dir = destination / "backend"
     output_dir = destination / "wheel"
@@ -615,14 +878,13 @@ def _build_release_wheel(
         names=frozenset(build["normalized_dist_info_entries"]),
         timestamp=build["dist_info_zip_timestamp_utc"],
     )
-    return wheel
+    return wheel, build_python_identity
 
 
 def materialize_pinned_kernel_runtime(
     *,
     kernel_checkout: Path,
     cas_root: Path,
-    build_python: Path,
     setuptools_wheel: Path,
     dependency_wheels: Iterable[Path],
     target_python_minor: str,
@@ -633,6 +895,10 @@ def materialize_pinned_kernel_runtime(
     verify_pinned_kernel_checkout(kernel_checkout)
     cas = _validate_private_cas(cas_root, kernel_checkout)
     dependency_wheels = tuple(Path(item) for item in dependency_wheels)
+    if target_python_minor != authority["runtime"]["container"]["python_minor"]:
+        raise KernelMaterializationError(
+            "target Python minor has no pinned production container"
+        )
     expected_dependencies = {
         filename: sha256
         for filename, sha256 in authority["runtime"]["python_minors"].get(target_python_minor, ())
@@ -647,9 +913,8 @@ def materialize_pinned_kernel_runtime(
 
     with tempfile.TemporaryDirectory(prefix="owner-kernel-materialize-") as temporary:
         temporary_path = Path(temporary)
-        wheel = _build_release_wheel(
+        wheel, build_python_identity = _build_release_wheel(
             checkout=kernel_checkout,
-            build_python=build_python,
             setuptools_wheel=setuptools_wheel,
             destination=temporary_path,
             authority=authority,
@@ -674,6 +939,15 @@ def materialize_pinned_kernel_runtime(
                 "uri": f"cas://sha256/{expected_sha256}",
             }
         )
+    result_schema = authority["runtime"]["result_schema"]
+    result_schema_bytes = _git_blob(
+        kernel_checkout,
+        authority["kernel"]["commit"],
+        f"schemas/{result_schema['filename']}",
+    )
+    if _sha256_bytes(result_schema_bytes) != result_schema["sha256"]:
+        raise KernelMaterializationError("pinned result Schema bytes do not match authority")
+    _store_cas_bytes(result_schema_bytes, cas, result_schema["sha256"])
     manifest: dict[str, Any] = {
         "schema_version": "1.0.0",
         "manifest_policy_id": MANIFEST_POLICY_ID,
@@ -687,6 +961,7 @@ def materialize_pinned_kernel_runtime(
             "materializer_sha256": _source_sha256(MATERIALIZER_SOURCE),
             "runner_path": "owner_research/valuation_pinned_kernel.py",
             "runner_sha256": _source_sha256(RUNNER_SOURCE),
+            "build_python": build_python_identity,
         },
         "kernel": {
             key: authority["kernel"][key]
@@ -706,6 +981,13 @@ def materialize_pinned_kernel_runtime(
             "platform": authority["runtime"]["platform"],
             "python_minor": target_python_minor,
         },
+        "container": authority["runtime"]["container"],
+        "trusted_workflow": authority["runtime"]["trusted_workflow"],
+        "result_schema": {
+            "filename": result_schema["filename"],
+            "sha256": result_schema["sha256"],
+            "uri": f"cas://sha256/{result_schema['sha256']}",
+        },
         "transport": {
             "kernel_call": authority["runtime"]["kernel_call"],
             "kernel_call_count": authority["runtime"]["kernel_call_count"],
@@ -719,21 +1001,13 @@ def materialize_pinned_kernel_runtime(
     manifest["manifest_fingerprint"] = _sha256_bytes(_canonical_bytes(manifest))
     manifest_bytes = _canonical_bytes(manifest)
     manifest_file_sha256 = _sha256_bytes(manifest_bytes)
-    manifest_directory = cas / "manifests"
-    manifest_directory.mkdir(parents=True, exist_ok=True, mode=0o700)
-    os.chmod(manifest_directory, 0o700)
-    manifest_path = manifest_directory / f"{manifest_file_sha256}.json"
-    if manifest_path.exists() and manifest_path.read_bytes() != manifest_bytes:
-        raise KernelMaterializationError("runtime manifest CAS collision")
-    if not manifest_path.exists():
-        temporary_manifest = manifest_directory / f".{manifest_file_sha256}.{os.getpid()}.tmp"
-        with temporary_manifest.open("xb") as handle:
-            os.chmod(temporary_manifest, 0o600)
-            handle.write(manifest_bytes)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary_manifest, manifest_path)
-        os.chmod(manifest_path, 0o600)
+    manifest_path = _store_private_cas_member(
+        manifest_bytes,
+        cas,
+        directory_name="manifests",
+        filename=f"{manifest_file_sha256}.json",
+        expected_sha256=manifest_file_sha256,
+    )
     load_and_verify_runtime_manifest(
         manifest_path,
         cas_root=cas,
@@ -757,6 +1031,9 @@ def _validate_manifest_shape(manifest: Mapping[str, Any]) -> None:
         "producer",
         "kernel",
         "target",
+        "container",
+        "trusted_workflow",
+        "result_schema",
         "transport",
         "wheels",
         "manifest_fingerprint",
@@ -778,17 +1055,13 @@ def load_and_verify_runtime_manifest(
 ) -> dict[str, Any]:
     """Reload and bind a runtime manifest to current authority, code, and CAS bytes."""
 
-    path = manifest_path if manifest_path.is_absolute() else Path.cwd() / manifest_path
-    try:
-        details = path.lstat()
-    except OSError as exc:
-        raise KernelMaterializationError("runtime manifest is unavailable") from exc
-    if not stat.S_ISREG(details.st_mode):
-        raise KernelMaterializationError("runtime manifest must be a non-symlink regular file")
-    cas = cas_root.resolve(strict=True)
-    if path.parent.resolve() != (cas / "manifests").resolve():
+    path = Path(os.path.abspath(manifest_path.expanduser()))
+    cas = _validate_existing_private_cas(cas_root)
+    if path.parent != cas / "manifests":
         raise KernelMaterializationError("runtime manifest is outside the private CAS")
-    raw = _read_regular_file_nofollow(path, maximum_size=8 * 1024 * 1024)
+    raw = _read_private_cas_member(
+        cas, "manifests", path.name, maximum_size=8 * 1024 * 1024
+    )
     file_sha256 = _sha256_bytes(raw)
     if expected_manifest_file_sha256 is not None and file_sha256 != expected_manifest_file_sha256:
         raise KernelMaterializationError("runtime manifest file SHA mismatch")
@@ -812,13 +1085,31 @@ def load_and_verify_runtime_manifest(
         "sha256": authority_sha256,
     }:
         raise KernelMaterializationError("runtime manifest authority binding mismatch")
-    if manifest["producer"] != {
+    producer = manifest["producer"]
+    build_python = producer.get("build_python") if isinstance(producer, dict) else None
+    expected_producer = {
         "materializer_path": "owner_research/valuation_kernel_materializer.py",
         "materializer_sha256": _source_sha256(MATERIALIZER_SOURCE),
         "runner_path": "owner_research/valuation_pinned_kernel.py",
         "runner_sha256": _source_sha256(RUNNER_SOURCE),
-    }:
+        "build_python": build_python,
+    }
+    if producer != expected_producer:
         raise KernelMaterializationError("runtime manifest producer-code binding mismatch")
+    if (
+        not isinstance(build_python, dict)
+        or set(build_python)
+        != {"implementation", "python_version", "platform", "executable_sha256"}
+        or build_python.get("implementation") != "cpython"
+        or not str(build_python.get("python_version", "")).startswith("3.11.")
+        or build_python.get("platform") != "linux_x86_64"
+        or len(str(build_python.get("executable_sha256", ""))) != 64
+        or any(
+            character not in "0123456789abcdef"
+            for character in str(build_python.get("executable_sha256", ""))
+        )
+    ):
+        raise KernelMaterializationError("runtime manifest build-Python binding mismatch")
     expected_kernel = {
         key: authority["kernel"][key]
         for key in (
@@ -834,6 +1125,37 @@ def load_and_verify_runtime_manifest(
     }
     if manifest["kernel"] != expected_kernel:
         raise KernelMaterializationError("runtime manifest kernel identity mismatch")
+    if manifest["container"] != authority["runtime"]["container"]:
+        raise KernelMaterializationError("runtime manifest container identity mismatch")
+    if manifest["trusted_workflow"] != authority["runtime"]["trusted_workflow"]:
+        raise KernelMaterializationError("runtime manifest trusted-workflow identity mismatch")
+    result_schema = authority["runtime"]["result_schema"]
+    expected_result_schema = {
+        "filename": result_schema["filename"],
+        "sha256": result_schema["sha256"],
+        "uri": f"cas://sha256/{result_schema['sha256']}",
+    }
+    if manifest["result_schema"] != expected_result_schema:
+        raise KernelMaterializationError("runtime manifest result Schema binding mismatch")
+    result_schema_bytes = _read_private_cas_member(
+        cas,
+        "sha256",
+        result_schema["sha256"],
+        maximum_size=8 * 1024 * 1024,
+    )
+    if _sha256_bytes(result_schema_bytes) != result_schema["sha256"]:
+        raise KernelMaterializationError("runtime result Schema CAS object mismatch")
+    try:
+        result_schema_payload = json.loads(result_schema_bytes)
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise KernelMaterializationError("runtime result Schema is invalid JSON") from exc
+    if (
+        not isinstance(result_schema_payload, dict)
+        or result_schema_payload.get("$schema")
+        != "https://json-schema.org/draft/2020-12/schema"
+        or result_schema_payload.get("additionalProperties") is not False
+    ):
+        raise KernelMaterializationError("runtime result Schema identity is invalid")
     python_minor = manifest["target"].get("python_minor")
     if (
         manifest["target"]
@@ -898,7 +1220,8 @@ def load_and_verify_runtime_manifest(
         if item["role"] != expected_role or item["uri"] != f"cas://sha256/{sha256}":
             raise KernelMaterializationError("runtime manifest wheel binding mismatch")
         wheel_path = cas / "sha256" / sha256
-        if not wheel_path.is_file() or _sha256_path(wheel_path) != sha256:
+        wheel_bytes = _read_private_cas_member(cas, "sha256", sha256)
+        if _sha256_bytes(wheel_bytes) != sha256:
             raise KernelMaterializationError("runtime wheel CAS object mismatch")
         _verify_registered_wheel(wheel_path, wheel_path.name, sha256)
         observed[filename] = sha256

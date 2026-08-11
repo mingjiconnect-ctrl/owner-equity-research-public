@@ -48,6 +48,55 @@
   "runtime": {
     "platform": "linux_x86_64",
     "python_implementations": ["cpython"],
+    "result_schema": {
+      "filename": "valuation-result.schema.json",
+      "sha256": "bbfed2049ed258b767002b74ff45fb6847eb5723ffd6c1d31c53cf119625a683"
+    },
+    "container": {
+      "engine": "docker",
+      "engine_path": "/usr/bin/docker",
+      "image_repository": "docker.io/library/python",
+      "image_tag": "3.11.15-bookworm",
+      "image_manifest_digest": "sha256:eaeffb6e8511935426934aac863940fbd004ef31dab0d7fc27a129bb7c19d9a8",
+      "image_config_digest": "sha256:d299dee73063206fe64248b8eb62cbef36f6baedfc2c5e2ef4c7618ad18efb3a",
+      "image_reference": "docker.io/library/python@sha256:eaeffb6e8511935426934aac863940fbd004ef31dab0d7fc27a129bb7c19d9a8",
+      "platform": "linux/amd64",
+      "os": "linux",
+      "architecture": "amd64",
+      "python_minor": "3.11",
+      "python_patch": "3.11.15",
+      "python_executable": "/usr/local/bin/python3",
+      "pull_policy": "never",
+      "network_mode": "none",
+      "read_only_rootfs": true,
+      "cap_drop": ["ALL"],
+      "security_opt": ["no-new-privileges:true"],
+      "user_policy": "host_uid_gid",
+      "pids_limit": 64,
+      "memory_limit_bytes": 1610612736,
+      "memory_swap_limit_bytes": 1610612736,
+      "cpu_limit": "1.0",
+      "tmpfs": ["/tmp:rw,exec,nosuid,nodev,size=268435456,mode=1777"],
+      "ulimits": ["core=0:0", "fsize=67108864:67108864", "nofile=64:64"],
+      "read_only_mounts": ["manifest", "request", "runner", "wheelhouse"]
+    },
+    "trusted_workflow": {
+      "attestation_path": "/run/owner-research/trusted-container-attestation.json",
+      "attestation_mount_target": "/run/owner-research",
+      "attestation_sha256_env": "OWNER_RESEARCH_TRUSTED_CONTAINER_ATTESTATION_SHA256",
+      "read_only_mounts": [
+        {"role": "candidate_workspace", "target": "/workspace"},
+        {"role": "private_kernel_checkout", "target": "/private-kernel"},
+        {"role": "binary_supply_wheelhouse", "target": "/supply"},
+        {"role": "binary_supply_lock", "target": "/supply.lock"},
+        {"role": "verified_research_wheel", "target": "/research-wheel"},
+        {"role": "runtime_cas", "target": "/runtime-cas"},
+        {"role": "trusted_attestation_directory", "target": "/run/owner-research"}
+      ],
+      "writable_mounts": [
+        {"role": "canonical_summary_output", "target": "/output"}
+      ]
+    },
     "python_minors": {
       "3.11": [
         ["attrs-26.1.0-py3-none-any.whl", "c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309"],
@@ -56,28 +105,13 @@
         ["referencing-0.37.0-py3-none-any.whl", "381329a9f99628c9069361716891d34ad94af76e461dcb0335825aecc7692231"],
         ["rpds_py-2026.6.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", "9c1255b302953c86a486b81d330d5ee1d5bd937691ce271b6be0ef0e299eaab7"],
         ["typing_extensions-4.16.0-py3-none-any.whl", "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8"]
-      ],
-      "3.12": [
-        ["attrs-26.1.0-py3-none-any.whl", "c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309"],
-        ["jsonschema-4.26.0-py3-none-any.whl", "d489f15263b8d200f8387e64b4c3a75f06629559fb73deb8fdfb525f2dab50ce"],
-        ["jsonschema_specifications-2025.9.1-py3-none-any.whl", "98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe"],
-        ["referencing-0.37.0-py3-none-any.whl", "381329a9f99628c9069361716891d34ad94af76e461dcb0335825aecc7692231"],
-        ["rpds_py-2026.6.3-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", "ecabd69db66de867690f9797f2f8fa27ba501bbc24540cbdbdc649cd15888ba6"],
-        ["typing_extensions-4.16.0-py3-none-any.whl", "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8"]
-      ],
-      "3.13": [
-        ["attrs-26.1.0-py3-none-any.whl", "c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309"],
-        ["jsonschema-4.26.0-py3-none-any.whl", "d489f15263b8d200f8387e64b4c3a75f06629559fb73deb8fdfb525f2dab50ce"],
-        ["jsonschema_specifications-2025.9.1-py3-none-any.whl", "98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe"],
-        ["referencing-0.37.0-py3-none-any.whl", "381329a9f99628c9069361716891d34ad94af76e461dcb0335825aecc7692231"],
-        ["rpds_py-2026.6.3-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", "acac386b453c2516111b50985d60ce46e7fadb5ea71ae7b25f4c946935bf27cf"]
       ]
     },
     "request_transport": "canonical_json_stdin",
     "result_transport": "canonical_json_stdout",
     "kernel_call": "owner_valuation.run_dual_panel",
     "kernel_call_count": 1,
-    "network_mode": "linux_network_namespace_none",
+    "network_mode": "docker_network_none",
     "result_bytes_preserved": true
   }
 }
