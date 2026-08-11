@@ -14,6 +14,7 @@ import math
 import subprocess
 import unicodedata
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
@@ -22,12 +23,14 @@ from jsonschema import Draft202012Validator, FormatChecker
 from referencing import Registry, Resource
 
 from .component_lock import file_sha256
+from .contracts import CalculationResult, Fact, SourceDocument
 from .fingerprints import FrozenMap, canonical_json, canonical_sha256, freeze, to_json_value
 from .research_bundle_policies import dependency_closure_sha256
 from .research_bundle_validation import (
     ResearchBundleValidationError,
     dependency_closure,
 )
+from .valuation_current_share_compiler import CurrentShareCompilationResult
 from .valuation_fact_mapping import _source_is_registered
 from .valuation_kernel_projection import (
     CurrentShareKernelProjection,
@@ -54,6 +57,64 @@ class FinalRequestCompilationError(ValueError):
 _KERNEL_TAG_OBJECT = "4e19ce6a59bc4321ebcd368e807ed764f4e8abde"
 _MODEL_SHARE_UNIT = "millions shares"
 _MARKET_EQUITY_DERIVATION = "market_price_per_current_common_share * common_shares_outstanding"
+
+
+def _market_evidence_binding_sha256(
+    *,
+    context_id: str,
+    context_fingerprint: str,
+    access_fingerprint: str,
+    provider_id: str,
+    provider_registration_sha256: str,
+    receipt_id: str,
+    receipt_fingerprint: str,
+    current_share_compilation_fingerprint: str,
+    source_document_id: str,
+    source_document_fingerprint: str,
+    source_ref_fingerprint: str,
+    raw_response_sha256: str,
+    quote_fact_id: str,
+    quote_fact_fingerprint: str,
+    calculation_id: str,
+    calculation_fingerprint: str,
+) -> str:
+    return canonical_sha256(
+        {
+            "context": [context_id, context_fingerprint],
+            "access_fingerprint": access_fingerprint,
+            "provider": [
+                provider_id,
+                provider_registration_sha256,
+                receipt_id,
+                receipt_fingerprint,
+            ],
+            "current_share_compilation_fingerprint": (current_share_compilation_fingerprint),
+            "source_document": [source_document_id, source_document_fingerprint],
+            "source_ref_fingerprint": source_ref_fingerprint,
+            "raw_response_sha256": raw_response_sha256,
+            "quote_fact": [quote_fact_id, quote_fact_fingerprint],
+            "market_equity_calculation": [calculation_id, calculation_fingerprint],
+        }
+    )
+
+
+def _company_identity_binding_sha256(
+    *,
+    issuer_id: str,
+    legal_name: str,
+    fact_id: str,
+    fact_fingerprint: str,
+    source_document_id: str,
+    source_document_fingerprint: str,
+) -> str:
+    return canonical_sha256(
+        {
+            "issuer_id": issuer_id,
+            "legal_name": legal_name,
+            "fact": [fact_id, fact_fingerprint],
+            "source_document": [source_document_id, source_document_fingerprint],
+        }
+    )
 
 
 def _git(repository: Path, *args: str) -> str:
@@ -127,8 +188,22 @@ class FinalFactLedgerCompilationResult:
     quote_projection_witness: KernelNumericProjectionWitness
     market_equity_projection_witness: KernelNumericProjectionWitness
     market_provider_id: str
+    market_provider_registration_sha256: str
     market_provider_receipt_id: str
     market_provider_receipt_fingerprint: str
+    market_validation_context_id: str
+    market_validation_context_fingerprint: str
+    market_access_result_fingerprint: str
+    current_share_compilation_fingerprint: str
+    market_source_document_id: str
+    market_source_document_fingerprint: str
+    market_source_ref_fingerprint: str
+    market_raw_response_sha256: str
+    market_quote_fact_id: str
+    market_quote_fact_fingerprint: str
+    market_equity_calculation_id: str
+    market_equity_calculation_fingerprint: str
+    market_evidence_binding_sha256: str
     added_source_ids: tuple[str, ...]
     added_fact_ids: tuple[str, ...]
     fact_ledger_payload: FrozenMap
@@ -151,11 +226,97 @@ class FinalFactLedgerCompilationResult:
         if not all(
             (
                 self.market_provider_id,
+                self.market_provider_registration_sha256,
                 self.market_provider_receipt_id,
                 self.market_provider_receipt_fingerprint,
+                self.market_validation_context_id,
+                self.market_validation_context_fingerprint,
+                self.market_access_result_fingerprint,
+                self.current_share_compilation_fingerprint,
+                self.market_source_document_id,
+                self.market_source_document_fingerprint,
+                self.market_source_ref_fingerprint,
+                self.market_raw_response_sha256,
+                self.market_quote_fact_id,
+                self.market_quote_fact_fingerprint,
+                self.market_equity_calculation_id,
+                self.market_equity_calculation_fingerprint,
+                self.market_evidence_binding_sha256,
             )
         ):
             raise ValueError("final FactLedger lacks governed market-provider identity")
+        for value in (
+            self.market_provider_receipt_fingerprint,
+            self.market_provider_registration_sha256,
+            self.market_validation_context_fingerprint,
+            self.market_access_result_fingerprint,
+            self.current_share_compilation_fingerprint,
+            self.market_source_document_fingerprint,
+            self.market_source_ref_fingerprint,
+            self.market_raw_response_sha256,
+            self.market_quote_fact_fingerprint,
+            self.market_equity_calculation_fingerprint,
+            self.market_evidence_binding_sha256,
+        ):
+            if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
+                raise ValueError("final FactLedger contains an invalid evidence fingerprint")
+        source_index = {item["source_id"]: item for item in payload["sources"]}
+        fact_index = {item["fact_id"]: item for item in payload["facts"]}
+        if len(source_index) != len(payload["sources"]) or len(fact_index) != len(payload["facts"]):
+            raise ValueError("final FactLedger repeats evidence identity")
+        market_source = source_index.get(self.market_source_document_id)
+        quote = fact_index.get(self.market_quote_fact_id)
+        market = fact_index.get(f"derived:{self.market_equity_calculation_id}")
+        current_share_id = self.current_share_projection.current_share_fact_id
+        share_attestation = self.current_share_projection.research_evidence_attestation
+        if (
+            share_attestation is None
+            or self.current_share_compilation_fingerprint
+            != share_attestation["current_share_compilation_fingerprint"]
+            or market_source is None
+            or canonical_sha256(market_source) != self.market_source_ref_fingerprint
+            or market_source.get("publisher") != self.market_provider_id
+            or self.market_raw_response_sha256 not in market_source.get("locator", "")
+            or self.market_source_document_id not in added_sources
+            or quote is None
+            or quote.get("concept") != "market_price_per_current_common_share"
+            or quote.get("source_id") != self.market_source_document_id
+            or quote.get("raw") is not True
+            or quote.get("parent_fact_ids")
+            or quote.get("value") != self.quote_projection_witness.kernel_value
+            or self.quote_projection_witness.label != f"quote:{self.market_quote_fact_id}"
+            or self.market_quote_fact_id not in added_facts
+            or market is None
+            or market.get("concept") != "market_equity_value"
+            or market.get("source_id") != self.market_source_document_id
+            or market.get("raw") is not False
+            or tuple(market.get("parent_fact_ids", ()))
+            != (self.market_quote_fact_id, current_share_id)
+            or market.get("value") != self.market_equity_projection_witness.kernel_value
+            or self.market_equity_projection_witness.label
+            != f"market-equity:{self.market_equity_calculation_id}"
+            or market["fact_id"] not in added_facts
+            or self.market_evidence_binding_sha256
+            != _market_evidence_binding_sha256(
+                context_id=self.market_validation_context_id,
+                context_fingerprint=self.market_validation_context_fingerprint,
+                access_fingerprint=self.market_access_result_fingerprint,
+                provider_id=self.market_provider_id,
+                provider_registration_sha256=self.market_provider_registration_sha256,
+                receipt_id=self.market_provider_receipt_id,
+                receipt_fingerprint=self.market_provider_receipt_fingerprint,
+                current_share_compilation_fingerprint=(self.current_share_compilation_fingerprint),
+                source_document_id=self.market_source_document_id,
+                source_document_fingerprint=self.market_source_document_fingerprint,
+                source_ref_fingerprint=self.market_source_ref_fingerprint,
+                raw_response_sha256=self.market_raw_response_sha256,
+                quote_fact_id=self.market_quote_fact_id,
+                quote_fact_fingerprint=self.market_quote_fact_fingerprint,
+                calculation_id=self.market_equity_calculation_id,
+                calculation_fingerprint=self.market_equity_calculation_fingerprint,
+            )
+        ):
+            raise ValueError("final FactLedger does not bind governed market evidence")
         object.__setattr__(self, "base_source_fingerprints", sources)
         object.__setattr__(self, "base_fact_fingerprints", facts)
         object.__setattr__(self, "added_source_ids", added_sources)
@@ -202,8 +363,12 @@ class FinalValuationRequestCompilationResult:
     valuation_date: str
     price_blind_input_fingerprint: str
     prepared_market_reference_fingerprint: str | None
+    company_legal_name_value: str | None
     company_name_fact_id: str | None
+    company_name_fact_fingerprint: str | None
     company_name_source_document_id: str | None
+    company_name_source_document_fingerprint: str | None
+    company_identity_binding_sha256: str | None
     fact_ledger_result: FinalFactLedgerCompilationResult | None
     assumption_ledger_result: FinalAssumptionLedgerCompilationResult | None
     request_payload: FrozenMap | None
@@ -223,8 +388,12 @@ class FinalValuationRequestCompilationResult:
                 or self.canonical_request_json is None
                 or self.request_sha256 is None
                 or self.prepared_market_reference_fingerprint is None
+                or self.company_legal_name_value is None
                 or self.company_name_fact_id is None
+                or self.company_name_fact_fingerprint is None
                 or self.company_name_source_document_id is None
+                or self.company_name_source_document_fingerprint is None
+                or self.company_identity_binding_sha256 is None
                 or issues
                 or canonical_json(self.request_payload) != self.canonical_request_json
                 or canonical_sha256(self.request_payload) != self.request_sha256
@@ -245,8 +414,27 @@ class FinalValuationRequestCompilationResult:
                 != self.fact_ledger_result.base_ledger_sha256
                 or self.assumption_ledger_result.final_fact_ledger_fingerprint
                 != canonical_sha256(fact_payload)
+                or request.get("company", {}).get("name") != self.company_legal_name_value
+                or self.company_identity_binding_sha256
+                != _company_identity_binding_sha256(
+                    issuer_id=self.issuer_id,
+                    legal_name=self.company_legal_name_value,
+                    fact_id=self.company_name_fact_id,
+                    fact_fingerprint=self.company_name_fact_fingerprint,
+                    source_document_id=self.company_name_source_document_id,
+                    source_document_fingerprint=(self.company_name_source_document_fingerprint),
+                )
             ):
                 raise ValueError("compiled valuation request does not bind its ledger receipts")
+            for value in (
+                self.company_name_fact_fingerprint,
+                self.company_name_source_document_fingerprint,
+                self.company_identity_binding_sha256,
+            ):
+                if len(value) != 64 or any(
+                    character not in "0123456789abcdef" for character in value
+                ):
+                    raise ValueError("compiled valuation request has invalid company provenance")
             fact_index = {item["fact_id"]: item for item in fact_payload.get("facts", ())}
             if len(fact_index) != len(fact_payload.get("facts", ())):
                 raise ValueError("compiled valuation request repeats a Fact ID")
@@ -300,8 +488,12 @@ class FinalValuationRequestCompilationResult:
                     self.canonical_request_json,
                     self.request_sha256,
                     self.prepared_market_reference_fingerprint,
+                    self.company_legal_name_value,
                     self.company_name_fact_id,
+                    self.company_name_fact_fingerprint,
                     self.company_name_source_document_id,
+                    self.company_name_source_document_fingerprint,
+                    self.company_identity_binding_sha256,
                 )
             )
             or not issues
@@ -334,8 +526,12 @@ def _noncompiled(
         valuation_date=preparation.data_cutoff_date,
         price_blind_input_fingerprint=preparation.price_blind_input_fingerprint,
         prepared_market_reference_fingerprint=None,
+        company_legal_name_value=None,
         company_name_fact_id=None,
+        company_name_fact_fingerprint=None,
         company_name_source_document_id=None,
+        company_name_source_document_fingerprint=None,
+        company_identity_binding_sha256=None,
         fact_ledger_result=None,
         assumption_ledger_result=None,
         request_payload=None,
@@ -366,8 +562,86 @@ def _append_by_id(
     return [index[key] for key in sorted(index)], tuple(sorted(added))
 
 
-def _governed_market_authority(prepared: PreparedMarketReference) -> dict[str, str]:
+def _unique_exact_graph_object(
+    values: tuple[Any, ...],
+    *,
+    expected: Any,
+    identifier_field: str,
+    expected_type: type[Any],
+    label: str,
+) -> Any:
+    if type(expected) is not expected_type:
+        raise FinalRequestCompilationError(f"prepared {label} has a substituted runtime type")
+    identifier = getattr(expected, identifier_field)
+    matches = tuple(item for item in values if getattr(item, identifier_field) == identifier)
+    if (
+        len(matches) != 1
+        or type(matches[0]) is not expected_type
+        or matches[0] != expected
+        or matches[0].fingerprint != expected.fingerprint
+    ):
+        raise FinalRequestCompilationError(f"prepared {label} is not the unique graph object")
+    return matches[0]
+
+
+def _validated_prepared_market_context(prepared: PreparedMarketReference) -> Any:
+    """Replay the exact accepted market objects before any numeric projection."""
+
     snapshot = prepared.snapshot
+    snapshot_id = getattr(snapshot, "snapshot_id", None)
+    snapshot_fingerprint = getattr(snapshot, "fingerprint", None)
+    snapshot_matches = tuple(
+        item
+        for item in prepared.graph.market_reference_snapshots
+        if getattr(item, "snapshot_id", None) == snapshot_id
+    )
+    if (
+        not snapshot_id
+        or not snapshot_fingerprint
+        or len(snapshot_matches) != 1
+        or snapshot_matches[0] != snapshot
+        or getattr(snapshot_matches[0], "fingerprint", None) != snapshot_fingerprint
+        or snapshot.status != "validated"
+    ):
+        raise FinalRequestCompilationError(
+            "prepared Snapshot is not the unique accepted graph object"
+        )
+    source = _unique_exact_graph_object(
+        prepared.graph.documents,
+        expected=prepared.market_source,
+        identifier_field="document_id",
+        expected_type=SourceDocument,
+        label="market SourceDocument",
+    )
+    quote = _unique_exact_graph_object(
+        prepared.graph.facts,
+        expected=prepared.quote_fact,
+        identifier_field="fact_id",
+        expected_type=Fact,
+        label="quote Fact",
+    )
+    calculation = _unique_exact_graph_object(
+        prepared.graph.calculations,
+        expected=prepared.market_equity_calculation,
+        identifier_field="calculation_id",
+        expected_type=CalculationResult,
+        label="market-equity CalculationResult",
+    )
+    current = prepared.current_shares
+    if type(current) is not CurrentShareCompilationResult:
+        raise FinalRequestCompilationError(
+            "prepared current-share compilation has a substituted runtime type"
+        )
+    output = current.output_fact
+    if output is None:
+        raise FinalRequestCompilationError("prepared current-share compilation has no output")
+    _unique_exact_graph_object(
+        prepared.graph.facts,
+        expected=output,
+        identifier_field="fact_id",
+        expected_type=Fact,
+        label="current-share output Fact",
+    )
     contexts = tuple(
         item
         for item in prepared.graph.market_reference_validation_contexts
@@ -376,6 +650,52 @@ def _governed_market_authority(prepared: PreparedMarketReference) -> dict[str, s
     if len(contexts) != 1:
         raise FinalRequestCompilationError("market reference lacks one matched validation context")
     context = contexts[0]
+    access = context.market_access_result
+    context_current = context.current_share_compilation_result
+    cutoff = date.fromisoformat(snapshot.data_cutoff_date)
+    trading_date = date.fromisoformat(snapshot.trading_date)
+    if (
+        not getattr(context, "context_id", "")
+        or not getattr(context, "fingerprint", "")
+        or type(context_current) is not CurrentShareCompilationResult
+        or context_current != current
+        or context_current.fingerprint != current.fingerprint
+        or access.status != "eligible"
+        or access.request is None
+        or access.receipt is None
+        or access.issuer_id != snapshot.issuer_id
+        or access.data_cutoff_date != snapshot.data_cutoff_date
+        or access.price_blind_input_fingerprint != snapshot.price_blind_input_fingerprint
+        or access.protected_mckinsey_sha256 != snapshot.protected_mckinsey_sha256
+        or access.protected_penman_assumptions_sha256
+        != snapshot.protected_penman_assumptions_sha256
+        or current.status != "eligible"
+        or current.issuer_id != snapshot.issuer_id
+        or current.data_cutoff_date != snapshot.data_cutoff_date
+        or current.security_id != snapshot.security["security_id"]
+        or current.quote_date != snapshot.trading_date
+        or source.issuer_id != snapshot.issuer_id
+        or quote.issuer_id != snapshot.issuer_id
+        or calculation.issuer_id != snapshot.issuer_id
+        or output.issuer_id != snapshot.issuer_id
+        or source.period["end"] != snapshot.trading_date
+        or quote.period["end"] != snapshot.trading_date
+        or calculation.period["end"] != snapshot.trading_date
+        or output.period["end"] != snapshot.trading_date
+        or date.fromisoformat(source.published_date) > cutoff
+        or trading_date > cutoff
+    ):
+        raise FinalRequestCompilationError(
+            "prepared market evidence does not replay its accepted validation context"
+        )
+    return context
+
+
+def _governed_market_authority(
+    prepared: PreparedMarketReference,
+    context: Any,
+) -> dict[str, str]:
+    snapshot = prepared.snapshot
     access = context.market_access_result
     request = access.request
     governed = access.receipt
@@ -398,6 +718,9 @@ def _governed_market_authority(prepared: PreparedMarketReference) -> dict[str, s
         or receipt.authorization_handoff_id != snapshot.authorization_handoff_id
         or request.data_cutoff_date != snapshot.data_cutoff_date
         or receipt.data_cutoff_date != snapshot.data_cutoff_date
+        or governed.provider_registration_sha256
+        != snapshot.authority_lineage["provider_registration_sha256"]
+        or governed.raw_response_sha256 != snapshot.raw_evidence["raw_response_sha256"]
     ):
         raise FinalRequestCompilationError(
             "market provider identity does not replay the validated Snapshot"
@@ -405,10 +728,15 @@ def _governed_market_authority(prepared: PreparedMarketReference) -> dict[str, s
     if not request.provider_id.strip() or not request.price_basis.strip():
         raise FinalRequestCompilationError("market provider identity is empty")
     return {
+        "context_id": context.context_id,
+        "context_fingerprint": context.fingerprint,
+        "access_fingerprint": access.fingerprint,
         "provider_id": request.provider_id,
+        "provider_registration_sha256": governed.provider_registration_sha256,
         "price_basis": request.price_basis,
         "receipt_id": receipt.receipt_id,
         "receipt_fingerprint": governed.fingerprint,
+        "raw_response_sha256": governed.raw_response_sha256,
     }
 
 
@@ -589,6 +917,7 @@ def _compile_fact_ledger(
         raise FinalRequestCompilationError(
             "market reference and price-blind FactLedger identity/date/currency differ"
         )
+    context = _validated_prepared_market_context(prepared)
     _validate_price_blind_base_ledger(base_ledger, prepared)
     projection = project_current_share_lineage(prepared)
     if projection.status == "specialist_required":
@@ -596,7 +925,7 @@ def _compile_fact_ledger(
     if projection.status != "eligible":
         raise FinalRequestCompilationError("current-share lineage is not kernel eligible")
     reporting_currency = str(base_ledger["reporting_currency"])
-    market_authority = _governed_market_authority(prepared)
+    market_authority = _governed_market_authority(prepared, context)
     quote, market, quote_witness, market_witness = _market_facts(
         prepared,
         projection,
@@ -651,8 +980,39 @@ def _compile_fact_ledger(
         quote_projection_witness=quote_witness,
         market_equity_projection_witness=market_witness,
         market_provider_id=market_authority["provider_id"],
+        market_provider_registration_sha256=market_authority["provider_registration_sha256"],
         market_provider_receipt_id=market_authority["receipt_id"],
         market_provider_receipt_fingerprint=market_authority["receipt_fingerprint"],
+        market_validation_context_id=market_authority["context_id"],
+        market_validation_context_fingerprint=market_authority["context_fingerprint"],
+        market_access_result_fingerprint=market_authority["access_fingerprint"],
+        current_share_compilation_fingerprint=prepared.current_shares.fingerprint,
+        market_source_document_id=prepared.market_source.document_id,
+        market_source_document_fingerprint=prepared.market_source.fingerprint,
+        market_source_ref_fingerprint=canonical_sha256(market_source),
+        market_raw_response_sha256=market_authority["raw_response_sha256"],
+        market_quote_fact_id=prepared.quote_fact.fact_id,
+        market_quote_fact_fingerprint=prepared.quote_fact.fingerprint,
+        market_equity_calculation_id=prepared.market_equity_calculation.calculation_id,
+        market_equity_calculation_fingerprint=(prepared.market_equity_calculation.fingerprint),
+        market_evidence_binding_sha256=_market_evidence_binding_sha256(
+            context_id=market_authority["context_id"],
+            context_fingerprint=market_authority["context_fingerprint"],
+            access_fingerprint=market_authority["access_fingerprint"],
+            provider_id=market_authority["provider_id"],
+            provider_registration_sha256=market_authority["provider_registration_sha256"],
+            receipt_id=market_authority["receipt_id"],
+            receipt_fingerprint=market_authority["receipt_fingerprint"],
+            current_share_compilation_fingerprint=prepared.current_shares.fingerprint,
+            source_document_id=prepared.market_source.document_id,
+            source_document_fingerprint=prepared.market_source.fingerprint,
+            source_ref_fingerprint=canonical_sha256(market_source),
+            raw_response_sha256=market_authority["raw_response_sha256"],
+            quote_fact_id=prepared.quote_fact.fact_id,
+            quote_fact_fingerprint=prepared.quote_fact.fingerprint,
+            calculation_id=prepared.market_equity_calculation.calculation_id,
+            calculation_fingerprint=prepared.market_equity_calculation.fingerprint,
+        ),
         added_source_ids=(*share_source_ids, *market_source_ids),
         added_fact_ids=(*share_fact_ids, *market_fact_ids),
         fact_ledger_payload=freeze(payload),
@@ -767,7 +1127,7 @@ def _bound_research_bundle_closure(
 
 def _governed_company_name(
     prepared: PreparedMarketReference,
-) -> tuple[str, str, str]:
+) -> tuple[str, Fact, SourceDocument]:
     snapshot = prepared.snapshot
     closure = _bound_research_bundle_closure(prepared)
     documents = {item.document_id: item for item in prepared.graph.documents}
@@ -803,13 +1163,13 @@ def _governed_company_name(
         or not canonical_name
     ):
         raise FinalRequestCompilationError("company legal name is not canonical text")
-    return canonical_name, fact.fact_id, document.document_id
+    return canonical_name, fact, document
 
 
 def _request_company(
     phase5c: dict[str, Any],
     prepared: PreparedMarketReference,
-) -> tuple[dict[str, Any], str, str]:
+) -> tuple[dict[str, Any], str, Fact, SourceDocument]:
     classification = phase5c["reconciliation_result"]["phase5b_readiness_result"]["classification"]
     if (
         classification["specialist_route"] != "none"
@@ -819,7 +1179,7 @@ def _request_company(
     source_fact_ids = tuple(sorted(classification["mapped_fact_ids"]))
     if not source_fact_ids:
         raise FinalRequestCompilationError("company classification lacks mapped evidence")
-    legal_name, legal_name_fact_id, legal_name_source_id = _governed_company_name(prepared)
+    legal_name, legal_name_fact, legal_name_source = _governed_company_name(prepared)
     return (
         {
             "name": legal_name,
@@ -827,8 +1187,9 @@ def _request_company(
             "classification_rationale": classification["rationale"],
             "source_fact_ids": list(source_fact_ids),
         },
-        legal_name_fact_id,
-        legal_name_source_id,
+        legal_name,
+        legal_name_fact,
+        legal_name_source,
     )
 
 
@@ -1009,8 +1370,6 @@ def _validate_forecast_axis(
     mckinsey_scenarios: list[dict[str, Any]],
     penman_payload: dict[str, Any],
 ) -> None:
-    from datetime import date
-
     anchor = date.fromisoformat(valuation_date)
 
     def annual_axis(
@@ -1110,7 +1469,7 @@ def _compile_from_artifact(
         == "market_equity_value"
     )
     bridge = phase5c["equity_bridge_result"]
-    company, company_name_fact_id, company_name_source_id = _request_company(
+    company, company_legal_name, company_name_fact, company_name_source = _request_company(
         phase5c,
         prepared,
     )
@@ -1162,8 +1521,19 @@ def _compile_from_artifact(
         valuation_date=snapshot.trading_date,
         price_blind_input_fingerprint=artifact["price_blind_input_fingerprint"],
         prepared_market_reference_fingerprint=prepared.fingerprint,
-        company_name_fact_id=company_name_fact_id,
-        company_name_source_document_id=company_name_source_id,
+        company_legal_name_value=company_legal_name,
+        company_name_fact_id=company_name_fact.fact_id,
+        company_name_fact_fingerprint=company_name_fact.fingerprint,
+        company_name_source_document_id=company_name_source.document_id,
+        company_name_source_document_fingerprint=company_name_source.fingerprint,
+        company_identity_binding_sha256=_company_identity_binding_sha256(
+            issuer_id=snapshot.issuer_id,
+            legal_name=company_legal_name,
+            fact_id=company_name_fact.fact_id,
+            fact_fingerprint=company_name_fact.fingerprint,
+            source_document_id=company_name_source.document_id,
+            source_document_fingerprint=company_name_source.fingerprint,
+        ),
         fact_ledger_result=fact_result,
         assumption_ledger_result=assumption_result,
         request_payload=freeze(request),

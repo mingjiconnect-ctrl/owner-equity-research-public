@@ -5,7 +5,7 @@ import json
 import os
 import subprocess
 import sys
-from dataclasses import FrozenInstanceError, replace
+from dataclasses import FrozenInstanceError, dataclass, replace
 from decimal import Decimal, localcontext
 from pathlib import Path
 from types import SimpleNamespace
@@ -19,6 +19,11 @@ from owner_research.fingerprints import canonical_json, canonical_sha256, freeze
 from owner_research.research_bundle_policies import dependency_closure_sha256
 from owner_research.research_bundle_validation import dependency_closure
 from owner_research.validation import ContractGraph
+from owner_research.valuation_current_share_compiler import (
+    CURRENT_SHARE_COMPILATION_POLICY_ID,
+    CURRENT_SHARE_COMPILATION_POLICY_VERSION,
+    CurrentShareCompilationResult,
+)
 from owner_research.valuation_final_request import (
     FinalValuationRequestCompilationResult,
     _compile_from_artifact,
@@ -41,6 +46,25 @@ requires_private_kernel = pytest.mark.skipif(
     not KERNEL_AVAILABLE,
     reason="pinned private kernel checkout is unavailable",
 )
+
+
+@dataclass(frozen=True, slots=True)
+class _TestShareClosure:
+    output_share_fact_id: str
+    closure_sha256: str
+    object_fingerprints: tuple[tuple[str, str, str], ...]
+
+
+@dataclass(frozen=True, slots=True)
+class _TestShareDecision:
+    fingerprint: str
+    share_fact_id: str
+
+
+@dataclass(frozen=True, slots=True)
+class _TestSharePath:
+    status: str
+    path_kind: str
 
 
 def _document(identifier: str, *, document_type: str = "10-Q") -> SourceDocument:
@@ -93,27 +117,50 @@ def _prepared_share_lineage(
     facts: tuple[Fact, ...],
     path_kind: str,
     canonical_rollforward=None,
+    typed_current: bool = False,
 ):
-    closure = SimpleNamespace(
+    closure_payload = dict(
+        output_share_fact_id=output.fact_id,
         closure_sha256=canonical_sha256(
             {"facts": [item.fingerprint for item in facts], "path": path_kind}
         ),
         object_fingerprints=tuple(("Fact", item.fact_id, item.fingerprint) for item in facts),
     )
-    decision = SimpleNamespace(
+    decision_payload = dict(
         fingerprint=canonical_sha256({"decision": path_kind}),
         share_fact_id=output.fact_id,
     )
-    current = SimpleNamespace(
-        status="eligible",
-        output_fact=output,
-        share_basis_decision=decision,
-        evidence_closure=closure,
-        path_decisions=(SimpleNamespace(status="selected", path_kind=path_kind),),
-        issue_codes=(),
-        canonical_rollforward=canonical_rollforward,
-        fingerprint=canonical_sha256({"current": path_kind, "output": output.fingerprint}),
-    )
+    if typed_current:
+        closure = _TestShareClosure(**closure_payload)
+        decision = _TestShareDecision(**decision_payload)
+        current = CurrentShareCompilationResult(
+            policy_id=CURRENT_SHARE_COMPILATION_POLICY_ID,
+            policy_version=CURRENT_SHARE_COMPILATION_POLICY_VERSION,
+            issuer_id="SYNTH",
+            data_cutoff_date="2026-07-10",
+            security_id="security:SYNTH:common",
+            quote_date="2026-07-10",
+            status="eligible",
+            output_fact=output,
+            share_basis_decision=decision,
+            evidence_closure=closure,
+            path_decisions=(_TestSharePath(status="selected", path_kind=path_kind),),
+            issue_codes=(),
+            canonical_rollforward=canonical_rollforward,
+        )
+    else:
+        closure = SimpleNamespace(**closure_payload)
+        decision = SimpleNamespace(**decision_payload)
+        current = SimpleNamespace(
+            status="eligible",
+            output_fact=output,
+            share_basis_decision=decision,
+            evidence_closure=closure,
+            path_decisions=(SimpleNamespace(status="selected", path_kind=path_kind),),
+            issue_codes=(),
+            canonical_rollforward=canonical_rollforward,
+            fingerprint=canonical_sha256({"current": path_kind, "output": output.fingerprint}),
+        )
     snapshot = SimpleNamespace(
         share_basis={"shares_outstanding_fact_id": output.fact_id},
         trading_date="2026-07-10",
@@ -290,7 +337,7 @@ def test_v2_rollforward_consumes_one_raw_representative_and_attests_all_sources(
     assert replay.facts == projected.facts
 
 
-def test_rollforward_primary_ambiguity_and_convertible_fail_closed() -> None:
+def test_rollforward_primary_ambiguity_and_specialist_events_fail_closed() -> None:
     ambiguous = project_current_share_lineage(_rollforward_prepared(ambiguous_primary=True))
     assert ambiguous.status == "blocked"
     assert not ambiguous.facts
@@ -299,7 +346,15 @@ def test_rollforward_primary_ambiguity_and_convertible_fail_closed() -> None:
         _rollforward_prepared(concept="convertible_shares_converted_completed")
     )
     assert convertible.status == "specialist_required"
+    assert convertible.issue_codes == ("convertible_event_requires_specialist",)
     assert not convertible.facts
+
+    warrant = project_current_share_lineage(
+        _rollforward_prepared(concept="warrant_shares_exercised_completed")
+    )
+    assert warrant.status == "specialist_required"
+    assert warrant.issue_codes == ("warrant_event_requires_specialist",)
+    assert not warrant.facts
 
     empty = _rollforward_prepared()
     empty.current_shares.canonical_rollforward.materializations = ()
@@ -390,6 +445,7 @@ def _request_ready_case(
         documents=(share_source,),
         facts=(current, legal_name),
         path_kind="direct_point_in_time",
+        typed_current=True,
     )
     market_source = SourceDocument(
         schema_version="1.0.0",
@@ -592,6 +648,9 @@ def _request_ready_case(
         },
     }
     snapshot = SimpleNamespace(
+        snapshot_id="market-reference:SYNTH:2026-07-10",
+        status="validated",
+        fingerprint="d" * 64,
         issuer_id="SYNTH",
         data_cutoff_date="2026-07-10",
         trading_date="2026-07-10",
@@ -600,6 +659,7 @@ def _request_ready_case(
         quote_fact_id=quote.fact_id,
         quote_source_document_id=market_source.document_id,
         raw_evidence={"raw_response_sha256": market_source.content_sha256},
+        authority_lineage={"provider_registration_sha256": "1" * 64},
         market_access_result_fingerprint="5" * 64,
         market_quote_request={
             "request_id": "market-request:SYNTH:2026-07-10",
@@ -650,8 +710,16 @@ def _request_ready_case(
     governed = SimpleNamespace(
         receipt=receipt,
         fingerprint=snapshot.governed_market_quote_receipt["receipt_fingerprint"],
+        provider_registration_sha256=snapshot.authority_lineage["provider_registration_sha256"],
+        raw_response_sha256=snapshot.raw_evidence["raw_response_sha256"],
     )
     access = SimpleNamespace(
+        status="eligible",
+        issuer_id=snapshot.issuer_id,
+        data_cutoff_date=snapshot.data_cutoff_date,
+        price_blind_input_fingerprint=snapshot.price_blind_input_fingerprint,
+        protected_mckinsey_sha256=snapshot.protected_mckinsey_sha256,
+        protected_penman_assumptions_sha256=(snapshot.protected_penman_assumptions_sha256),
         fingerprint=snapshot.market_access_result_fingerprint,
         request=request,
         receipt=governed,
@@ -692,8 +760,16 @@ def _request_ready_case(
         facts=base_graph.facts,
         calculations=base_graph.calculations,
         research_bundles=(bundle,),
+        market_reference_snapshots=(snapshot,),
         valuation_handoffs=(handoff,),
-        market_reference_validation_contexts=(SimpleNamespace(market_access_result=access),),
+        market_reference_validation_contexts=(
+            SimpleNamespace(
+                context_id="market-context:SYNTH:2026-07-10",
+                fingerprint="e" * 64,
+                market_access_result=access,
+                current_share_compilation_result=share_prepared.current_shares,
+            ),
+        ),
     )
     share_prepared.fingerprint = canonical_sha256(
         {"snapshot": vars(snapshot), "quote": quote.fingerprint}
@@ -761,7 +837,18 @@ def test_final_request_is_append_only_rebinds_assumptions_and_runs_rc2() -> None
     assert request["penman"]["market_equity_value_fact_id"] == market["fact_id"]
     assert request["company"]["name"] == "Synthetic Corporation"
     assert result.company_name_fact_id == "fact-issuer-legal-name"
+    assert result.company_legal_name_value == "Synthetic Corporation"
+    assert result.company_name_fact_fingerprint == next(
+        item.fingerprint
+        for item in prepared.graph.facts
+        if item.fact_id == result.company_name_fact_id
+    )
     assert result.company_name_source_document_id == "doc-current-shares"
+    assert result.company_name_source_document_fingerprint == next(
+        item.fingerprint
+        for item in prepared.graph.documents
+        if item.document_id == result.company_name_source_document_id
+    )
     assert result.fact_ledger_result is not None
     market_source = next(
         item for item in final["sources"] if item["source_id"] == "doc-market-close"
@@ -769,6 +856,20 @@ def test_final_request_is_append_only_rebinds_assumptions_and_runs_rc2() -> None
     assert market_source["publisher"] == "provider:reviewed-file-v1"
     assert "reviewed_unadjusted_regular_session_daily_close" in market_source["title"]
     assert result.fact_ledger_result.market_provider_id == "provider:reviewed-file-v1"
+    assert result.fact_ledger_result.market_access_result_fingerprint == (
+        prepared.snapshot.market_access_result_fingerprint
+    )
+    assert result.fact_ledger_result.market_provider_registration_sha256 == "1" * 64
+    assert result.fact_ledger_result.market_raw_response_sha256 == "b" * 64
+    assert result.fact_ledger_result.market_source_document_fingerprint == (
+        prepared.market_source.fingerprint
+    )
+    assert result.fact_ledger_result.market_quote_fact_fingerprint == (
+        prepared.quote_fact.fingerprint
+    )
+    assert result.fact_ledger_result.market_equity_calculation_fingerprint == (
+        prepared.market_equity_calculation.fingerprint
+    )
 
     script = (
         "import json,sys; from owner_valuation import run_dual_panel; "
@@ -860,6 +961,43 @@ def test_compilation_receipt_rejects_self_hashed_nested_binding_mutations() -> N
             request_payload=freeze(different_market_binding),
             canonical_request_json=canonical_json(different_market_binding),
             request_sha256=canonical_sha256(different_market_binding),
+        )
+
+    forged_company = to_json_value(result.request_payload)
+    forged_company["company"]["name"] = "Forged Corporation"
+    with pytest.raises(ValueError, match="ledger receipts"):
+        replace(
+            result,
+            company_legal_name_value="Forged Corporation",
+            request_payload=freeze(forged_company),
+            canonical_request_json=canonical_json(forged_company),
+            request_sha256=canonical_sha256(forged_company),
+        )
+
+    assert result.fact_ledger_result is not None
+    with pytest.raises(ValueError, match="governed market evidence"):
+        replace(
+            result.fact_ledger_result,
+            market_access_result_fingerprint="8" * 64,
+        )
+    with pytest.raises(ValueError, match="governed market evidence"):
+        replace(
+            result.fact_ledger_result,
+            market_source_document_fingerprint="9" * 64,
+        )
+    forged_ledger = to_json_value(result.fact_ledger_result.fact_ledger_payload)
+    market_source = next(
+        item
+        for item in forged_ledger["sources"]
+        if item["source_id"] == result.fact_ledger_result.market_source_document_id
+    )
+    market_source["publisher"] = "provider:forged"
+    with pytest.raises(ValueError, match="governed market evidence"):
+        replace(
+            result.fact_ledger_result,
+            market_provider_id="provider:forged",
+            market_source_ref_fingerprint=canonical_sha256(market_source),
+            fact_ledger_payload=freeze(forged_ledger),
         )
 
 
@@ -1101,6 +1239,100 @@ def test_company_and_market_authority_are_evidence_bound() -> None:
 
 
 @requires_private_kernel
+def test_prepared_market_objects_replay_unique_graph_and_context_ownership() -> None:
+    artifact, substituted_source, _example = _request_ready_case()
+    substituted_source.market_source = replace(
+        substituted_source.market_source,
+        source_url="https://forged.example.invalid/close",
+    )
+    with pytest.raises(ValueError, match="unique graph object"):
+        _compile_from_artifact(
+            prepared=substituted_source,
+            artifact=artifact,
+            kernel_repository=KERNEL,
+        )
+
+    artifact, substituted_quote, _example = _request_ready_case()
+    substituted_quote.quote_fact = replace(substituted_quote.quote_fact, value=29.0)
+    with pytest.raises(ValueError, match="unique graph object"):
+        _compile_from_artifact(
+            prepared=substituted_quote,
+            artifact=artifact,
+            kernel_repository=KERNEL,
+        )
+
+    artifact, substituted_calculation, _example = _request_ready_case()
+    substituted_calculation.market_equity_calculation = replace(
+        substituted_calculation.market_equity_calculation,
+        code_sha256="f" * 64,
+    )
+    with pytest.raises(ValueError, match="unique graph object"):
+        _compile_from_artifact(
+            prepared=substituted_calculation,
+            artifact=artifact,
+            kernel_repository=KERNEL,
+        )
+
+    artifact, substituted_shares, _example = _request_ready_case()
+    substituted_shares.current_shares = replace(
+        substituted_shares.current_shares,
+        issuer_id="OTHER",
+    )
+    with pytest.raises(ValueError, match="validation context"):
+        _compile_from_artifact(
+            prepared=substituted_shares,
+            artifact=artifact,
+            kernel_repository=KERNEL,
+        )
+
+    artifact, future_source_case, _example = _request_ready_case()
+    future_source = replace(
+        future_source_case.market_source,
+        published_date="2026-07-11",
+    )
+    future_source_case.market_source = future_source
+    future_source_case.graph = replace(
+        future_source_case.graph,
+        documents=tuple(
+            future_source if item.document_id == future_source.document_id else item
+            for item in future_source_case.graph.documents
+        ),
+    )
+    with pytest.raises(ValueError, match="validation context"):
+        _compile_from_artifact(
+            prepared=future_source_case,
+            artifact=artifact,
+            kernel_repository=KERNEL,
+        )
+
+    artifact, duplicate_case, _example = _request_ready_case()
+    duplicate_case.graph = replace(
+        duplicate_case.graph,
+        documents=(*duplicate_case.graph.documents, duplicate_case.market_source),
+    )
+    with pytest.raises(ValueError, match="unique graph object"):
+        _compile_from_artifact(
+            prepared=duplicate_case,
+            artifact=artifact,
+            kernel_repository=KERNEL,
+        )
+
+    artifact, context_mismatch, _example = _request_ready_case()
+    context_mismatch.graph.market_reference_validation_contexts[
+        0
+    ].current_share_compilation_result = replace(
+        context_mismatch.current_shares,
+        issuer_id="OTHER",
+    )
+    with pytest.raises(ValueError, match="validation context"):
+        _compile_from_artifact(
+            prepared=context_mismatch,
+            artifact=artifact,
+            kernel_repository=KERNEL,
+        )
+
+
+@requires_private_kernel
 def test_price_blind_ledger_rejects_market_lineage_without_overblocking_benchmarks() -> None:
     artifact, prepared, example = _request_ready_case()
     injected = copy.deepcopy(artifact)
@@ -1223,8 +1455,12 @@ def test_decimal_projection_is_immutable_exact_and_internal_only() -> None:
         valuation_date="2026-07-10",
         price_blind_input_fingerprint="a" * 64,
         prepared_market_reference_fingerprint=None,
+        company_legal_name_value=None,
         company_name_fact_id=None,
+        company_name_fact_fingerprint=None,
         company_name_source_document_id=None,
+        company_name_source_document_fingerprint=None,
+        company_identity_binding_sha256=None,
         fact_ledger_result=None,
         assumption_ledger_result=None,
         request_payload=None,

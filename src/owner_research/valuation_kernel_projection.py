@@ -778,7 +778,9 @@ def project_current_share_lineage(
                 key=lambda item: item.group_id,
             ):
                 canonical = materialization.canonical_event_fact
-                if canonical.concept in _SPECIALIST_EVENT_CONCEPTS:
+                if canonical.concept == "convertible_shares_converted_completed":
+                    return _blocked("convertible_event_requires_specialist", specialist=True)
+                if canonical.concept == "warrant_shares_exercised_completed":
                     return _blocked("warrant_event_requires_specialist", specialist=True)
                 kernel_concept = _EVENT_CONCEPTS.get(canonical.concept)
                 if kernel_concept is None:
