@@ -1,9 +1,10 @@
 """Internal Phase 5 v1 orchestration from a prepared market reference to rc.2 output.
 
 The entrypoint deliberately consumes an existing ``OwnerValuationPreparationResult``.
-It neither reloads market evidence nor owns a provider.  A successful call compiles one
-request, invokes the isolated pinned-kernel runner once, and returns a validated graph
-overlay containing only the adjacent request/result Handoff transitions.
+It performs no new external market acquisition and owns no provider.  ContractGraph
+validation may replay the already reviewed local evidence bytes.  A successful call
+compiles one request, invokes the isolated pinned-kernel runner once, and returns a
+validated graph overlay containing only the adjacent request/result Handoff transitions.
 """
 
 from __future__ import annotations
@@ -87,6 +88,12 @@ def _checked_sha256_digest(value: str, label: str) -> None:
     _checked_sha256(value.removeprefix("sha256:"), label)
 
 
+def _expected_receipt_id(prefix: str, receipt: Any) -> str:
+    payload = receipt.to_dict()
+    payload.pop("receipt_id")
+    return f"{prefix}:{canonical_sha256(payload)[:24]}"
+
+
 def _utc(value: str, label: str) -> datetime:
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
@@ -148,7 +155,8 @@ class OwnerValuationExecutionResult:
 
         if self.status != "completed":
             if (
-                self.kernel_execution_receipt is not None
+                self.kernel_execution_result is not None
+                or self.kernel_execution_receipt is not None
                 or handoffs
                 or self.validated_graph is not None
                 or self.result_bytes is not None
@@ -187,6 +195,20 @@ class OwnerValuationExecutionResult:
             != ("request_compiled", "kernel_result_frozen")
         ):
             raise ValueError("completed owner execution is incomplete")
+        expected_preparation_fingerprint = canonical_sha256(
+            {
+                "status": "prepared",
+                "issuer_id": request.issuer_id,
+                "data_cutoff_date": request.valuation_date,
+                "price_blind_input_fingerprint": request.price_blind_input_fingerprint,
+                "prepared_market_reference_fingerprint": (
+                    request.prepared_market_reference_fingerprint
+                ),
+                "issue_codes": (),
+            }
+        )
+        if self.preparation_fingerprint != expected_preparation_fingerprint:
+            raise ValueError("completed owner execution changed its preparation fingerprint")
         request_handoff, result_handoff = handoffs
         result_sha256 = _sha256_bytes(self.result_bytes)
         fact_result = request.fact_ledger_result
@@ -200,23 +222,83 @@ class OwnerValuationExecutionResult:
             or request_receipt.issuer_id != request.issuer_id
             or request_receipt.handoff_run_id != request_handoff.handoff_run_id
             or request_receipt.valuation_request_sha256 != request.request_sha256
+            or request_receipt.receipt_id
+            != _expected_receipt_id(
+                f"final-request-receipt:{request.issuer_id}",
+                request_receipt,
+            )
+            or request_receipt.company_legal_name_value
+            != request.company_legal_name_value
             or request_receipt.company_name_fact_id != request.company_name_fact_id
+            or request_receipt.company_name_fact_fingerprint
+            != request.company_name_fact_fingerprint
             or request_receipt.company_name_source_document_id
             != request.company_name_source_document_id
+            or request_receipt.company_name_source_document_fingerprint
+            != request.company_name_source_document_fingerprint
+            or request_receipt.company_identity_binding_sha256
+            != request.company_identity_binding_sha256
             or request_receipt.market_provider_id != fact_result.market_provider_id
             or request_receipt.market_provider_receipt_id != fact_result.market_provider_receipt_id
             or request_receipt.market_provider_receipt_fingerprint
             != fact_result.market_provider_receipt_fingerprint
+            or request_receipt.market_provider_registration_sha256
+            != fact_result.market_provider_registration_sha256
+            or request_receipt.market_validation_context_id
+            != fact_result.market_validation_context_id
+            or request_receipt.market_validation_context_fingerprint
+            != fact_result.market_validation_context_fingerprint
+            or request_receipt.market_access_result_fingerprint
+            != fact_result.market_access_result_fingerprint
+            or request_receipt.current_share_compilation_fingerprint
+            != fact_result.current_share_compilation_fingerprint
+            or request_receipt.market_source_document_id
+            != fact_result.market_source_document_id
+            or request_receipt.market_source_document_fingerprint
+            != fact_result.market_source_document_fingerprint
+            or request_receipt.market_source_ref_fingerprint
+            != fact_result.market_source_ref_fingerprint
+            or request_receipt.market_raw_response_sha256
+            != fact_result.market_raw_response_sha256
+            or request_receipt.market_quote_fact_id != fact_result.market_quote_fact_id
+            or request_receipt.market_quote_fact_fingerprint
+            != fact_result.market_quote_fact_fingerprint
+            or request_receipt.market_equity_calculation_id
+            != fact_result.market_equity_calculation_id
+            or request_receipt.market_equity_calculation_fingerprint
+            != fact_result.market_equity_calculation_fingerprint
+            or request_receipt.market_evidence_binding_sha256
+            != fact_result.market_evidence_binding_sha256
             or request_receipt.current_share_projection_sha256
             != fact_result.current_share_projection.fingerprint
+            or request_receipt.numeric_projection_sha256
+            != _numeric_projection_sha256(request)
             or request_receipt.added_source_ids != fact_result.added_source_ids
             or request_receipt.added_fact_ids != fact_result.added_fact_ids
+            or request_receipt.price_blind_fact_ledger_sha256
+            != fact_result.base_ledger_sha256
             or request_receipt.final_fact_ledger_sha256
             != canonical_sha256(fact_result.fact_ledger_payload)
+            or request_receipt.assumption_entries_before_sha256
+            != assumption_result.assumption_entries_sha256
             or request_receipt.assumption_entries_after_sha256
             != assumption_result.assumption_entries_sha256
+            or request_receipt.price_blind_input_before_sha256
+            != request_handoff.price_blind_input_fingerprint
+            or request_receipt.price_blind_input_after_sha256
+            != request_handoff.price_blind_input_fingerprint
+            or request_receipt.protected_mckinsey_before_sha256
+            != request_handoff.protected_mckinsey_sha256
+            or request_receipt.protected_mckinsey_after_sha256
+            != request_handoff.protected_mckinsey_sha256
+            or request_receipt.protected_penman_before_sha256
+            != request_handoff.protected_penman_assumptions_sha256
+            or request_receipt.protected_penman_after_sha256
+            != request_handoff.protected_penman_assumptions_sha256
             or execution_receipt.request_sha256 != request.request_sha256
             or execution_receipt.result_sha256 != result_sha256
+            or execution_receipt.receipt_id
+            != _expected_receipt_id("kernel-execution-receipt", execution_receipt)
             or execution_receipt.wheel_sha256 != execution.kernel_wheel_sha256
             or execution_receipt.runtime_authority_sha256 != execution.runtime_authority_sha256
             or execution_receipt.runtime_manifest_file_sha256
@@ -347,12 +429,27 @@ def _compiled_context(
         raise OwnerValuationExecutionError(
             "prepared graph does not end at the exact v4 market authorization"
         )
-    if _utc(clock.request_compiled_at, "request_compiled_at") <= _utc(
-        authorization.transitioned_at,
-        "authorization transitioned_at",
+    run_handoff_ids = {item.handoff_id for item in run_handoffs}
+    if any(
+        item.supersedes_handoff_id in run_handoff_ids
+        for item in graph.valuation_handoffs
+    ) or any(
+        prepared.snapshot.snapshot_id in item.quarantined_market_reference_snapshot_ids
+        for item in graph.valuation_handoffs
     ):
         raise OwnerValuationExecutionError(
-            "request compilation transition does not follow market authorization"
+            "prepared market authorization was superseded or quarantined"
+        )
+    request_compiled_at = _utc(clock.request_compiled_at, "request_compiled_at")
+    if request_compiled_at <= _utc(
+        authorization.transitioned_at,
+        "authorization transitioned_at",
+    ) or request_compiled_at <= _utc(
+        prepared.snapshot.quote_retrieved_at,
+        "snapshot quote_retrieved_at",
+    ):
+        raise OwnerValuationExecutionError(
+            "request compilation transition does not follow accepted market evidence"
         )
     prefix = _handoff_prefix(authorization)
     existing_ids = {item.handoff_id for item in graph.valuation_handoffs}
@@ -397,7 +494,11 @@ def _final_request_receipt(context: _ExecutionContext) -> FinalRequestCompilatio
         or assumption_result is None
         or request_sha256 is None
         or result.company_name_fact_id is None
+        or result.company_legal_name_value is None
+        or result.company_name_fact_fingerprint is None
         or result.company_name_source_document_id is None
+        or result.company_name_source_document_fingerprint is None
+        or result.company_identity_binding_sha256 is None
     ):
         raise OwnerValuationExecutionError("compiled request lacks receipt evidence")
     artifact = context.expected_freeze.artifact.to_dict()
@@ -421,11 +522,43 @@ def _final_request_receipt(context: _ExecutionContext) -> FinalRequestCompilatio
         "market_reference_snapshot_id": (
             context.preparation.prepared_market_reference.snapshot.snapshot_id
         ),
+        "company_legal_name_value": result.company_legal_name_value,
         "company_name_fact_id": result.company_name_fact_id,
+        "company_name_fact_fingerprint": result.company_name_fact_fingerprint,
         "company_name_source_document_id": result.company_name_source_document_id,
+        "company_name_source_document_fingerprint": (
+            result.company_name_source_document_fingerprint
+        ),
+        "company_identity_binding_sha256": result.company_identity_binding_sha256,
         "market_provider_id": fact_result.market_provider_id,
         "market_provider_receipt_id": fact_result.market_provider_receipt_id,
         "market_provider_receipt_fingerprint": (fact_result.market_provider_receipt_fingerprint),
+        "market_provider_registration_sha256": (
+            fact_result.market_provider_registration_sha256
+        ),
+        "market_validation_context_id": fact_result.market_validation_context_id,
+        "market_validation_context_fingerprint": (
+            fact_result.market_validation_context_fingerprint
+        ),
+        "market_access_result_fingerprint": (
+            fact_result.market_access_result_fingerprint
+        ),
+        "current_share_compilation_fingerprint": (
+            fact_result.current_share_compilation_fingerprint
+        ),
+        "market_source_document_id": fact_result.market_source_document_id,
+        "market_source_document_fingerprint": (
+            fact_result.market_source_document_fingerprint
+        ),
+        "market_source_ref_fingerprint": fact_result.market_source_ref_fingerprint,
+        "market_raw_response_sha256": fact_result.market_raw_response_sha256,
+        "market_quote_fact_id": fact_result.market_quote_fact_id,
+        "market_quote_fact_fingerprint": fact_result.market_quote_fact_fingerprint,
+        "market_equity_calculation_id": fact_result.market_equity_calculation_id,
+        "market_equity_calculation_fingerprint": (
+            fact_result.market_equity_calculation_fingerprint
+        ),
+        "market_evidence_binding_sha256": fact_result.market_evidence_binding_sha256,
         "current_share_projection_sha256": (fact_result.current_share_projection.fingerprint),
         "numeric_projection_sha256": _numeric_projection_sha256(result),
         "added_source_ids": fact_result.added_source_ids,

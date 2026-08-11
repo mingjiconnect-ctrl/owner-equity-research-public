@@ -17,6 +17,8 @@ from owner_research.valuation_final_request import (
     FinalAssumptionLedgerCompilationResult,
     FinalFactLedgerCompilationResult,
     FinalValuationRequestCompilationResult,
+    _company_identity_binding_sha256,
+    _market_evidence_binding_sha256,
 )
 from owner_research.valuation_kernel_projection import (
     CurrentShareKernelProjection,
@@ -50,8 +52,12 @@ def _noncompiled(
         valuation_date=preparation.data_cutoff_date,
         price_blind_input_fingerprint=preparation.price_blind_input_fingerprint,
         prepared_market_reference_fingerprint=None,
+        company_legal_name_value=None,
         company_name_fact_id=None,
+        company_name_fact_fingerprint=None,
         company_name_source_document_id=None,
+        company_name_source_document_fingerprint=None,
+        company_identity_binding_sha256=None,
         fact_ledger_result=None,
         assumption_ledger_result=None,
         request_payload=None,
@@ -187,7 +193,13 @@ def _compiled(
         ),
         scale_divisor=Decimal(1_000_000),
     )
-    attestation = {"fixture": "compiled-current-share-lineage"}
+    current_share_compilation_fingerprint = prepared.current_shares.fingerprint
+    attestation = {
+        "fixture": "compiled-current-share-lineage",
+        "current_share_compilation_fingerprint": (
+            current_share_compilation_fingerprint
+        ),
+    }
     projection = CurrentShareKernelProjection(
         status="eligible",
         evidence_kind=prepared.snapshot.share_basis["evidence_kind"],
@@ -201,24 +213,34 @@ def _compiled(
         issue_codes=(),
     )
     quote_witness = KernelNumericProjectionWitness.compile(
-        label="quote:fixture",
+        label="quote:fact:fixture:quote",
         authoritative_decimal=Decimal(prepared.snapshot.quote_price_decimal),
     )
     market_witness = KernelNumericProjectionWitness.compile(
-        label="market-equity:fixture",
+        label="market-equity:calculation:fixture:market",
         authoritative_decimal=Decimal(prepared.snapshot.market_equity["value_decimal"]),
         scale_divisor=Decimal(1_000_000),
     )
     current_share_id = projection.current_share_fact_id
     assert current_share_id is not None
     quote_fact_id = "fact:fixture:quote"
-    market_fact_id = "fact:fixture:market"
+    market_calculation_id = "calculation:fixture:market"
+    market_fact_id = f"derived:{market_calculation_id}"
+    market_source_id = "source:fixture:market"
+    market_provider_id = "provider:fixture"
+    market_raw_response_sha256 = "1" * 64
+    market_source = {
+        "source_id": market_source_id,
+        "publisher": market_provider_id,
+        "locator": f"cas://sha256/{market_raw_response_sha256}",
+    }
+    market_source_ref_fingerprint = canonical_sha256(market_source)
     fact_ledger = {
         "schema_version": "1.0.0",
         "entity_id": preparation.issuer_id,
         "valuation_date": preparation.data_cutoff_date,
         "reporting_currency": prepared.snapshot.quote_currency,
-        "sources": [],
+        "sources": [market_source],
         "facts": [
             {
                 "fact_id": current_share_id,
@@ -228,11 +250,17 @@ def _compiled(
             {
                 "fact_id": quote_fact_id,
                 "concept": "market_price_per_current_common_share",
+                "source_id": market_source_id,
+                "raw": True,
+                "value": quote_witness.kernel_value,
                 "parent_fact_ids": [],
             },
             {
                 "fact_id": market_fact_id,
                 "concept": "market_equity_value",
+                "source_id": market_source_id,
+                "raw": False,
+                "value": market_witness.kernel_value,
                 "parent_fact_ids": [quote_fact_id, current_share_id],
             },
         ],
@@ -243,6 +271,35 @@ def _compiled(
         "fact_ledger_fingerprint": final_fact_sha256,
         "assumptions": [],
     }
+    market_registration_sha256 = "c" * 64
+    market_context_id = "market-context:fixture"
+    market_context_fingerprint = "d" * 64
+    market_access_fingerprint = "e" * 64
+    market_source_document_fingerprint = "f" * 64
+    quote_fact_fingerprint = "2" * 64
+    calculation_fingerprint = "3" * 64
+    receipt_id = "market-receipt:fixture"
+    receipt_fingerprint = "b" * 64
+    market_evidence_binding = _market_evidence_binding_sha256(
+        context_id=market_context_id,
+        context_fingerprint=market_context_fingerprint,
+        access_fingerprint=market_access_fingerprint,
+        provider_id=market_provider_id,
+        provider_registration_sha256=market_registration_sha256,
+        receipt_id=receipt_id,
+        receipt_fingerprint=receipt_fingerprint,
+        current_share_compilation_fingerprint=(
+            current_share_compilation_fingerprint
+        ),
+        source_document_id=market_source_id,
+        source_document_fingerprint=market_source_document_fingerprint,
+        source_ref_fingerprint=market_source_ref_fingerprint,
+        raw_response_sha256=market_raw_response_sha256,
+        quote_fact_id=quote_fact_id,
+        quote_fact_fingerprint=quote_fact_fingerprint,
+        calculation_id=market_calculation_id,
+        calculation_fingerprint=calculation_fingerprint,
+    )
     fact_result = FinalFactLedgerCompilationResult(
         policy_id="price-blind-final-request",
         policy_version="2.0.0",
@@ -252,10 +309,26 @@ def _compiled(
         current_share_projection=projection,
         quote_projection_witness=quote_witness,
         market_equity_projection_witness=market_witness,
-        market_provider_id="provider:fixture",
-        market_provider_receipt_id="market-receipt:fixture",
-        market_provider_receipt_fingerprint="b" * 64,
-        added_source_ids=("source:fixture:shares", "source:fixture:market"),
+        market_provider_id=market_provider_id,
+        market_provider_receipt_id=receipt_id,
+        market_provider_receipt_fingerprint=receipt_fingerprint,
+        market_provider_registration_sha256=market_registration_sha256,
+        market_validation_context_id=market_context_id,
+        market_validation_context_fingerprint=market_context_fingerprint,
+        market_access_result_fingerprint=market_access_fingerprint,
+        current_share_compilation_fingerprint=(
+            current_share_compilation_fingerprint
+        ),
+        market_source_document_id=market_source_id,
+        market_source_document_fingerprint=market_source_document_fingerprint,
+        market_source_ref_fingerprint=market_source_ref_fingerprint,
+        market_raw_response_sha256=market_raw_response_sha256,
+        market_quote_fact_id=quote_fact_id,
+        market_quote_fact_fingerprint=quote_fact_fingerprint,
+        market_equity_calculation_id=market_calculation_id,
+        market_equity_calculation_fingerprint=calculation_fingerprint,
+        market_evidence_binding_sha256=market_evidence_binding,
+        added_source_ids=(market_source_id,),
         added_fact_ids=(current_share_id, quote_fact_id, market_fact_id),
         fact_ledger_payload=freeze(fact_ledger),
     )
@@ -265,11 +338,24 @@ def _compiled(
         final_fact_ledger_fingerprint=final_fact_sha256,
         assumption_ledger_payload=freeze(assumption_ledger),
     )
+    company_legal_name = "Fixture Corporation"
+    company_name_fact_id = "fact:fixture:company-name"
+    company_name_fact_fingerprint = "4" * 64
+    company_name_source_document_id = "source:fixture:company-name"
+    company_name_source_document_fingerprint = "5" * 64
+    company_identity_binding = _company_identity_binding_sha256(
+        issuer_id=preparation.issuer_id,
+        legal_name=company_legal_name,
+        fact_id=company_name_fact_id,
+        fact_fingerprint=company_name_fact_fingerprint,
+        source_document_id=company_name_source_document_id,
+        source_document_fingerprint=company_name_source_document_fingerprint,
+    )
     request = {
         "schema_version": "2.0.0",
         "fact_ledger": fact_ledger,
         "assumption_ledger": assumption_ledger,
-        "company": {"source_fact_ids": []},
+        "company": {"name": company_legal_name, "source_fact_ids": []},
         "routing_assessments": {},
         "method_views": {},
         "mckinsey": {"equity_bridge": {"share_denominator_fact_id": current_share_id}},
@@ -281,8 +367,14 @@ def _compiled(
         valuation_date=preparation.data_cutoff_date,
         price_blind_input_fingerprint=preparation.price_blind_input_fingerprint,
         prepared_market_reference_fingerprint=prepared.fingerprint,
-        company_name_fact_id="fact:fixture:company-name",
-        company_name_source_document_id="source:fixture:company-name",
+        company_legal_name_value=company_legal_name,
+        company_name_fact_id=company_name_fact_id,
+        company_name_fact_fingerprint=company_name_fact_fingerprint,
+        company_name_source_document_id=company_name_source_document_id,
+        company_name_source_document_fingerprint=(
+            company_name_source_document_fingerprint
+        ),
+        company_identity_binding_sha256=company_identity_binding,
         fact_ledger_result=fact_result,
         assumption_ledger_result=assumption_result,
         request_payload=freeze(request),
@@ -301,9 +393,13 @@ def _clock(preparation: OwnerValuationPreparationResult) -> OwnerValuationExecut
         if item.handoff_id == prepared.snapshot.authorization_handoff_id
     )
     allowed = datetime.fromisoformat(authorization.transitioned_at.replace("Z", "+00:00"))
+    retrieved = datetime.fromisoformat(
+        prepared.snapshot.quote_retrieved_at.replace("Z", "+00:00")
+    )
+    start = max(allowed, retrieved)
     return OwnerValuationExecutionClock(
-        (allowed + timedelta(microseconds=1)).isoformat(),
-        (allowed + timedelta(microseconds=2)).isoformat(),
+        (start + timedelta(microseconds=1)).isoformat(),
+        (start + timedelta(microseconds=2)).isoformat(),
     )
 
 
@@ -439,13 +535,53 @@ def test_success_calls_each_stage_once_preserves_stdout_and_adds_only_v5_v6(
     assert result.kernel_execution_receipt.docker_image_inspect_sha256 == (
         execution.docker_image_inspect_sha256
     )
-    with pytest.raises(ValueError, match="receipt or Handoff binding changed"):
+    with pytest.raises(
+        ValueError,
+        match="receipt ID is not deterministic|receipt or Handoff binding changed",
+    ):
         replace(
             result,
             kernel_execution_receipt=replace(
                 result.kernel_execution_receipt,
                 runner_sha256="f" * 64,
             ),
+        )
+    final_receipt_payload = result.final_request_receipt.to_dict()
+    final_receipt_payload["numeric_projection_sha256"] = "f" * 64
+    final_receipt_payload.pop("receipt_id")
+    final_receipt_payload["receipt_id"] = (
+        f"final-request-receipt:{compiled.issuer_id}:"
+        f"{canonical_sha256(final_receipt_payload)[:24]}"
+    )
+    rebound_final_receipt = type(result.final_request_receipt)(
+        **final_receipt_payload
+    )
+    with pytest.raises(ValueError, match="receipt or Handoff binding changed"):
+        replace(result, final_request_receipt=rebound_final_receipt)
+
+    kernel_receipt_payload = result.kernel_execution_receipt.to_dict()
+    kernel_receipt_payload["runner_sha256"] = "f" * 64
+    kernel_receipt_payload.pop("receipt_id")
+    kernel_receipt_payload["receipt_id"] = (
+        f"kernel-execution-receipt:{canonical_sha256(kernel_receipt_payload)[:24]}"
+    )
+    rebound_kernel_receipt = type(result.kernel_execution_receipt)(
+        **kernel_receipt_payload
+    )
+    with pytest.raises(ValueError, match="receipt or Handoff binding changed"):
+        replace(result, kernel_execution_receipt=rebound_kernel_receipt)
+
+    with pytest.raises(ValueError, match="preparation fingerprint"):
+        replace(result, preparation_fingerprint="f" * 64)
+    with pytest.raises(ValueError, match="promoted a frozen result"):
+        replace(
+            result,
+            status="blocked",
+            kernel_execution_receipt=None,
+            execution_handoffs=(),
+            validated_graph=None,
+            result_bytes=None,
+            issue_codes=("fixture_blocked",),
         )
     with pytest.raises(ValueError, match="receipt or Handoff binding changed"):
         replace(result, result_bytes=b"{}")
@@ -502,7 +638,9 @@ def test_preflight_timestamp_block_never_calls_runner_or_returns_handoff(
         "execute_pinned_kernel",
         lambda *args, **kwargs: runner_calls.append((args, kwargs)),
     )
-    authorization_time = freeze_result.handoffs[-1].transitioned_at
+    prepared = preparation.prepared_market_reference
+    assert prepared is not None
+    quote_retrieved_at = prepared.snapshot.quote_retrieved_at
     result = execute_owner_valuation(
         preparation=preparation,
         expected_freeze=freeze_result,
@@ -511,9 +649,9 @@ def test_preflight_timestamp_block_never_calls_runner_or_returns_handoff(
         runtime_manifest_file_sha256="d" * 64,
         cas_root=Path("/runtime/cas"),
         clock=OwnerValuationExecutionClock(
-            authorization_time,
+            quote_retrieved_at,
             (
-                datetime.fromisoformat(authorization_time.replace("Z", "+00:00"))
+                datetime.fromisoformat(quote_retrieved_at.replace("Z", "+00:00"))
                 + timedelta(microseconds=1)
             ).isoformat(),
         ),
@@ -562,6 +700,71 @@ def test_invalid_runtime_manifest_hash_blocks_before_runner_or_handoff(
     assert result.status == "blocked"
     assert runner_calls == []
     assert result.final_request_receipt is None
+    assert result.execution_handoffs == ()
+    assert result.validated_graph is None
+
+
+def test_superseded_and_quarantined_market_run_never_executes(
+    sample_payloads: dict[str, dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    preparation, freeze_result = _prepared_inputs(
+        sample_payloads,
+        monkeypatch,
+        tmp_path,
+    )
+    prepared = preparation.prepared_market_reference
+    assert prepared is not None
+    old_root = freeze_result.handoffs[0]
+    authorization = freeze_result.handoffs[-1]
+    replacement_time = datetime.fromisoformat(
+        prepared.snapshot.quote_retrieved_at.replace("Z", "+00:00")
+    ) + timedelta(seconds=1)
+    replacement = replace(
+        old_root,
+        handoff_id=f"{old_root.handoff_id}:replacement",
+        handoff_run_id=f"{old_root.handoff_run_id}:replacement",
+        transitioned_at=replacement_time.isoformat(),
+        supersedes_handoff_id=authorization.handoff_id,
+        quarantined_market_reference_snapshot_ids=(prepared.snapshot.snapshot_id,),
+    )
+    stale_graph = replace(
+        prepared.graph,
+        valuation_handoffs=(*prepared.graph.valuation_handoffs, replacement),
+    )
+    stale_graph.validate()
+    stale_preparation = replace(
+        preparation,
+        prepared_market_reference=replace(prepared, graph=stale_graph),
+    )
+    compiled = _compiled(stale_preparation)
+    runner_calls: list[object] = []
+    monkeypatch.setattr(
+        owner_execution_module,
+        "compile_final_valuation_request",
+        lambda **_kwargs: compiled,
+    )
+    monkeypatch.setattr(
+        owner_execution_module,
+        "execute_pinned_kernel",
+        lambda *args, **kwargs: runner_calls.append((args, kwargs)),
+    )
+    result = execute_owner_valuation(
+        preparation=stale_preparation,
+        expected_freeze=freeze_result,
+        kernel_repository=Path("/read-only/kernel"),
+        runtime_manifest=Path("/runtime/manifest.json"),
+        runtime_manifest_file_sha256="d" * 64,
+        cas_root=Path("/runtime/cas"),
+        clock=OwnerValuationExecutionClock(
+            (replacement_time + timedelta(microseconds=1)).isoformat(),
+            (replacement_time + timedelta(microseconds=2)).isoformat(),
+        ),
+    )
+
+    assert result.status == "blocked"
+    assert runner_calls == []
     assert result.execution_handoffs == ()
     assert result.validated_graph is None
 

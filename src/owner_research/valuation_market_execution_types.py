@@ -378,11 +378,29 @@ class FinalRequestCompilationReceipt:
     issuer_id: str
     handoff_run_id: str
     market_reference_snapshot_id: str
+    company_legal_name_value: str
     company_name_fact_id: str
+    company_name_fact_fingerprint: str
     company_name_source_document_id: str
+    company_name_source_document_fingerprint: str
+    company_identity_binding_sha256: str
     market_provider_id: str
     market_provider_receipt_id: str
     market_provider_receipt_fingerprint: str
+    market_provider_registration_sha256: str
+    market_validation_context_id: str
+    market_validation_context_fingerprint: str
+    market_access_result_fingerprint: str
+    current_share_compilation_fingerprint: str
+    market_source_document_id: str
+    market_source_document_fingerprint: str
+    market_source_ref_fingerprint: str
+    market_raw_response_sha256: str
+    market_quote_fact_id: str
+    market_quote_fact_fingerprint: str
+    market_equity_calculation_id: str
+    market_equity_calculation_fingerprint: str
+    market_evidence_binding_sha256: str
     current_share_projection_sha256: str
     numeric_projection_sha256: str
     added_source_ids: tuple[str, ...]
@@ -429,6 +447,19 @@ class FinalRequestCompilationReceipt:
             "current_share_projection_sha256",
             "numeric_projection_sha256",
             "market_provider_receipt_fingerprint",
+            "company_name_fact_fingerprint",
+            "company_name_source_document_fingerprint",
+            "company_identity_binding_sha256",
+            "market_provider_registration_sha256",
+            "market_validation_context_fingerprint",
+            "market_access_result_fingerprint",
+            "current_share_compilation_fingerprint",
+            "market_source_document_fingerprint",
+            "market_source_ref_fingerprint",
+            "market_raw_response_sha256",
+            "market_quote_fact_fingerprint",
+            "market_equity_calculation_fingerprint",
+            "market_evidence_binding_sha256",
         ):
             _sha256(getattr(self, name), name)
         reasons = _registered_reasons(self.reason_codes)
@@ -437,8 +468,13 @@ class FinalRequestCompilationReceipt:
                 (
                     self.company_name_fact_id,
                     self.company_name_source_document_id,
+                    self.company_legal_name_value,
                     self.market_provider_id,
                     self.market_provider_receipt_id,
+                    self.market_validation_context_id,
+                    self.market_source_document_id,
+                    self.market_quote_fact_id,
+                    self.market_equity_calculation_id,
                 )
             ):
                 raise ValueError("final request lacks governed name or provider lineage")
