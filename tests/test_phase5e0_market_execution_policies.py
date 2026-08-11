@@ -388,6 +388,20 @@ def test_final_request_receipt_requires_appended_share_or_market_lineage() -> No
 
 
 @pytest.mark.parametrize(
+    "changes",
+    (
+        {"company_name_fact_id": ""},
+        {"company_name_source_document_id": ""},
+        {"market_provider_id": ""},
+        {"market_provider_receipt_id": ""},
+    ),
+)
+def test_final_request_receipt_requires_governed_name_and_provider(changes) -> None:
+    with pytest.raises(ValueError, match="governed name or provider lineage"):
+        _request_receipt(**changes)
+
+
+@pytest.mark.parametrize(
     ("changes", "message"),
     (
         ({"commit": "0" * 40}, "identity drifted"),
@@ -403,6 +417,25 @@ def test_final_request_receipt_requires_appended_share_or_market_lineage() -> No
 def test_kernel_execution_receipt_rejects_drift_or_unsafe_execution(changes, message) -> None:
     with pytest.raises(ValueError, match=message):
         _kernel_receipt(**changes)
+
+
+def test_kernel_execution_receipt_accepts_only_closed_workflow_boundary() -> None:
+    receipt = _kernel_receipt(
+        execution_boundary="trusted_workflow_authorized_container",
+        docker_executable_sha256=None,
+        container_identity_sha256=None,
+        docker_image_inspect_sha256=None,
+        trusted_workflow_attestation_sha256="d" * 64,
+    )
+    assert receipt.execution_boundary == "trusted_workflow_authorized_container"
+    with pytest.raises(ValueError, match="authorized-container execution boundary"):
+        _kernel_receipt(
+            execution_boundary="trusted_workflow_authorized_container",
+            docker_executable_sha256=None,
+            container_identity_sha256=None,
+            docker_image_inspect_sha256=None,
+            trusted_workflow_attestation_sha256=None,
+        )
 
 
 def test_kernel_execution_schema_map_is_frozen() -> None:
