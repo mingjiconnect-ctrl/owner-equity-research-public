@@ -14,6 +14,7 @@ from owner_research.component_lock import (
     verify_kernel_runtime_lock,
     verify_research_schema_lock,
 )
+from owner_research.fingerprints import canonical_sha256
 
 ROOT = Path(__file__).parents[1]
 
@@ -69,6 +70,19 @@ def test_component_lock_has_exact_pinned_identity() -> None:
 def test_kernel_runtime_lock_binds_packaged_authority_and_code() -> None:
     result = verify_kernel_runtime_lock()
     assert result.ok, "\n".join(result.errors)
+
+
+def test_kernel_runtime_extension_preserves_frozen_market_kernel_and_schema_maps() -> None:
+    lock = load_component_lock(ROOT / "component-lock.json")
+    assert canonical_sha256(lock["market_access_authority"]) == (
+        "c47a00548ef13e7f60bae71de7143c1ee3ec230cf76e4cbc8dadcc2d2f94ac8b"
+    )
+    assert canonical_sha256(lock["valuation_kernel"]) == (
+        "45bd321a26673d46627d9a260d2fd699a994cc74cb1fb018282a20beee1e83ac"
+    )
+    assert canonical_sha256(lock["owner_equity_research"]["public_schema_sha256"]) == (
+        "23c7b640337b6cae5e54881579d16ac9f298e67b0709661589f6528b891a75d4"
+    )
 
 
 def test_kernel_runtime_lock_rejects_drift_and_duplicate_json_keys(tmp_path: Path) -> None:
