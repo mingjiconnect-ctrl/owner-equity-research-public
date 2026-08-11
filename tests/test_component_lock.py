@@ -117,6 +117,11 @@ def test_kernel_runtime_lock_rejects_drift_and_duplicate_json_keys(tmp_path: Pat
     with pytest.raises(ValueError, match="duplicate JSON key"):
         load_component_lock(duplicate)
 
+    symlink = tmp_path / "component-lock-link.json"
+    symlink.symlink_to(ROOT / "component-lock.json")
+    with pytest.raises(OSError):
+        load_component_lock(symlink)
+
     shadowed = load_component_lock(ROOT / "component-lock.json")
     shadowed["shadow_runtime_authority"] = {"trusted": False}
     shadowed_path = tmp_path / "shadowed.json"

@@ -28,9 +28,48 @@ def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return value
 
 
+def _read_bounded_regular_file_nofollow(
+    path: Path,
+    *,
+    maximum_size: int = 8 * 1024 * 1024,
+) -> bytes:
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags)
+    try:
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode) or before.st_size > maximum_size:
+            raise ValueError("component lock must be a bounded regular file")
+        chunks: list[bytes] = []
+        remaining = maximum_size + 1
+        while remaining:
+            chunk = os.read(descriptor, min(1024 * 1024, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        if remaining == 0:
+            raise ValueError("component lock exceeds its size limit")
+        after = os.fstat(descriptor)
+        if (
+            before.st_dev,
+            before.st_ino,
+            before.st_size,
+            before.st_mtime_ns,
+        ) != (
+            after.st_dev,
+            after.st_ino,
+            after.st_size,
+            after.st_mtime_ns,
+        ):
+            raise ValueError("component lock changed while being read")
+        return b"".join(chunks)
+    finally:
+        os.close(descriptor)
+
+
 def load_component_lock(path: Path) -> dict[str, Any]:
     value = json.loads(
-        path.read_text(encoding="utf-8"),
+        _read_bounded_regular_file_nofollow(path).decode("utf-8"),
         object_pairs_hook=_reject_duplicate_json_keys,
     )
     if not isinstance(value, dict):
