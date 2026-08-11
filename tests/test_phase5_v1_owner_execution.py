@@ -147,6 +147,44 @@ def test_noncompiled_path_calls_compiler_once_and_never_runs_or_advances(
     )
     with pytest.raises(ValueError, match="exact price-blind freeze"):
         replace(result, expected_freeze=malicious_freeze)
+    malicious_request = SimpleNamespace(
+        status=status,
+        result_bytes=b'{"forged":true}',
+    )
+    with pytest.raises(ValueError, match="exact final-request result"):
+        replace(result, final_request_result=malicious_request)
+
+    foreign_requests = (
+        replace(compiled, issuer_id="issuer:foreign"),
+        replace(compiled, valuation_date="2026-06-29"),
+        replace(compiled, price_blind_input_fingerprint="f" * 64),
+        replace(
+            compiled,
+            status="blocked" if status == "specialist_required" else "specialist_required",
+        ),
+    )
+    for foreign_request in foreign_requests:
+        with pytest.raises(
+            ValueError,
+            match="bind owner preparation|final-request status|specialist route",
+        ):
+            replace(result, final_request_result=foreign_request)
+
+    rebound_v4 = replace(
+        freeze_result.handoffs[-1],
+        transitioned_at=(
+            datetime.fromisoformat(
+                freeze_result.handoffs[-1].transitioned_at.replace("Z", "+00:00")
+            )
+            + timedelta(microseconds=1)
+        ).isoformat(),
+    )
+    rebound_freeze = replace(
+        freeze_result,
+        handoffs=(*freeze_result.handoffs[:-1], rebound_v4),
+    )
+    with pytest.raises(ValueError, match="expected freeze fingerprint"):
+        replace(result, expected_freeze=rebound_freeze)
 
 
 def test_untyped_kernel_like_freeze_is_rejected_before_compiler_or_runner(
@@ -1036,6 +1074,21 @@ def test_runner_output_binding_failure_is_hash_only_and_never_advances_graph(
     assert preparation.prepared_market_reference.graph.valuation_handoffs == (
         freeze_result.handoffs
     )
+    assert result.final_request_receipt is not None
+    with pytest.raises(ValueError, match="bind owner preparation"):
+        replace(
+            result,
+            final_request_result=replace(
+                compiled,
+                prepared_market_reference_fingerprint="f" * 64,
+            ),
+        )
+    rebound_receipt = _rebound_final_request_receipt(
+        result.final_request_receipt,
+        numeric_projection_sha256="f" * 64,
+    )
+    with pytest.raises(ValueError, match="stopped request receipt binding"):
+        replace(result, final_request_receipt=rebound_receipt)
 
 
 def test_completed_result_rejects_coordinated_request_provenance_rebindings(
@@ -1151,7 +1204,7 @@ def test_completed_result_rejects_coordinated_request_provenance_rebindings(
             final_request_receipt=forged_share_receipt,
         )
 
-    with pytest.raises(ValueError, match="provenance"):
+    with pytest.raises(ValueError, match="preparation|provenance"):
         replace(
             completed,
             final_request_result=replace(
@@ -1159,7 +1212,7 @@ def test_completed_result_rejects_coordinated_request_provenance_rebindings(
                 prepared_market_reference_fingerprint="f" * 64,
             ),
         )
-    with pytest.raises(ValueError, match="provenance"):
+    with pytest.raises(ValueError, match="preparation|provenance"):
         replace(
             completed,
             final_request_result=replace(

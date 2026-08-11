@@ -132,6 +132,42 @@ def _validate_expected_freeze_identity(
         )
 
 
+def _expected_freeze_fingerprint(
+    expected_freeze: PriceBlindFreezeCompilationResult,
+) -> str:
+    return expected_freeze.fingerprint
+
+
+def _validate_final_request_identity(
+    preparation: OwnerValuationPreparationResult,
+    final_request: FinalValuationRequestCompilationResult,
+) -> None:
+    """Bind every compiler outcome to the preparation that produced it."""
+
+    if type(final_request) is not FinalValuationRequestCompilationResult:
+        raise OwnerValuationExecutionError(
+            "owner execution requires an exact final-request result"
+        )
+    prepared = preparation.prepared_market_reference
+    expected_prepared_fingerprint = (
+        prepared.fingerprint
+        if final_request.status == "compiled" and prepared is not None
+        else None
+    )
+    if (
+        final_request.issuer_id != preparation.issuer_id
+        or final_request.valuation_date != preparation.data_cutoff_date
+        or final_request.price_blind_input_fingerprint
+        != preparation.price_blind_input_fingerprint
+        or final_request.prepared_market_reference_fingerprint
+        != expected_prepared_fingerprint
+        or (final_request.status == "compiled" and prepared is None)
+    ):
+        raise OwnerValuationExecutionError(
+            "final-request result does not bind owner preparation"
+        )
+
+
 def _checked_sha256(value: str, label: str) -> None:
     if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
         raise OwnerValuationExecutionError(f"{label} is not a lowercase SHA-256")
@@ -463,6 +499,7 @@ class OwnerValuationExecutionResult:
     preparation: OwnerValuationPreparationResult
     clock: OwnerValuationExecutionClock
     expected_freeze: PriceBlindFreezeCompilationResult
+    expected_freeze_fingerprint: str
     final_request_result: FinalValuationRequestCompilationResult
     final_request_receipt: FinalRequestCompilationReceipt | None
     kernel_execution_result: PinnedKernelExecutionResult | None
@@ -492,6 +529,12 @@ class OwnerValuationExecutionResult:
                 "owner execution changed its frozen preparation fingerprint or clock"
             )
         _validate_expected_freeze_identity(self.preparation, self.expected_freeze)
+        _checked_sha256(self.expected_freeze_fingerprint, "expected freeze fingerprint")
+        if self.expected_freeze_fingerprint != _expected_freeze_fingerprint(
+            self.expected_freeze
+        ):
+            raise ValueError("owner execution changed its expected freeze fingerprint")
+        _validate_final_request_identity(self.preparation, self.final_request_result)
         if self.quarantined_result_sha256 is not None:
             _checked_sha256(self.quarantined_result_sha256, "quarantined result SHA")
 
@@ -505,14 +548,61 @@ class OwnerValuationExecutionResult:
                 or not issues
             ):
                 raise ValueError("non-completed owner execution promoted a frozen result")
+            request = self.final_request_result
             if self.status == "specialist_required":
                 if (
-                    self.final_request_result.status != "specialist_required"
+                    request.status != "specialist_required"
                     or self.final_request_receipt is not None
                     or self.kernel_execution_result is not None
                     or self.quarantined_result_sha256 is not None
+                    or issues != request.issue_codes
                 ):
                     raise ValueError("specialist route promoted request or execution evidence")
+            elif request.status not in {"blocked", "compiled"}:
+                raise ValueError("blocked owner execution changed its final-request status")
+            elif request.status == "blocked":
+                if (
+                    self.final_request_receipt is not None
+                    or self.quarantined_result_sha256 is not None
+                    or issues != request.issue_codes
+                ):
+                    raise ValueError("blocked compiler result promoted request evidence")
+            else:
+                prepared = self.preparation.prepared_market_reference
+                if prepared is None:
+                    raise ValueError("compiled stopped result lacks prepared market evidence")
+                request_payload = request.request_payload
+                canonical_request = request.canonical_request_json
+                request_sha256 = request.request_sha256
+                if (
+                    request_payload is None
+                    or canonical_request is None
+                    or request_sha256 is None
+                    or canonical_request != canonical_json(request_payload)
+                    or request_sha256 != _sha256_bytes(canonical_request.encode("utf-8"))
+                ):
+                    raise ValueError("compiled stopped request bytes changed")
+                _replay_request_provenance(preparation=self.preparation, request=request)
+                _replay_expected_freeze(
+                    preparation=self.preparation,
+                    expected_freeze=self.expected_freeze,
+                    authorization=self.expected_freeze.handoffs[-1],
+                    request=request,
+                )
+                if self.final_request_receipt is None:
+                    if self.quarantined_result_sha256 is not None:
+                        raise ValueError("unreceipted request retained a quarantined result")
+                else:
+                    if type(self.final_request_receipt) is not FinalRequestCompilationReceipt:
+                        raise ValueError("stopped request receipt type changed")
+                    context = _compiled_context(
+                        preparation=self.preparation,
+                        expected_freeze=self.expected_freeze,
+                        final_request=request,
+                        clock=self.clock,
+                    )
+                    if self.final_request_receipt != _final_request_receipt(context):
+                        raise ValueError("stopped request receipt binding changed")
             return
 
         request = self.final_request_result
@@ -1140,6 +1230,33 @@ def _verify_kernel_result(
         )
 
 
+def _blocked_final_request(
+    preparation: OwnerValuationPreparationResult,
+    issue_code: str,
+) -> FinalValuationRequestCompilationResult:
+    """Return a closed blocked result without retaining rejected compiled bytes."""
+
+    return FinalValuationRequestCompilationResult(
+        status="blocked",
+        issuer_id=preparation.issuer_id,
+        valuation_date=preparation.data_cutoff_date,
+        price_blind_input_fingerprint=preparation.price_blind_input_fingerprint,
+        prepared_market_reference_fingerprint=None,
+        company_legal_name_value=None,
+        company_name_fact_id=None,
+        company_name_fact_fingerprint=None,
+        company_name_source_document_id=None,
+        company_name_source_document_fingerprint=None,
+        company_identity_binding_sha256=None,
+        fact_ledger_result=None,
+        assumption_ledger_result=None,
+        request_payload=None,
+        canonical_request_json=None,
+        request_sha256=None,
+        issue_codes=(issue_code,),
+    )
+
+
 def _stopped(
     *,
     preparation: OwnerValuationPreparationResult,
@@ -1159,6 +1276,7 @@ def _stopped(
         preparation=preparation,
         clock=clock,
         expected_freeze=expected_freeze,
+        expected_freeze_fingerprint=_expected_freeze_fingerprint(expected_freeze),
         final_request_result=final_request,
         final_request_receipt=final_request_receipt,
         kernel_execution_result=None,
@@ -1190,6 +1308,7 @@ def execute_owner_valuation(
         expected_freeze=expected_freeze,
         kernel_repository=kernel_repository,
     )
+    _validate_final_request_identity(preparation, final_request)
     if final_request.status != "compiled":
         return _stopped(
             preparation=preparation,
@@ -1224,13 +1343,14 @@ def execute_owner_valuation(
         TypeError,
         ValueError,
     ) as exc:
+        issue_code = f"owner_execution_preflight_blocked:{type(exc).__name__}"
         return _stopped(
             preparation=preparation,
             clock=clock,
             expected_freeze=expected_freeze,
-            final_request=final_request,
+            final_request=_blocked_final_request(preparation, issue_code),
             status="blocked",
-            issue_codes=(f"owner_execution_preflight_blocked:{type(exc).__name__}",),
+            issue_codes=(issue_code,),
         )
 
     try:
@@ -1295,6 +1415,7 @@ def execute_owner_valuation(
         preparation=preparation,
         clock=clock,
         expected_freeze=expected_freeze,
+        expected_freeze_fingerprint=_expected_freeze_fingerprint(expected_freeze),
         final_request_result=final_request,
         final_request_receipt=request_receipt,
         kernel_execution_result=execution,
