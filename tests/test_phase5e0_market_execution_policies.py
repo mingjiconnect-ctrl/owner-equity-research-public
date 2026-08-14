@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import ast
 import json
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 from pathlib import Path
 
 import pytest
@@ -18,7 +18,12 @@ from owner_research.valuation_market_execution_policies import (
     MARKET_QUOTE_POLICY_ID,
     MARKET_QUOTE_POLICY_VERSION,
     PHASE5E_POLICIES,
+    PINNED_KERNEL_CONTAINER_IMAGE_CONFIG_DIGEST,
+    PINNED_KERNEL_CONTAINER_IMAGE_MANIFEST_DIGEST,
+    PINNED_KERNEL_CONTAINER_IMAGE_REFERENCE,
+    PINNED_KERNEL_CONTAINER_PLATFORM,
     PINNED_KERNEL_SCHEMA_SHA256,
+    PINNED_KERNEL_WHEEL_SHA256,
     SECURITY_IDENTITY_POLICY_ID,
     SECURITY_IDENTITY_POLICY_VERSION,
     SHARE_BASIS_POLICY_ID,
@@ -151,12 +156,37 @@ def _shares(**changes: object) -> ShareBasisDecision:
 
 def _request_receipt(**changes: object) -> FinalRequestCompilationReceipt:
     payload: dict[str, object] = {
-        "receipt_id": "request-receipt:fixture",
+        "receipt_id": "",
         "policy_id": FINAL_REQUEST_POLICY_ID,
         "policy_version": FINAL_REQUEST_POLICY_VERSION,
         "issuer_id": "issuer:fixture",
         "handoff_run_id": "valuation-run:fixture",
         "market_reference_snapshot_id": "market-reference:fixture",
+        "company_legal_name_value": "Fixture Corporation",
+        "company_name_fact_id": "fact:fixture:company-name",
+        "company_name_fact_fingerprint": "a" * 64,
+        "company_name_source_document_id": "source:fixture:filing",
+        "company_name_source_document_fingerprint": "b" * 64,
+        "company_identity_binding_sha256": "c" * 64,
+        "market_provider_id": "provider:human-reviewed-file",
+        "market_provider_receipt_id": "market-receipt:fixture",
+        "market_provider_receipt_fingerprint": "0" * 64,
+        "market_provider_registration_sha256": "d" * 64,
+        "market_validation_context_id": "market-context:fixture",
+        "market_validation_context_fingerprint": "e" * 64,
+        "market_access_result_fingerprint": "f" * 64,
+        "current_share_compilation_fingerprint": "1" * 64,
+        "market_source_document_id": "source:fixture:market",
+        "market_source_document_fingerprint": "2" * 64,
+        "market_source_ref_fingerprint": "3" * 64,
+        "market_raw_response_sha256": "4" * 64,
+        "market_quote_fact_id": "fact:fixture:quote",
+        "market_quote_fact_fingerprint": "5" * 64,
+        "market_equity_calculation_id": "calculation:fixture:market-equity",
+        "market_equity_calculation_fingerprint": "6" * 64,
+        "market_evidence_binding_sha256": "7" * 64,
+        "current_share_projection_sha256": "2" * 64,
+        "numeric_projection_sha256": "3" * 64,
         "added_source_ids": ("source:fixture:market",),
         "added_fact_ids": ("fact:fixture:quote", "fact:fixture:market-equity"),
         "price_blind_fact_ledger_sha256": SHA_A,
@@ -174,12 +204,21 @@ def _request_receipt(**changes: object) -> FinalRequestCompilationReceipt:
         "reason_codes": (),
     }
     payload.update(changes)
+    payload["added_source_ids"] = tuple(sorted(payload["added_source_ids"]))  # type: ignore[arg-type]
+    payload["added_fact_ids"] = tuple(sorted(payload["added_fact_ids"]))  # type: ignore[arg-type]
+    payload["reason_codes"] = tuple(sorted(set(payload["reason_codes"])))  # type: ignore[arg-type]
+    receipt_payload = dict(payload)
+    receipt_payload.pop("receipt_id")
+    payload["receipt_id"] = (
+        f"final-request-receipt:{payload['issuer_id']}:"
+        f"{canonical_sha256(receipt_payload)[:24]}"
+    )
     return FinalRequestCompilationReceipt(**payload)  # type: ignore[arg-type]
 
 
 def _kernel_receipt(**changes: object) -> KernelExecutionReceipt:
     payload: dict[str, object] = {
-        "receipt_id": "kernel-execution:fixture",
+        "receipt_id": "",
         "policy_id": KERNEL_EXECUTION_POLICY_ID,
         "policy_version": KERNEL_EXECUTION_POLICY_VERSION,
         "repository": "mingjiconnect-ctrl/owner-valuation-kernel",
@@ -188,20 +227,49 @@ def _kernel_receipt(**changes: object) -> KernelExecutionReceipt:
         "package_version": "2.0.0rc2",
         "plugin_version": "2.0.0-rc.2",
         "schema_sha256": PINNED_KERNEL_SCHEMA_SHA256,
-        "wheel_sha256": SHA_A,
-        "dependency_wheelhouse_sha256": SHA_B,
-        "execution_mode": "isolated_subprocess",
+        "wheel_sha256": PINNED_KERNEL_WHEEL_SHA256,
+        "runtime_authority_sha256": "1" * 64,
+        "runtime_manifest_file_sha256": "2" * 64,
+        "runtime_manifest_fingerprint": "3" * 64,
+        "runner_sha256": "4" * 64,
+        "result_schema_sha256": PINNED_KERNEL_SCHEMA_SHA256[
+            "schemas/valuation-result.schema.json"
+        ],
+        "wheel_inventory_sha256": "5" * 64,
+        "docker_executable_sha256": "6" * 64,
+        "container_image_reference": PINNED_KERNEL_CONTAINER_IMAGE_REFERENCE,
+        "container_image_manifest_digest": (
+            PINNED_KERNEL_CONTAINER_IMAGE_MANIFEST_DIGEST
+        ),
+        "container_image_config_digest": PINNED_KERNEL_CONTAINER_IMAGE_CONFIG_DIGEST,
+        "container_platform": PINNED_KERNEL_CONTAINER_PLATFORM,
+        "container_identity_sha256": "a" * 64,
+        "docker_image_inspect_sha256": "b" * 64,
+        "container_security_profile_sha256": "c" * 64,
+        "trusted_workflow_attestation_sha256": None,
+        "execution_boundary": "trusted_host_docker_launcher",
+        "execution_mode": "digest_pinned_linux_container",
         "request_transport": "canonical_json_stdin",
         "result_transport": "canonical_json_stdout",
-        "network_mode": "disabled",
+        "network_mode": "docker_network_none",
         "request_sha256": SHA_C,
         "result_sha256": SHA_D,
+        "fact_ledger_fingerprint": "7" * 64,
+        "assumption_ledger_fingerprint": "8" * 64,
+        "model_input_fingerprint": "9" * 64,
+        "call_count": 1,
         "exit_code": 0,
         "result_preserved": True,
         "status": "succeeded",
         "reason_codes": (),
     }
     payload.update(changes)
+    payload["reason_codes"] = tuple(sorted(set(payload["reason_codes"])))  # type: ignore[arg-type]
+    receipt_payload = dict(payload)
+    receipt_payload.pop("receipt_id")
+    payload["receipt_id"] = (
+        f"kernel-execution-receipt:{canonical_sha256(receipt_payload)[:24]}"
+    )
     return KernelExecutionReceipt(**payload)  # type: ignore[arg-type]
 
 
@@ -333,17 +401,49 @@ def test_final_request_receipt_rejects_any_protected_drift(changes) -> None:
         _request_receipt(**changes)
 
 
-def test_final_request_receipt_allows_only_one_source_and_two_market_facts() -> None:
-    with pytest.raises(ValueError, match="exactly one source and two market Facts"):
+def test_final_request_receipt_requires_appended_share_or_market_lineage() -> None:
+    receipt = _request_receipt(
+        added_source_ids=("source:fixture:filing", "source:fixture:market"),
+        added_fact_ids=(
+            "fact:fixture:opening-shares",
+            "fact:fixture:completed-repurchase",
+            "fact:fixture:current-shares",
+            "fact:fixture:quote",
+            "fact:fixture:market-equity",
+        ),
+    )
+    assert len(receipt.added_source_ids) == 2
+    assert len(receipt.added_fact_ids) == 5
+    with pytest.raises(ValueError, match="lacks appended share or market lineage"):
         _request_receipt(added_fact_ids=("fact:quote",))
+    with pytest.raises(ValueError, match="lacks appended share or market lineage"):
+        _request_receipt(added_source_ids=())
+
+
+@pytest.mark.parametrize(
+    "changes",
+    (
+        {"company_name_fact_id": ""},
+        {"company_name_source_document_id": ""},
+        {"market_provider_id": ""},
+        {"market_provider_receipt_id": ""},
+    ),
+)
+def test_final_request_receipt_requires_governed_name_and_provider(changes) -> None:
+    with pytest.raises(ValueError, match="governed name or provider lineage"):
+        _request_receipt(**changes)
 
 
 @pytest.mark.parametrize(
     ("changes", "message"),
     (
         ({"commit": "0" * 40}, "identity drifted"),
-        ({"execution_mode": "in_process"}, "isolated subprocess"),
-        ({"network_mode": "enabled"}, "network must be disabled"),
+        ({"wheel_sha256": SHA_A}, "pinned release bytes"),
+        ({"execution_mode": "in_process"}, "digest-pinned Linux container"),
+        ({"network_mode": "enabled"}, "Docker network none"),
+        ({"container_image_config_digest": "sha256:" + "0" * 64}, "authority drifted"),
+        ({"trusted_workflow_attestation_sha256": "d" * 64}, "observed container authority"),
+        ({"call_count": 2}, "preserve a zero-exit result"),
         ({"result_preserved": False}, "preserve"),
     ),
 )
@@ -352,10 +452,36 @@ def test_kernel_execution_receipt_rejects_drift_or_unsafe_execution(changes, mes
         _kernel_receipt(**changes)
 
 
+def test_kernel_execution_receipt_accepts_only_closed_workflow_boundary() -> None:
+    receipt = _kernel_receipt(
+        execution_boundary="trusted_workflow_authorized_container",
+        docker_executable_sha256=None,
+        container_identity_sha256=None,
+        docker_image_inspect_sha256=None,
+        trusted_workflow_attestation_sha256="d" * 64,
+    )
+    assert receipt.execution_boundary == "trusted_workflow_authorized_container"
+    with pytest.raises(ValueError, match="authorized-container execution boundary"):
+        _kernel_receipt(
+            execution_boundary="trusted_workflow_authorized_container",
+            docker_executable_sha256=None,
+            container_identity_sha256=None,
+            docker_image_inspect_sha256=None,
+            trusted_workflow_attestation_sha256=None,
+        )
+
+
 def test_kernel_execution_schema_map_is_frozen() -> None:
     receipt = _kernel_receipt()
     with pytest.raises(TypeError):
         receipt.schema_sha256["schemas/fact-ledger.schema.json"] = SHA_F  # type: ignore[index]
+
+
+def test_request_and_kernel_receipt_ids_are_deterministic() -> None:
+    with pytest.raises(ValueError, match="final-request receipt ID is not deterministic"):
+        replace(_request_receipt(), receipt_id="final-request-receipt:forged")
+    with pytest.raises(ValueError, match="kernel-execution receipt ID is not deterministic"):
+        replace(_kernel_receipt(), receipt_id="kernel-execution-receipt:forged")
 
 
 def test_phase5e0_fixture_and_forbidden_production_surfaces() -> None:

@@ -1,10 +1,10 @@
 [build-system]
-requires = ["hatchling>=1.26"]
+requires = ["hatchling==1.27.0"]
 build-backend = "hatchling.build"
 
 [project]
 name = "owner-equity-research"
-version = "0.6.0.dev1"
+version = "0.6.0.dev2"
 description = "Auditable equity-research evidence and deterministic integration artifacts"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -16,6 +16,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+  "build==1.3.0",
+  "hatchling==1.27.0",
   "pyyaml>=6.0,<7",
   "pytest>=8.3,<9",
   "ruff>=0.9,<1",

@@ -38,6 +38,23 @@ def test_kernel_reader_ci_closed_projection_is_accepted() -> None:
         "token_escape",
         "bracket_secret_escape",
         "fake_netless_commands",
+        "missing_privilege_drop",
+        "missing_no_new_privs",
+        "missing_privileged_channel_mask",
+        "candidate_before_privilege_drop",
+        "runner_identity_reuse",
+        "replaceable_container_logs",
+        "missing_log_recheck",
+        "missing_container_git_authority",
+        "missing_private_checkout_ownership",
+        "writable_private_checkout_source_alias",
+        "missing_fixed_runtime_inputs",
+        "missing_candidate_tmpfs",
+        "late_candidate_tmpfs",
+        "private_tmpdir_reuse",
+        "orphan_private_tmpdir",
+        "missing_candidate_tmpfs_evidence",
+        "workspace_candidate_ownership",
         "top_level_defaults",
         "semantic_secret",
         "extra_secret_job",
@@ -71,6 +88,113 @@ def test_kernel_reader_ci_adversarial_mutations_are_rejected(mutation: str) -> N
         steps[7]["run"] = (
             "sudo unshare --net -- true\n"
             "python -I scripts/verify_phase5_v1.py --mode verify\n"
+        )
+    elif mutation == "missing_privilege_drop":
+        steps[7]["run"] = steps[7]["run"].replace(
+            "  --clear-groups \\\n", ""
+        )
+    elif mutation == "missing_no_new_privs":
+        steps[7]["run"] = steps[7]["run"].replace(
+            "  --no-new-privs \\\n", ""
+        )
+    elif mutation == "missing_privileged_channel_mask":
+        steps[7]["run"] = steps[7]["run"].replace(
+            "for privileged_channel in /usr/bin/docker /usr/bin/sudo; do\n",
+            "for privileged_channel in /usr/bin/docker; do\n",
+        )
+    elif mutation == "candidate_before_privilege_drop":
+        steps[7]["run"] = steps[7]["run"].replace(
+            'exec /usr/bin/setpriv \\\n',
+            '"$runner_python" -I "$validator" "$wheelhouse" "$python_minor"\n'
+            'exec /usr/bin/setpriv \\\n',
+        )
+    elif mutation == "runner_identity_reuse":
+        steps[7]["run"] = steps[7]["run"].replace(
+            '--reuid="$candidate_uid"', '--reuid="$host_uid"'
+        )
+    elif mutation == "replaceable_container_logs":
+        steps[7]["run"] = steps[7]["run"].replace(
+            'chmod 0711 "$private_root"\n',
+            'chmod 0711 "$private_root"\n'
+            'chown --no-dereference "$candidate_uid:$candidate_gid" '
+            '"$private_root"\n',
+            1,
+        )
+    elif mutation == "missing_log_recheck":
+        steps[7]["run"] = steps[7]["run"].replace(
+            "for protected_log in stage.stdout stage.stderr container.stdout "
+            "container.stderr; do\n",
+            "for log in stage.stdout stage.stderr container.stdout container.stderr; do\n",
+            1,
+        )
+    elif mutation == "missing_container_git_authority":
+        steps[7]["run"] = steps[7]["run"].replace(
+            "  GIT_CONFIG_VALUE_0=/workspace \\\n", "", 1
+        )
+    elif mutation == "missing_private_checkout_ownership":
+        steps[7]["run"] = steps[7]["run"].replace(
+            'chown -R --no-dereference "$candidate_uid:$candidate_gid" '
+            '"$kernel_source"\n',
+            "",
+            1,
+        )
+    elif mutation == "writable_private_checkout_source_alias":
+        steps[7]["run"] = steps[7]["run"].replace(
+            'mount --bind "$kernel_source" "$kernel_source"\n'
+            'mount -o remount,bind,ro "$kernel_source"\n',
+            "",
+            1,
+        )
+    elif mutation == "missing_fixed_runtime_inputs":
+        steps[7]["run"] = steps[7]["run"].replace(
+            'mount --bind "$validator_source" "$validator"\n'
+            'mount -o remount,bind,ro,noexec,nosuid,nodev "$validator"\n',
+            "",
+            1,
+        )
+    elif mutation == "missing_candidate_tmpfs":
+        steps[7]["run"] = steps[7]["run"].replace(
+            "mount -t tmpfs -o rw,exec,nosuid,nodev,size=268435456,mode=1777 "
+            "tmpfs /tmp\n",
+            "",
+            1,
+        )
+    elif mutation == "late_candidate_tmpfs":
+        tmpfs_mount = (
+            "mount -t tmpfs -o rw,exec,nosuid,nodev,size=268435456,mode=1777 "
+            "tmpfs /tmp\n"
+        )
+        steps[7]["run"] = steps[7]["run"].replace(tmpfs_mount, "", 1).replace(
+            'cd "$workspace"\n',
+            f'{tmpfs_mount}cd "$workspace"\n',
+            1,
+        )
+    elif mutation == "private_tmpdir_reuse":
+        steps[7]["run"] = steps[7]["run"].replace(
+            "TMPDIR=/tmp", 'TMPDIR="$private_root/tmp"', 1
+        )
+    elif mutation == "orphan_private_tmpdir":
+        steps[7]["run"] = steps[7]["run"].replace(
+            '  "$private_root/home" \\\n',
+            '  "$private_root/home" \\\n  "$private_root/tmp" \\\n',
+            1,
+        )
+    elif mutation == "missing_candidate_tmpfs_evidence":
+        steps[7]["run"] = steps[7]["run"].replace(
+            "tmp_mount_options=$(findmnt -n -o OPTIONS --target /tmp)\n"
+            "for required_option in rw nosuid nodev; do\n"
+            "  printf '%s\\n' \"$tmp_mount_options\" | tr ',' '\\n' | "
+            'grep -Fx "$required_option"\n'
+            "done\n",
+            "",
+            1,
+        )
+    elif mutation == "workspace_candidate_ownership":
+        steps[7]["run"] = steps[7]["run"].replace(
+            'mount --bind "$workspace_source" "$workspace"\n',
+            'chown -R --no-dereference "$candidate_uid:$candidate_gid" '
+            '"$workspace_source"\nmount --bind "$workspace_source" "$workspace"\n',
+            1,
         )
     elif mutation == "top_level_defaults":
         workflow["defaults"] = {"run": {"shell": "bash -c 'exit 0; bash {0}'"}}

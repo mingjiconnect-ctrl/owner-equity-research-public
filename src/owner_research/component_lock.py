@@ -2,10 +2,19 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import stat
 import subprocess
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
+
+_PINNED_KERNEL_LOCK_CANONICAL_SHA256 = (
+    "45bd321a26673d46627d9a260d2fd699a994cc74cb1fb018282a20beee1e83ac"
+)
+_PINNED_RUNTIME_AUTHORITY_CANONICAL_SHA256 = (
+    "fa65b5b91deeba9b4b7d33aaa7ec4b17017ef33f5f608c82d74cedfcaf42b4cf"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,8 +26,74 @@ class VerificationResult:
         return not self.errors
 
 
+def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    value: dict[str, Any] = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError(f"duplicate JSON key in component lock: {key}")
+        value[key] = item
+    return value
+
+
+def _canonical_payload_sha256(value: Any) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            value,
+            allow_nan=False,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def _read_bounded_regular_file_nofollow(
+    path: Path,
+    *,
+    maximum_size: int = 8 * 1024 * 1024,
+) -> bytes:
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags)
+    try:
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode) or before.st_size > maximum_size:
+            raise ValueError("component lock must be a bounded regular file")
+        chunks: list[bytes] = []
+        remaining = maximum_size + 1
+        while remaining:
+            chunk = os.read(descriptor, min(1024 * 1024, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        if remaining == 0:
+            raise ValueError("component lock exceeds its size limit")
+        after = os.fstat(descriptor)
+        if (
+            before.st_dev,
+            before.st_ino,
+            before.st_size,
+            before.st_mtime_ns,
+        ) != (
+            after.st_dev,
+            after.st_ino,
+            after.st_size,
+            after.st_mtime_ns,
+        ):
+            raise ValueError("component lock changed while being read")
+        return b"".join(chunks)
+    finally:
+        os.close(descriptor)
+
+
 def load_component_lock(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    value = json.loads(
+        _read_bounded_regular_file_nofollow(path).decode("utf-8"),
+        object_pairs_hook=_reject_duplicate_json_keys,
+    )
+    if not isinstance(value, dict):
+        raise ValueError("component lock must be a JSON object")
+    return value
 
 
 def default_component_lock_path() -> Path:
@@ -37,6 +112,362 @@ def file_sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _read_package_file_nofollow(
+    package_root: Path,
+    relative_path: str,
+    *,
+    maximum_size: int = 8 * 1024 * 1024,
+) -> bytes:
+    """Read one locked package member without following or racing a symlink."""
+
+    logical = PurePosixPath(relative_path)
+    if logical.is_absolute() or not logical.parts or ".." in logical.parts:
+        raise ValueError(f"locked package path is unsafe: {relative_path}")
+    path = package_root.joinpath(*logical.parts)
+    current = package_root
+    for part in logical.parts[:-1]:
+        current /= part
+        metadata = current.lstat()
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+            raise ValueError(f"locked package parent is unsafe: {relative_path}")
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags)
+    try:
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode) or before.st_size > maximum_size:
+            raise ValueError(
+                f"locked package member is not a bounded regular file: {relative_path}"
+            )
+        chunks: list[bytes] = []
+        total = 0
+        while True:
+            chunk = os.read(descriptor, min(1024 * 1024, maximum_size + 1 - total))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            total += len(chunk)
+            if total > maximum_size:
+                raise ValueError(f"locked package member exceeds its size limit: {relative_path}")
+        after = os.fstat(descriptor)
+        identity_before = (
+            before.st_dev,
+            before.st_ino,
+            before.st_size,
+            before.st_mtime_ns,
+        )
+        identity_after = (
+            after.st_dev,
+            after.st_ino,
+            after.st_size,
+            after.st_mtime_ns,
+        )
+        if identity_before != identity_after:
+            raise ValueError(f"locked package member changed while read: {relative_path}")
+        return b"".join(chunks)
+    finally:
+        os.close(descriptor)
+
+
+def verify_kernel_runtime_snapshot(
+    *,
+    lock_bytes: bytes,
+    runtime_authority_bytes: bytes,
+    materializer_bytes: bytes,
+    runner_bytes: bytes,
+) -> VerificationResult:
+    """Verify one immutable component-lock/runtime byte snapshot."""
+
+    errors: list[str] = []
+    try:
+        lock = json.loads(
+            lock_bytes.decode("utf-8"),
+            object_pairs_hook=_reject_duplicate_json_keys,
+        )
+        if not isinstance(lock, dict):
+            raise ValueError("component lock must be a JSON object")
+        runtime = lock["valuation_kernel_runtime"]
+        kernel = lock["valuation_kernel"]
+    except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+        return VerificationResult((f"Kernel runtime component lock is unavailable: {exc}",))
+
+    expected_lock_keys = {
+        "lock_version",
+        "generated_date",
+        "owner_equity_research",
+        "market_access_authority",
+        "valuation_kernel",
+        "valuation_kernel_runtime",
+    }
+    if set(lock) != expected_lock_keys:
+        return VerificationResult(("Kernel runtime top-level component-lock shape mismatch",))
+
+    expected_runtime_keys = {
+        "authority_version",
+        "runtime_authority",
+        "materializer_code",
+        "runner_code",
+        "expected_release_wheel_sha256",
+        "manifest_policy_id",
+        "manifest_policy_version",
+    }
+    if not isinstance(runtime, dict) or set(runtime) != expected_runtime_keys:
+        return VerificationResult(("Kernel runtime component-lock shape mismatch",))
+    if not isinstance(kernel, dict):
+        return VerificationResult(("Kernel component-lock identity is not an object",))
+    if _canonical_payload_sha256(kernel) != _PINNED_KERNEL_LOCK_CANONICAL_SHA256:
+        return VerificationResult(
+            ("Kernel component-lock identity drifted from pinned rc.2",)
+        )
+    if lock.get("lock_version") != "1.2.0":
+        errors.append("Kernel runtime requires component-lock 1.2.0")
+    if runtime.get("authority_version") != "1.0.0":
+        errors.append("Kernel runtime authority version mismatch")
+    if runtime.get("manifest_policy_id") != "owner-research-pinned-kernel-runtime":
+        errors.append("Kernel runtime manifest policy ID mismatch")
+    if runtime.get("manifest_policy_version") != "1.0.0":
+        errors.append("Kernel runtime manifest policy version mismatch")
+
+    locked_bytes = {
+        "runtime_authority": runtime_authority_bytes,
+        "materializer_code": materializer_bytes,
+        "runner_code": runner_bytes,
+    }
+    expected_paths = {
+        "runtime_authority": "resources/phase5-v1-kernel-runtime/runtime-authority.json",
+        "materializer_code": "valuation_kernel_materializer.py",
+        "runner_code": "valuation_pinned_kernel.py",
+    }
+    for key in ("runtime_authority", "materializer_code", "runner_code"):
+        entry = runtime.get(key)
+        if not isinstance(entry, dict) or set(entry) != {"path", "sha256"}:
+            errors.append(f"Kernel runtime {key} lock entry is invalid")
+            continue
+        relative = entry.get("path")
+        expected = entry.get("sha256")
+        if not isinstance(relative, str) or not isinstance(expected, str):
+            errors.append(f"Kernel runtime {key} path or digest is invalid")
+            continue
+        if relative != expected_paths[key]:
+            errors.append(f"Kernel runtime {key} path is not the closed package member")
+            continue
+        raw = locked_bytes[key]
+        if hashlib.sha256(raw).hexdigest() != expected:
+            errors.append(f"Kernel runtime {key} hash mismatch")
+
+    authority_raw = locked_bytes.get("runtime_authority")
+    if authority_raw is None:
+        return VerificationResult(tuple(errors))
+    try:
+        authority = json.loads(
+            authority_raw,
+            object_pairs_hook=_reject_duplicate_json_keys,
+        )
+    except (UnicodeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+        errors.append(f"Kernel runtime authority payload is invalid: {exc}")
+        return VerificationResult(tuple(errors))
+    if not isinstance(authority, dict) or not isinstance(authority.get("kernel"), dict):
+        errors.append("Kernel runtime authority must contain a kernel object")
+        return VerificationResult(tuple(errors))
+    if (
+        _canonical_payload_sha256(authority)
+        != _PINNED_RUNTIME_AUTHORITY_CANONICAL_SHA256
+    ):
+        errors.append("Kernel runtime authority drifted from its closed 1.0.0 payload")
+        return VerificationResult(tuple(errors))
+    authority_kernel = authority["kernel"]
+
+    if authority.get("schema_version") != runtime.get("authority_version"):
+        errors.append("Kernel runtime authority Schema version mismatch")
+
+    if (
+        authority.get("policy_id") != runtime.get("manifest_policy_id")
+        or authority.get("policy_version") != runtime.get("manifest_policy_version")
+    ):
+        errors.append("Kernel runtime manifest policy identity mismatch")
+    if authority_kernel.get("wheel_sha256") != runtime.get(
+        "expected_release_wheel_sha256"
+    ):
+        errors.append("Kernel runtime expected wheel hash mismatch")
+
+    cross_links = {
+        "repository": "repository",
+        "tag": "tag",
+        "tag_object": "annotated_tag_object",
+        "commit": "commit",
+        "package_version": "package_version",
+        "plugin_version": "plugin_version",
+        "source_manifest_sha256": "source_manifest_sha256",
+        "release_manifest_sha256": "release_manifest_sha256",
+    }
+    for authority_key, lock_key in cross_links.items():
+        if authority_kernel.get(authority_key) != kernel.get(lock_key):
+            errors.append(f"Kernel runtime authority drifted at {authority_key}")
+    release = kernel.get("release_evidence")
+    if not isinstance(release, dict) or authority_kernel.get("wheel_sha256") != release.get(
+        "wheel_sha256"
+    ):
+        errors.append("Kernel runtime wheel differs from pinned release evidence")
+
+    authority_schemas = authority_kernel.get("schema_sha256")
+    locked_schemas = kernel.get("public_schema_sha256")
+    if not isinstance(authority_schemas, dict) or not isinstance(locked_schemas, dict):
+        errors.append("Kernel runtime Schema authority is invalid")
+    else:
+        normalized = {
+            f"schemas/{name}": digest for name, digest in authority_schemas.items()
+        }
+        if normalized != locked_schemas:
+            errors.append("Kernel runtime Schema hashes differ from component lock")
+
+    authority_runtime = authority.get("runtime")
+    expected_runtime_keys = {
+        "platform",
+        "python_implementations",
+        "result_schema",
+        "container",
+        "trusted_workflow",
+        "python_minors",
+        "request_transport",
+        "result_transport",
+        "kernel_call",
+        "kernel_call_count",
+        "network_mode",
+        "result_bytes_preserved",
+    }
+    if not isinstance(authority_runtime, dict) or set(authority_runtime) != expected_runtime_keys:
+        errors.append("Kernel runtime execution authority shape mismatch")
+        return VerificationResult(tuple(errors))
+    expected_result_schema = {
+        "filename": "valuation-result.schema.json",
+        "sha256": authority_kernel.get("schema_sha256", {}).get(
+            "valuation-result.schema.json"
+        ),
+    }
+    if authority_runtime.get("result_schema") != expected_result_schema:
+        errors.append("Kernel runtime result Schema authority drifted")
+
+    container = authority_runtime.get("container")
+    expected_container_keys = {
+        "engine",
+        "engine_path",
+        "image_repository",
+        "image_tag",
+        "image_manifest_digest",
+        "image_config_digest",
+        "image_reference",
+        "platform",
+        "os",
+        "architecture",
+        "python_minor",
+        "python_patch",
+        "python_executable",
+        "pull_policy",
+        "network_mode",
+        "read_only_rootfs",
+        "cap_drop",
+        "security_opt",
+        "user_policy",
+        "pids_limit",
+        "memory_limit_bytes",
+        "memory_swap_limit_bytes",
+        "cpu_limit",
+        "tmpfs",
+        "ulimits",
+        "read_only_mounts",
+    }
+    expected_container_identity = {
+        "engine": "docker",
+        "engine_path": "/usr/bin/docker",
+        "image_repository": "docker.io/library/python",
+        "image_tag": "3.11.15-bookworm",
+        "image_manifest_digest": (
+            "sha256:eaeffb6e8511935426934aac863940fbd004ef31dab0d7fc27a129bb7c19d9a8"
+        ),
+        "image_config_digest": (
+            "sha256:d299dee73063206fe64248b8eb62cbef36f6baedfc2c5e2ef4c7618ad18efb3a"
+        ),
+        "image_reference": (
+            "docker.io/library/python@"
+            "sha256:eaeffb6e8511935426934aac863940fbd004ef31dab0d7fc27a129bb7c19d9a8"
+        ),
+        "platform": "linux/amd64",
+        "os": "linux",
+        "architecture": "amd64",
+        "python_minor": "3.11",
+        "python_patch": "3.11.15",
+        "python_executable": "/usr/local/bin/python3",
+        "pull_policy": "never",
+        "network_mode": "none",
+    }
+    if not isinstance(container, dict) or set(container) != expected_container_keys:
+        errors.append("Kernel runtime container authority shape mismatch")
+    elif any(container.get(key) != value for key, value in expected_container_identity.items()):
+        errors.append("Kernel runtime container identity drifted")
+    expected_trusted_workflow = {
+        "attestation_path": "/run/owner-research/trusted-container-attestation.json",
+        "attestation_mount_target": "/run/owner-research",
+        "attestation_sha256_env": (
+            "OWNER_RESEARCH_TRUSTED_CONTAINER_ATTESTATION_SHA256"
+        ),
+        "read_only_mounts": [
+            {"role": "candidate_workspace", "target": "/workspace"},
+            {"role": "private_kernel_checkout", "target": "/private-kernel"},
+            {"role": "binary_supply_wheelhouse", "target": "/supply"},
+            {"role": "binary_supply_lock", "target": "/supply.lock"},
+            {"role": "verified_research_wheel", "target": "/research-wheel"},
+            {"role": "runtime_cas", "target": "/runtime-cas"},
+            {
+                "role": "trusted_attestation_directory",
+                "target": "/run/owner-research",
+            },
+        ],
+        "writable_mounts": [
+            {"role": "canonical_summary_output", "target": "/output"}
+        ],
+    }
+    if authority_runtime.get("trusted_workflow") != expected_trusted_workflow:
+        errors.append("Kernel trusted-workflow authority drifted")
+    if (
+        authority_runtime.get("platform") != "linux_x86_64"
+        or authority_runtime.get("python_implementations") != ["cpython"]
+        or set(authority_runtime.get("python_minors", {})) != {"3.11"}
+        or authority_runtime.get("request_transport") != "canonical_json_stdin"
+        or authority_runtime.get("result_transport") != "canonical_json_stdout"
+        or authority_runtime.get("kernel_call") != "owner_valuation.run_dual_panel"
+        or authority_runtime.get("kernel_call_count") != 1
+        or authority_runtime.get("network_mode") != "docker_network_none"
+        or authority_runtime.get("result_bytes_preserved") is not True
+    ):
+        errors.append("Kernel runtime execution policy drifted")
+
+    return VerificationResult(tuple(errors))
+
+
+def verify_kernel_runtime_lock(lock_path: Path | None = None) -> VerificationResult:
+    """Verify the packaged runtime using one bounded no-follow byte snapshot."""
+
+    path = lock_path or default_component_lock_path()
+    package_root = Path(__file__).resolve().parent
+    try:
+        return verify_kernel_runtime_snapshot(
+            lock_bytes=_read_bounded_regular_file_nofollow(path),
+            runtime_authority_bytes=_read_package_file_nofollow(
+                package_root,
+                "resources/phase5-v1-kernel-runtime/runtime-authority.json",
+            ),
+            materializer_bytes=_read_package_file_nofollow(
+                package_root,
+                "valuation_kernel_materializer.py",
+            ),
+            runner_bytes=_read_package_file_nofollow(
+                package_root,
+                "valuation_pinned_kernel.py",
+            ),
+        )
+    except (OSError, UnicodeError, ValueError) as exc:
+        return VerificationResult((f"Kernel runtime package snapshot is unavailable: {exc}",))
 
 
 def verify_research_schema_lock(lock_path: Path, repository_root: Path) -> VerificationResult:
@@ -208,5 +639,7 @@ def verify_component_lock(
             errors.append("Pinned FactLedger no longer exposes required Phase 5 mapping fields")
         if facts.get("properties", {}).get("value", {}).get("type") != "number":
             errors.append("Pinned FactLedger value is no longer numeric-only")
+
+    errors.extend(verify_kernel_runtime_lock(lock_path).errors)
 
     return VerificationResult(tuple(errors))

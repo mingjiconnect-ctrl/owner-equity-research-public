@@ -1,8 +1,8 @@
 {
   "authorized_next": [
-    "PR1 market-reference vertical slice"
+    "PR2 final-request and pinned-kernel vertical slice"
   ],
-  "current_phase": "Phase 5 v1 market-reference vertical slice",
+  "current_phase": "Phase 5 v1 final-request and pinned-kernel vertical slice",
   "legacy_governance": {
     "archive": "legacy_governance/phase5e2b12a-acceptance-gate.yml",
     "archive_sha256": "51d3e43dffb66b507fe6a1718cd85b1e21dfac77938cb44c6a4045afeb29cf08",

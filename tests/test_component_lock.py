@@ -1,25 +1,40 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
+
+import pytest
 
 from owner_research import __version__
 from owner_research.component_lock import (
     load_component_lock,
     verify_component_lock,
     verify_future_mapping_contract,
+    verify_kernel_runtime_lock,
+    verify_kernel_runtime_snapshot,
     verify_research_schema_lock,
 )
+from owner_research.fingerprints import canonical_sha256
 
 ROOT = Path(__file__).parents[1]
+PRIVATE_KERNEL_REPOSITORY = os.environ.get("OWNER_VALUATION_REPO")
 
 
 def test_component_lock_has_exact_pinned_identity() -> None:
     lock = load_component_lock(ROOT / "component-lock.json")
+    assert set(lock) == {
+        "lock_version",
+        "generated_date",
+        "owner_equity_research",
+        "market_access_authority",
+        "valuation_kernel",
+        "valuation_kernel_runtime",
+    }
     assert lock["lock_version"] == "1.2.0"
-    assert lock["owner_equity_research"]["plugin_version"] == "0.6.0-dev.1"
-    assert __version__ == "0.6.0.dev1"
+    assert lock["owner_equity_research"]["plugin_version"] == "0.6.0-dev.2"
+    assert __version__ == "0.6.0.dev2"
     kernel = lock["valuation_kernel"]
     assert kernel["repository"] == "mingjiconnect-ctrl/owner-valuation-kernel"
     assert kernel["tag"] == "v2.0.0-rc.2"
@@ -48,11 +63,163 @@ def test_component_lock_has_exact_pinned_identity() -> None:
     store = authority["authorization_consumption_store"]
     assert store["policy_id"] == "handoff-global-filesystem-reservation"
     assert store["root_policy"] == "module_import_user_state_home"
+    runtime = lock["valuation_kernel_runtime"]
+    assert set(runtime) == {
+        "authority_version",
+        "runtime_authority",
+        "materializer_code",
+        "runner_code",
+        "expected_release_wheel_sha256",
+        "manifest_policy_id",
+        "manifest_policy_version",
+    }
+    assert runtime["expected_release_wheel_sha256"] == (
+        "fb27d01b1ee75fbd542371510150e890516d306218d33f3608f2aa3caa0e55a5"
+    )
 
 
+def test_kernel_runtime_lock_binds_packaged_authority_and_code() -> None:
+    result = verify_kernel_runtime_lock()
+    assert result.ok, "\n".join(result.errors)
+
+
+def test_kernel_runtime_extension_preserves_frozen_market_kernel_and_schema_maps() -> None:
+    lock = load_component_lock(ROOT / "component-lock.json")
+    assert canonical_sha256(lock["market_access_authority"]) == (
+        "c47a00548ef13e7f60bae71de7143c1ee3ec230cf76e4cbc8dadcc2d2f94ac8b"
+    )
+    assert canonical_sha256(lock["valuation_kernel"]) == (
+        "45bd321a26673d46627d9a260d2fd699a994cc74cb1fb018282a20beee1e83ac"
+    )
+    assert canonical_sha256(lock["owner_equity_research"]["public_schema_sha256"]) == (
+        "23c7b640337b6cae5e54881579d16ac9f298e67b0709661589f6528b891a75d4"
+    )
+    raw = (ROOT / "component-lock.json").read_bytes()
+    start = raw.index(b'  "market_access_authority": {')
+    end = raw.index(b'  "valuation_kernel_runtime": {')
+    frozen_market_block = raw[start:end]
+    assert len(frozen_market_block) == 2073
+    assert hashlib.sha256(frozen_market_block).hexdigest() == (
+        "bd41027bf0411159220368de0b96939011ffea026fb679c554e253aa4404b530"
+    )
+
+
+def test_kernel_runtime_lock_rejects_drift_and_duplicate_json_keys(tmp_path: Path) -> None:
+    lock = load_component_lock(ROOT / "component-lock.json")
+    lock["valuation_kernel_runtime"]["runner_code"]["sha256"] = "0" * 64
+    drifted = tmp_path / "drifted.json"
+    drifted.write_text(json.dumps(lock), encoding="utf-8")
+    result = verify_kernel_runtime_lock(drifted)
+    assert not result.ok
+    assert "runner_code hash mismatch" in "\n".join(result.errors)
+
+    duplicate = tmp_path / "duplicate.json"
+    duplicate.write_text('{"lock_version":"1.2.0","lock_version":"9.9.9"}', encoding="utf-8")
+    with pytest.raises(ValueError, match="duplicate JSON key"):
+        load_component_lock(duplicate)
+
+    symlink = tmp_path / "component-lock-link.json"
+    symlink.symlink_to(ROOT / "component-lock.json")
+    with pytest.raises(OSError):
+        load_component_lock(symlink)
+
+    shadowed = load_component_lock(ROOT / "component-lock.json")
+    shadowed["shadow_runtime_authority"] = {"trusted": False}
+    shadowed_path = tmp_path / "shadowed.json"
+    shadowed_path.write_text(json.dumps(shadowed), encoding="utf-8")
+    result = verify_kernel_runtime_lock(shadowed_path)
+    assert not result.ok
+    assert "top-level component-lock shape mismatch" in "\n".join(result.errors)
+
+
+def test_kernel_runtime_lock_rejects_alternate_authority_paths(tmp_path: Path) -> None:
+    lock = load_component_lock(ROOT / "component-lock.json")
+    lock["valuation_kernel_runtime"]["runtime_authority"]["path"] = (
+        "resources/market_access/provider-registry.json"
+    )
+    path = tmp_path / "alternate.json"
+    path.write_text(json.dumps(lock), encoding="utf-8")
+    result = verify_kernel_runtime_lock(path)
+    assert not result.ok
+    assert "runtime_authority path is not the closed package member" in "\n".join(
+        result.errors
+    )
+
+
+def test_kernel_runtime_snapshot_rejects_duplicate_lock_keys() -> None:
+    package = ROOT / "src/owner_research"
+    lock_bytes = (ROOT / "component-lock.json").read_bytes()
+    duplicate = b'{"lock_version":"9.9.9",' + lock_bytes[1:]
+    result = verify_kernel_runtime_snapshot(
+        lock_bytes=duplicate,
+        runtime_authority_bytes=(
+            package
+            / "resources/phase5-v1-kernel-runtime/runtime-authority.json"
+        ).read_bytes(),
+        materializer_bytes=(package / "valuation_kernel_materializer.py").read_bytes(),
+        runner_bytes=(package / "valuation_pinned_kernel.py").read_bytes(),
+    )
+    assert not result.ok
+    assert "duplicate JSON key" in "\n".join(result.errors)
+
+
+@pytest.mark.parametrize(
+    ("section", "field", "replacement"),
+    (
+        ("build", "backend", "unregistered.backend"),
+        ("kernel", "schema_sha256", []),
+        ("runtime", "python_minors", [[]]),
+        ("container", "cap_drop", []),
+    ),
+)
+def test_kernel_runtime_snapshot_rejects_joint_authority_and_lock_drift(
+    section: str,
+    field: str,
+    replacement: object,
+) -> None:
+    package = ROOT / "src/owner_research"
+    authority_path = (
+        package / "resources/phase5-v1-kernel-runtime/runtime-authority.json"
+    )
+    authority = json.loads(authority_path.read_text(encoding="utf-8"))
+    if section == "container":
+        authority["runtime"]["container"][field] = replacement
+    else:
+        authority[section][field] = replacement
+    authority_bytes = json.dumps(
+        authority,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    lock = load_component_lock(ROOT / "component-lock.json")
+    lock["valuation_kernel_runtime"]["runtime_authority"]["sha256"] = (
+        hashlib.sha256(authority_bytes).hexdigest()
+    )
+    result = verify_kernel_runtime_snapshot(
+        lock_bytes=json.dumps(
+            lock,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8"),
+        runtime_authority_bytes=authority_bytes,
+        materializer_bytes=(package / "valuation_kernel_materializer.py").read_bytes(),
+        runner_bytes=(package / "valuation_pinned_kernel.py").read_bytes(),
+    )
+    assert not result.ok
+    assert "authority drifted from its closed 1.0.0 payload" in "\n".join(
+        result.errors
+    )
+
+
+@pytest.mark.skipif(
+    PRIVATE_KERNEL_REPOSITORY is None,
+    reason="private kernel checkout is supplied only to authorized verification jobs",
+)
 def test_component_lock_matches_pinned_local_checkout() -> None:
-    default_repo = ROOT.parent / "owner-valuation-kernel"
-    kernel_repo = Path(os.environ.get("OWNER_VALUATION_REPO", default_repo))
+    assert PRIVATE_KERNEL_REPOSITORY is not None
+    kernel_repo = Path(PRIVATE_KERNEL_REPOSITORY)
     result = verify_component_lock(
         ROOT / "component-lock.json",
         source_repo=kernel_repo,
@@ -67,6 +234,10 @@ def test_component_lock_matches_research_schema_files() -> None:
     assert result.ok, "\n".join(result.errors)
 
 
+@pytest.mark.skipif(
+    PRIVATE_KERNEL_REPOSITORY is None,
+    reason="private kernel checkout is supplied only to authorized verification jobs",
+)
 def test_compatibility_fixture_uses_only_future_mappable_numeric_fields() -> None:
     fixture = json.loads(
         (ROOT / "evals" / "future-valuation-mapping.json").read_text(encoding="utf-8")
@@ -74,8 +245,8 @@ def test_compatibility_fixture_uses_only_future_mappable_numeric_fields() -> Non
     assert fixture["mapping_status"] == "IMPLEMENTED_PHASE_5B"
     assert fixture["eligible_fact"]["value_type"] == "number"
     assert fixture["target_schema"] == "fact-ledger.schema.json"
-    default_repo = ROOT.parent / "owner-valuation-kernel"
-    kernel_repo = Path(os.environ.get("OWNER_VALUATION_REPO", default_repo))
+    assert PRIVATE_KERNEL_REPOSITORY is not None
+    kernel_repo = Path(PRIVATE_KERNEL_REPOSITORY)
     result = verify_future_mapping_contract(
         ROOT / "evals" / "future-valuation-mapping.json",
         source_repo=kernel_repo,

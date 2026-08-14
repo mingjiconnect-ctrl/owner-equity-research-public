@@ -1,8 +1,8 @@
 {
   "lock_version": "1.2.0",
-  "generated_date": "2026-07-16",
+  "generated_date": "2026-08-11",
   "owner_equity_research": {
-    "plugin_version": "0.6.0-dev.1",
+    "plugin_version": "0.6.0-dev.2",
     "public_schema_sha256": {
       "schemas/accounting-quality-finding.schema.json": "0ea5d7de6520fcb19dcedddf1d3c0bc14a58faf7239beae3ef431805516dafc5",
       "schemas/accounting-quality-review.schema.json": "1019218ca7ff086dd5319e4a1b7d18631a2b5725847b14333b02b7f06ea91d46",
@@ -94,6 +94,24 @@
       "module_path": "valuation_market_provider.py",
       "code_sha256": "60af71df7cc36179c0babf87dfaa2f127e1666b732a1d997029cd4dc0f44622a"
     }
+  },
+  "valuation_kernel_runtime": {
+    "authority_version": "1.0.0",
+    "runtime_authority": {
+      "path": "resources/phase5-v1-kernel-runtime/runtime-authority.json",
+      "sha256": "0a317935d257e2fb406bc8efd9c90d42b1e572a6f8e6baa3c6d75b7cb48530dd"
+    },
+    "materializer_code": {
+      "path": "valuation_kernel_materializer.py",
+      "sha256": "d5becc51a3708ec43a5a5712f835bccff3b66a132aa36f3304aeea4eff9fb5c2"
+    },
+    "runner_code": {
+      "path": "valuation_pinned_kernel.py",
+      "sha256": "1baebaaa11aab5165ff3d6d1e1567b2dfbc2dac2cd23576572112038ca16fd0b"
+    },
+    "expected_release_wheel_sha256": "fb27d01b1ee75fbd542371510150e890516d306218d33f3608f2aa3caa0e55a5",
+    "manifest_policy_id": "owner-research-pinned-kernel-runtime",
+    "manifest_policy_version": "1.0.0"
   },
   "valuation_kernel": {
     "repository": "mingjiconnect-ctrl/owner-valuation-kernel",

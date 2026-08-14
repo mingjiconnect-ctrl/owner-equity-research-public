@@ -2,11 +2,13 @@
 
 ## Active authority
 
-- `Phase 5 v1 market-reference vertical slice` is `in_progress` under ADR 0041 and
-  `docs/phase5-v1-status.json`.
-- Only `PR1 market-reference vertical slice` is authorized. It must deliver one bounded,
-  end-to-end market-reference slice without adding valuation execution, scoring, reporting, or
-  publishing.
+- `Phase 5 v1 final-request and pinned-kernel vertical slice` is `in_progress` under ADRs 0041 and
+  0042 and `docs/phase5-v1-status.json`.
+- PR1 is accepted on merged `main`. Only `PR2 final-request and pinned-kernel vertical slice` is
+  authorized. It must consume the accepted market preparation without reacquisition, preserve the
+  price-blind ledger and assumptions, compile one complete rc.2 request, and execute the exact
+  pinned kernel in a proven no-network subprocess. Archive, CLI, Skill execution, scoring,
+  reporting, and publishing remain outside this slice.
 - Required pull-request checks are exactly `verify (3.11)`, `verify (3.12)`, `verify (3.13)`, and
   `phase5/semantic-audit`. Pull requests require P0=P1=0; release candidates require
   P0=P1=P2=P3=0; merged `main` runs smoke and deterministic replay.

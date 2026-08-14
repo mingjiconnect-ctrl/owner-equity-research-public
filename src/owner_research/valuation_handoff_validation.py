@@ -513,6 +513,13 @@ def _validate_handoffs(
     }
     by_run: defaultdict[str, list[ValuationHandoff]] = defaultdict(list)
 
+    pre_request_states = {
+        "evidence_open",
+        "price_blind_candidates_reviewed",
+        "price_blind_input_frozen",
+        "market_reference_allowed",
+    }
+
     for handoff in graph.valuation_handoffs:
         if (
             handoff.handoff_policy_id != HANDOFF_POLICY_ID
@@ -587,6 +594,38 @@ def _validate_handoffs(
             snapshot = snapshots.get(handoff.market_reference_snapshot_id)
             if snapshot is None or snapshot.issuer_id != handoff.issuer_id:
                 raise ValuationHandoffValidationError("ValuationHandoff MarketReference mismatch")
+        if handoff.state in pre_request_states:
+            if any(
+                value is not None
+                for value in (
+                    handoff.market_reference_snapshot_id,
+                    handoff.valuation_request_sha256,
+                    handoff.valuation_result_sha256,
+                )
+            ):
+                raise ValuationHandoffValidationError(
+                    "pre-request Handoff contains downstream artifact identity"
+                )
+        elif handoff.state == "request_compiled":
+            if (
+                handoff.market_reference_snapshot_id is None
+                or handoff.valuation_request_sha256 is None
+                or handoff.valuation_result_sha256 is not None
+                or handoff.missing_evidence
+            ):
+                raise ValuationHandoffValidationError(
+                    "request-compiled Handoff has invalid artifact slots"
+                )
+        elif handoff.state == "kernel_result_frozen":
+            if (
+                handoff.market_reference_snapshot_id is None
+                or handoff.valuation_request_sha256 is None
+                or handoff.valuation_result_sha256 is None
+                or handoff.missing_evidence
+            ):
+                raise ValuationHandoffValidationError(
+                    "kernel-result Handoff has invalid artifact slots"
+                )
         by_run[handoff.handoff_run_id].append(handoff)
 
     for run_id, versions in by_run.items():
@@ -600,6 +639,8 @@ def _validate_handoffs(
         frozen_candidates: tuple[str, ...] | None = None
         frozen_decisions: tuple[str, ...] | None = None
         protected: tuple[str, str, str] | None = None
+        frozen_market_reference_id: str | None = None
+        frozen_request_sha256: str | None = None
         root = ordered[0]
         for position, handoff in enumerate(ordered):
             if position:
@@ -641,6 +682,12 @@ def _validate_handoffs(
                     raise ValuationHandoffValidationError(
                         "Handoff immutable research input drifted"
                     )
+                if handoff.state == "request_compiled":
+                    snapshot = snapshots[handoff.market_reference_snapshot_id]
+                    if snapshot.authorization_handoff_id != previous.handoff_id:
+                        raise ValuationHandoffValidationError(
+                            "request Handoff does not consume its authorization predecessor"
+                        )
             if handoff.state == "price_blind_candidates_reviewed":
                 frozen_candidates = tuple(sorted(handoff.assumption_candidate_ids))
                 frozen_decisions = tuple(sorted(handoff.assumption_review_decision_ids))
@@ -667,6 +714,16 @@ def _validate_handoffs(
                 raise ValuationHandoffValidationError(
                     "Handoff protected price-blind hashes changed"
                 )
+            if handoff.state == "request_compiled":
+                frozen_market_reference_id = handoff.market_reference_snapshot_id
+                frozen_request_sha256 = handoff.valuation_request_sha256
+            if frozen_market_reference_id is not None and (
+                handoff.market_reference_snapshot_id != frozen_market_reference_id
+                or handoff.valuation_request_sha256 != frozen_request_sha256
+            ):
+                raise ValuationHandoffValidationError(
+                    "Handoff market reference or request identity changed"
+                )
 
         if root.supersedes_handoff_id is None:
             if root.quarantined_market_reference_snapshot_ids:
@@ -680,11 +737,19 @@ def _validate_handoffs(
                 or root.predecessor_handoff_id is not None
             ):
                 raise ValuationHandoffValidationError("Replacement Handoff root is invalid")
+            prior_run_handoff_ids = {
+                item.handoff_id for item in by_run[prior.handoff_run_id]
+            }
             prior_run_snapshots = {
                 item.market_reference_snapshot_id
                 for item in by_run[prior.handoff_run_id]
                 if item.market_reference_snapshot_id is not None
             }
+            prior_run_snapshots.update(
+                snapshot.snapshot_id
+                for snapshot in snapshots.values()
+                if snapshot.authorization_handoff_id in prior_run_handoff_ids
+            )
             if not prior_run_snapshots.issubset(
                 set(root.quarantined_market_reference_snapshot_ids)
             ):

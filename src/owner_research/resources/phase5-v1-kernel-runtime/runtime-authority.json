@@ -1,0 +1,117 @@
+{
+  "schema_version": "1.0.0",
+  "policy_id": "owner-research-pinned-kernel-runtime",
+  "policy_version": "1.0.0",
+  "kernel": {
+    "repository": "mingjiconnect-ctrl/owner-valuation-kernel",
+    "tag": "v2.0.0-rc.2",
+    "tag_object": "4e19ce6a59bc4321ebcd368e807ed764f4e8abde",
+    "commit": "be9b0773d5a78f5f8a33ba982494512668df85fe",
+    "tree": "112be585682f5bdf5e18f2f66e8e428b39cf1df8",
+    "package_name": "owner-valuation-kernel",
+    "package_version": "2.0.0rc2",
+    "plugin_version": "2.0.0-rc.2",
+    "wheel_filename": "owner_valuation_kernel-2.0.0rc2-py3-none-any.whl",
+    "wheel_sha256": "fb27d01b1ee75fbd542371510150e890516d306218d33f3608f2aa3caa0e55a5",
+    "source_manifest_path": "references/source_manifest.json",
+    "source_manifest_sha256": "36304f042fc8c3d090fc70477d29a8d0bd616ac68619df813a9f17b8195bf5af",
+    "release_manifest_path": "references/release_manifest.json",
+    "release_manifest_sha256": "31687e38f24cbefa7c679e50c45191f0c31f55bcec45954ddfc58f67c42afadc",
+    "pyproject_sha256": "09f8429037ea0b6753d9d2bb1512ff3f9fd42c0867ec73351c08011bf78f41ee",
+    "uv_lock_sha256": "f3940ff8aa976fb616416d04bcd42a048d33885c837793d8c3d35e4eca2e073e",
+    "schema_sha256": {
+      "assumption-ledger.schema.json": "2232642332dc6444c784e21746cbd16bf8d4cd74fc483a0a345d95f98fc97a7a",
+      "fact-ledger.schema.json": "55be5aadad21629db1cdbe7fce386656eb930b52af8644d1314ba7404e384706",
+      "sec-company-profile.schema.json": "539b76ad7974162ba36b513c029d7d8377d352de4e150425c19c4dea620fbf06",
+      "sec-company-review.schema.json": "24dfa87fa94c0362569979e454cd1f536eef7c7845473567e4e88df872335205",
+      "sec-evidence-pack.schema.json": "3cf634214584d54d83b0d397da3139ca30815a44e99e7ecc24c3258b25a7b91a",
+      "sec-scenario-policy.schema.json": "74c0b0cce146891825fcf4599658f99a20fa66924cf07655895dcece00010065",
+      "valuation-request.schema.json": "67e991484943897585a79a8a1d3d0d52ebb36ec0ba4245cad9b17972877cca3d",
+      "valuation-result.schema.json": "bbfed2049ed258b767002b74ff45fb6847eb5723ffd6c1d31c53cf119625a683"
+    }
+  },
+  "build": {
+    "backend": "setuptools.build_meta",
+    "setuptools_version": "80.9.0",
+    "setuptools_wheel_filename": "setuptools-80.9.0-py3-none-any.whl",
+    "setuptools_wheel_sha256": "062d34222ad13e0cc312a4c02d73f059e86a4acbfbdea8f8f76b28c99f306922",
+    "source_zip_timestamp_utc": "2026-07-15T04:12:50Z",
+    "dist_info_zip_timestamp_utc": "2026-07-15T04:14:26Z",
+    "normalized_dist_info_entries": [
+      "owner_valuation_kernel-2.0.0rc2.dist-info/METADATA",
+      "owner_valuation_kernel-2.0.0rc2.dist-info/RECORD",
+      "owner_valuation_kernel-2.0.0rc2.dist-info/WHEEL",
+      "owner_valuation_kernel-2.0.0rc2.dist-info/entry_points.txt",
+      "owner_valuation_kernel-2.0.0rc2.dist-info/top_level.txt"
+    ]
+  },
+  "runtime": {
+    "platform": "linux_x86_64",
+    "python_implementations": ["cpython"],
+    "result_schema": {
+      "filename": "valuation-result.schema.json",
+      "sha256": "bbfed2049ed258b767002b74ff45fb6847eb5723ffd6c1d31c53cf119625a683"
+    },
+    "container": {
+      "engine": "docker",
+      "engine_path": "/usr/bin/docker",
+      "image_repository": "docker.io/library/python",
+      "image_tag": "3.11.15-bookworm",
+      "image_manifest_digest": "sha256:eaeffb6e8511935426934aac863940fbd004ef31dab0d7fc27a129bb7c19d9a8",
+      "image_config_digest": "sha256:d299dee73063206fe64248b8eb62cbef36f6baedfc2c5e2ef4c7618ad18efb3a",
+      "image_reference": "docker.io/library/python@sha256:eaeffb6e8511935426934aac863940fbd004ef31dab0d7fc27a129bb7c19d9a8",
+      "platform": "linux/amd64",
+      "os": "linux",
+      "architecture": "amd64",
+      "python_minor": "3.11",
+      "python_patch": "3.11.15",
+      "python_executable": "/usr/local/bin/python3",
+      "pull_policy": "never",
+      "network_mode": "none",
+      "read_only_rootfs": true,
+      "cap_drop": ["ALL"],
+      "security_opt": ["no-new-privileges:true"],
+      "user_policy": "host_uid_gid",
+      "pids_limit": 64,
+      "memory_limit_bytes": 1610612736,
+      "memory_swap_limit_bytes": 1610612736,
+      "cpu_limit": "1.0",
+      "tmpfs": ["/tmp:rw,exec,nosuid,nodev,size=268435456,mode=1777"],
+      "ulimits": ["core=0:0", "fsize=67108864:67108864", "nofile=64:64"],
+      "read_only_mounts": ["manifest", "request", "runner", "wheelhouse"]
+    },
+    "trusted_workflow": {
+      "attestation_path": "/run/owner-research/trusted-container-attestation.json",
+      "attestation_mount_target": "/run/owner-research",
+      "attestation_sha256_env": "OWNER_RESEARCH_TRUSTED_CONTAINER_ATTESTATION_SHA256",
+      "read_only_mounts": [
+        {"role": "candidate_workspace", "target": "/workspace"},
+        {"role": "private_kernel_checkout", "target": "/private-kernel"},
+        {"role": "binary_supply_wheelhouse", "target": "/supply"},
+        {"role": "binary_supply_lock", "target": "/supply.lock"},
+        {"role": "verified_research_wheel", "target": "/research-wheel"},
+        {"role": "runtime_cas", "target": "/runtime-cas"},
+        {"role": "trusted_attestation_directory", "target": "/run/owner-research"}
+      ],
+      "writable_mounts": [
+        {"role": "canonical_summary_output", "target": "/output"}
+      ]
+    },
+    "python_minors": {
+      "3.11": [
+        ["attrs-26.1.0-py3-none-any.whl", "c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309"],
+        ["jsonschema-4.26.0-py3-none-any.whl", "d489f15263b8d200f8387e64b4c3a75f06629559fb73deb8fdfb525f2dab50ce"],
+        ["jsonschema_specifications-2025.9.1-py3-none-any.whl", "98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe"],
+        ["referencing-0.37.0-py3-none-any.whl", "381329a9f99628c9069361716891d34ad94af76e461dcb0335825aecc7692231"],
+        ["rpds_py-2026.6.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", "9c1255b302953c86a486b81d330d5ee1d5bd937691ce271b6be0ef0e299eaab7"],
+        ["typing_extensions-4.16.0-py3-none-any.whl", "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8"]
+      ]
+    },
+    "request_transport": "canonical_json_stdin",
+    "result_transport": "canonical_json_stdout",
+    "kernel_call": "owner_valuation.run_dual_panel",
+    "kernel_call_count": 1,
+    "network_mode": "docker_network_none",
+    "result_bytes_preserved": true
+  }
+}

@@ -13,6 +13,8 @@ permissions:
 
 env:
   KERNEL_COMMIT: be9b0773d5a78f5f8a33ba982494512668df85fe
+  KERNEL_RUNTIME_IMAGE: docker.io/library/python@sha256:eaeffb6e8511935426934aac863940fbd004ef31dab0d7fc27a129bb7c19d9a8
+  KERNEL_RUNTIME_IMAGE_ID: sha256:d299dee73063206fe64248b8eb62cbef36f6baedfc2c5e2ef4c7618ad18efb3a
   KERNEL_TAG: v2.0.0-rc.2
   KERNEL_TAG_OBJECT: 4e19ce6a59bc4321ebcd368e807ed764f4e8abde
 
@@ -30,6 +32,8 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
+    # Trust assumption: only the owner may write an environment-approved head. The isolation below
+    # contains accidental candidate output; it is not a boundary against a malicious owner-writer.
     steps:
       - name: Check out the exact current candidate
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -39,6 +43,210 @@ jobs:
           persist-credentials: false
           submodules: false
           lfs: false
+      - name: Set up fixed Python without a post-job package cache
+        id: python
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          check-latest: false
+      - name: Prefetch and seal the exact binary supply before private access
+        id: supply
+        shell: bash
+        run: |
+          set -euo pipefail
+          wheelhouse="$RUNNER_TEMP/phase5-v1-wheelhouse-${{ matrix.python-version }}"
+          supply_lock="$RUNNER_TEMP/phase5-v1-supply-${{ matrix.python-version }}.lock"
+          runtime_lock="$RUNNER_TEMP/phase5-v1-runtime-supply.lock"
+          validator="$RUNNER_TEMP/phase5-v1-supply-validator-${{ matrix.python-version }}.py"
+          mkdir -m 0700 "$wheelhouse"
+          cat > "$supply_lock" <<'LOCK'
+          anyio==4.14.2 --hash=sha256:9f505dda5ac9f0c8309b5e8bd445a8c2bf7246f3ce950121e45ea15bc41d1494
+          attrs==26.1.0 --hash=sha256:c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309
+          build==1.3.0 --hash=sha256:7145f0b5061ba90a1500d60bd1b13ca0a8a4cebdd0cc16ed8adf1c0e739f43b4
+          certifi==2026.6.17 --hash=sha256:2227dcbaafe0d2f59279d1762ddddc37783ed4354594f194ffc31d20f41fc3db
+          exceptiongroup==1.3.1 --hash=sha256:a7a39a3bd276781e98394987d3a5701d0c4edffb633bb7a5144577f82c773598
+          h11==0.16.0 --hash=sha256:63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86
+          hatchling==1.27.0 --hash=sha256:d3a2f3567c4f926ea39849cdf924c7e99e6686c9c8e288ae1037c8fa2a5d937b
+          httpcore==1.0.9 --hash=sha256:2d400746a40668fc9dec9810239072b40b4484b640a8c38fd654a024c7a1bf55
+          httpx==0.28.1 --hash=sha256:d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad
+          idna==3.18 --hash=sha256:7f952cbe720b688055e3f87de14f5c3e5fdaa8bc3928985c4077ca689de849a2
+          iniconfig==2.3.0 --hash=sha256:f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12
+          jsonschema==4.26.0 --hash=sha256:d489f15263b8d200f8387e64b4c3a75f06629559fb73deb8fdfb525f2dab50ce
+          jsonschema-specifications==2025.9.1 --hash=sha256:98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe
+          lxml==6.0.0 \
+              --hash=sha256:58ffd35bd5425c3c3b9692d078bf7ab851441434531a7e517c4984d5634cd65b \
+              --hash=sha256:bd5913b4972681ffc9718bc2d4c53cde39ef81415e1671ff93e9aa30b46595e7 \
+              --hash=sha256:d4f0c66df4386b75d2ab1e20a489f30dc7fd9a06a896d64980541506086be1f1
+          packaging==26.2 --hash=sha256:5fc45236b9446107ff2415ce77c807cee2862cb6fac22b8a73826d0693b0980e
+          pathspec==1.1.1 --hash=sha256:a00ce642f577bf7f473932318056212bc4f8bfdf53128c78bbd5af0b9b20b189
+          pluggy==1.6.0 --hash=sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746
+          pygments==2.20.0 --hash=sha256:81a9e26dd42fd28a23a2d169d86d7ac03b46e2f8b59ed4698fb4785f946d0176
+          pyproject-hooks==1.2.0 --hash=sha256:9e5c6bfa8dcc30091c74b0cf803c81fdd29d94f01992a7707bc97babb1141913
+          pytest==8.4.1 --hash=sha256:539c70ba6fcead8e78eebbf1115e8b589e7565830d7d006a8723f19ac8a0afb7
+          PyYAML==6.0.2 \
+              --hash=sha256:3ad2a3decf9aaba3d29c8f537ac4b243e36bef957511b4766cb0057d32b0be85 \
+              --hash=sha256:80bab7bfc629882493af4aa31a4cfa43a4c57c83813253626916b8c7ada83476 \
+              --hash=sha256:70b189594dbe54f75ab3a1acec5f1e3faa7e8cf2f1e08d9b561cb41b845f69d5
+          referencing==0.37.0 --hash=sha256:381329a9f99628c9069361716891d34ad94af76e461dcb0335825aecc7692231
+          rpds-py==2026.6.3 \
+              --hash=sha256:9c1255b302953c86a486b81d330d5ee1d5bd937691ce271b6be0ef0e299eaab7 \
+              --hash=sha256:ecabd69db66de867690f9797f2f8fa27ba501bbc24540cbdbdc649cd15888ba6 \
+              --hash=sha256:acac386b453c2516111b50985d60ce46e7fadb5ea71ae7b25f4c946935bf27cf
+          ruff==0.14.14 --hash=sha256:bb8481604b7a9e75eff53772496201690ce2687067e038b3cc31aaf16aa0b974
+          setuptools==80.9.0 --hash=sha256:062d34222ad13e0cc312a4c02d73f059e86a4acbfbdea8f8f76b28c99f306922
+          tomli==2.4.1 \
+              --hash=sha256:5a881ab208c0baf688221f8cecc5401bd291d67e38a1ac884d6736cbcd8247e9 \
+              --hash=sha256:136443dbd7e1dee43c68ac2694fde36b2849865fa258d39bf822c10e8068eac5 \
+              --hash=sha256:f3c6818a1a86dd6dca7ddcaaf76947d5ba31aecc28cb1b67009a5877c9a64f3f
+          trove-classifiers==2026.6.1.19 --hash=sha256:ab4c4ec93cc4a4e7815fa759906e05e6bb3f2fbd92ea0f897288c6a43efd15b3
+          typing-extensions==4.16.0 --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8
+          LOCK
+          cat > "$runtime_lock" <<'LOCK'
+          attrs==26.1.0 --hash=sha256:c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309
+          jsonschema==4.26.0 --hash=sha256:d489f15263b8d200f8387e64b4c3a75f06629559fb73deb8fdfb525f2dab50ce
+          jsonschema-specifications==2025.9.1 --hash=sha256:98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe
+          referencing==0.37.0 --hash=sha256:381329a9f99628c9069361716891d34ad94af76e461dcb0335825aecc7692231
+          rpds-py==2026.6.3 --hash=sha256:9c1255b302953c86a486b81d330d5ee1d5bd937691ce271b6be0ef0e299eaab7
+          typing-extensions==4.16.0 --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8
+          LOCK
+          cat > "$validator" <<'PY'
+          import hashlib
+          import os
+          import stat
+          import sys
+          from pathlib import Path
+
+          common = {
+              "anyio-4.14.2-py3-none-any.whl": "9f505dda5ac9f0c8309b5e8bd445a8c2bf7246f3ce950121e45ea15bc41d1494",
+              "attrs-26.1.0-py3-none-any.whl": "c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309",
+              "build-1.3.0-py3-none-any.whl": "7145f0b5061ba90a1500d60bd1b13ca0a8a4cebdd0cc16ed8adf1c0e739f43b4",
+              "certifi-2026.6.17-py3-none-any.whl": "2227dcbaafe0d2f59279d1762ddddc37783ed4354594f194ffc31d20f41fc3db",
+              "exceptiongroup-1.3.1-py3-none-any.whl": "a7a39a3bd276781e98394987d3a5701d0c4edffb633bb7a5144577f82c773598",
+              "h11-0.16.0-py3-none-any.whl": "63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86",
+              "hatchling-1.27.0-py3-none-any.whl": "d3a2f3567c4f926ea39849cdf924c7e99e6686c9c8e288ae1037c8fa2a5d937b",
+              "httpcore-1.0.9-py3-none-any.whl": "2d400746a40668fc9dec9810239072b40b4484b640a8c38fd654a024c7a1bf55",
+              "httpx-0.28.1-py3-none-any.whl": "d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad",
+              "idna-3.18-py3-none-any.whl": "7f952cbe720b688055e3f87de14f5c3e5fdaa8bc3928985c4077ca689de849a2",
+              "iniconfig-2.3.0-py3-none-any.whl": "f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12",
+              "jsonschema-4.26.0-py3-none-any.whl": "d489f15263b8d200f8387e64b4c3a75f06629559fb73deb8fdfb525f2dab50ce",
+              "jsonschema_specifications-2025.9.1-py3-none-any.whl": "98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe",
+              "packaging-26.2-py3-none-any.whl": "5fc45236b9446107ff2415ce77c807cee2862cb6fac22b8a73826d0693b0980e",
+              "pathspec-1.1.1-py3-none-any.whl": "a00ce642f577bf7f473932318056212bc4f8bfdf53128c78bbd5af0b9b20b189",
+              "pluggy-1.6.0-py3-none-any.whl": "e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746",
+              "pygments-2.20.0-py3-none-any.whl": "81a9e26dd42fd28a23a2d169d86d7ac03b46e2f8b59ed4698fb4785f946d0176",
+              "pyproject_hooks-1.2.0-py3-none-any.whl": "9e5c6bfa8dcc30091c74b0cf803c81fdd29d94f01992a7707bc97babb1141913",
+              "pytest-8.4.1-py3-none-any.whl": "539c70ba6fcead8e78eebbf1115e8b589e7565830d7d006a8723f19ac8a0afb7",
+              "referencing-0.37.0-py3-none-any.whl": "381329a9f99628c9069361716891d34ad94af76e461dcb0335825aecc7692231",
+              "ruff-0.14.14-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl": "bb8481604b7a9e75eff53772496201690ce2687067e038b3cc31aaf16aa0b974",
+              "setuptools-80.9.0-py3-none-any.whl": "062d34222ad13e0cc312a4c02d73f059e86a4acbfbdea8f8f76b28c99f306922",
+              "trove_classifiers-2026.6.1.19-py3-none-any.whl": "ab4c4ec93cc4a4e7815fa759906e05e6bb3f2fbd92ea0f897288c6a43efd15b3",
+              "typing_extensions-4.16.0-py3-none-any.whl": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+          }
+          per_minor = {
+              "3.11": {
+                  "lxml-6.0.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl": "58ffd35bd5425c3c3b9692d078bf7ab851441434531a7e517c4984d5634cd65b",
+                  "PyYAML-6.0.2-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl": "3ad2a3decf9aaba3d29c8f537ac4b243e36bef957511b4766cb0057d32b0be85",
+                  "rpds_py-2026.6.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl": "9c1255b302953c86a486b81d330d5ee1d5bd937691ce271b6be0ef0e299eaab7",
+                  "tomli-2.4.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl": "5a881ab208c0baf688221f8cecc5401bd291d67e38a1ac884d6736cbcd8247e9",
+              },
+              "3.12": {
+                  "lxml-6.0.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl": "bd5913b4972681ffc9718bc2d4c53cde39ef81415e1671ff93e9aa30b46595e7",
+                  "PyYAML-6.0.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl": "80bab7bfc629882493af4aa31a4cfa43a4c57c83813253626916b8c7ada83476",
+                  "rpds_py-2026.6.3-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl": "ecabd69db66de867690f9797f2f8fa27ba501bbc24540cbdbdc649cd15888ba6",
+                  "tomli-2.4.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl": "136443dbd7e1dee43c68ac2694fde36b2849865fa258d39bf822c10e8068eac5",
+              },
+              "3.13": {
+                  "lxml-6.0.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl": "d4f0c66df4386b75d2ab1e20a489f30dc7fd9a06a896d64980541506086be1f1",
+                  "PyYAML-6.0.2-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl": "70b189594dbe54f75ab3a1acec5f1e3faa7e8cf2f1e08d9b561cb41b845f69d5",
+                  "rpds_py-2026.6.3-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl": "acac386b453c2516111b50985d60ce46e7fadb5ea71ae7b25f4c946935bf27cf",
+                  "tomli-2.4.1-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl": "f3c6818a1a86dd6dca7ddcaaf76947d5ba31aecc28cb1b67009a5877c9a64f3f",
+              },
+          }
+          root = Path(sys.argv[1])
+          expected = common | per_minor[sys.argv[2]]
+          observed = {}
+          directory = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+          try:
+              for entry in os.scandir(root):
+                  if entry.is_symlink() or not entry.is_file(follow_symlinks=False):
+                      raise SystemExit("binary supply contains a non-regular entry")
+                  descriptor = os.open(
+                      entry.name, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW, dir_fd=directory
+                  )
+                  try:
+                      details = os.fstat(descriptor)
+                      if not stat.S_ISREG(details.st_mode) or details.st_size > 64 * 1024 * 1024:
+                          raise SystemExit("binary supply entry is not bounded")
+                      digest = hashlib.sha256()
+                      while chunk := os.read(descriptor, 1024 * 1024):
+                          digest.update(chunk)
+                  finally:
+                      os.close(descriptor)
+                  observed[entry.name] = digest.hexdigest()
+          finally:
+              os.close(directory)
+          if observed != expected:
+              raise SystemExit("binary supply inventory or hashes drifted")
+          PY
+          minor='${{ matrix.python-version }}'
+          abi="cp${minor/.}"
+          PIP_CONFIG_FILE=/dev/null PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_NO_CACHE_DIR=1 \
+            "${{ steps.python.outputs.python-path }}" -I -m pip download \
+              --require-hashes \
+              --only-binary=:all: \
+              --no-deps \
+              --no-cache-dir \
+              --platform manylinux2014_x86_64 \
+              --implementation cp \
+              --python-version "$minor" \
+              --abi "$abi" \
+              --dest "$wheelhouse" \
+              --requirement "$supply_lock"
+          "${{ steps.python.outputs.python-path }}" -I "$validator" "$wheelhouse" "$minor"
+          test "$(command -v docker)" = /usr/bin/docker
+          if [[ "$minor" == 3.11 ]]; then
+            PIP_CONFIG_FILE=/dev/null PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_NO_CACHE_DIR=1 \
+              "${{ steps.python.outputs.python-path }}" -I -m pip download \
+                --require-hashes \
+                --only-binary=:all: \
+                --no-deps \
+                --no-cache-dir \
+                --platform manylinux2014_x86_64 \
+                --implementation cp \
+                --python-version "3.11" \
+                --abi cp311 \
+                --dest "$wheelhouse" \
+                --requirement "$runtime_lock"
+            "${{ steps.python.outputs.python-path }}" -I "$validator" "$wheelhouse" "$minor"
+            /usr/bin/docker pull --platform linux/amd64 "$KERNEL_RUNTIME_IMAGE"
+            test "$(/usr/bin/docker image inspect --format '{{.Id}}' "$KERNEL_RUNTIME_IMAGE")" = \
+              "$KERNEL_RUNTIME_IMAGE_ID"
+            test "$(/usr/bin/docker image inspect --format '{{.Os}}' "$KERNEL_RUNTIME_IMAGE")" = linux
+            test "$(/usr/bin/docker image inspect --format '{{.Architecture}}' "$KERNEL_RUNTIME_IMAGE")" = amd64
+            manifest_digest=${KERNEL_RUNTIME_IMAGE##*@}
+            /usr/bin/docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' \
+              "$KERNEL_RUNTIME_IMAGE" | \
+              grep -Ex "(docker.io/library/|library/)?python@$manifest_digest"
+            /usr/bin/docker image inspect --format '{{range .Config.Env}}{{println .}}{{end}}' \
+              "$KERNEL_RUNTIME_IMAGE" | grep -Fx PYTHON_VERSION=3.11.15
+            /usr/bin/docker run --rm --pull=never \
+              --platform=linux/amd64 \
+              --network=none \
+              --read-only \
+              --entrypoint=/bin/sh \
+              "$KERNEL_RUNTIME_IMAGE" \
+              -ceu 'test "$(command -v git)" = /usr/bin/git'
+          fi
+          reviewed_commit='${{ github.event.pull_request.head.sha || github.sha }}'
+          test "$(git rev-parse HEAD)" = "$reviewed_commit"
+          candidate_tree=$(git rev-parse 'HEAD^{tree}')
+          test -n "$candidate_tree"
+          echo "candidate-tree=$candidate_tree" >> "$GITHUB_OUTPUT"
+          sudo chown root:root "$supply_lock" "$runtime_lock" "$validator"
+          sudo chmod 0444 "$supply_lock" "$runtime_lock" "$validator"
+          sudo chown -R root:root "$wheelhouse"
+          sudo find "$wheelhouse" -type d -exec chmod 0555 {} +
+          sudo find "$wheelhouse" -type f -exec chmod 0444 {} +
       - name: Mint the scoped private-kernel reader token
         id: kernel-reader-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
@@ -74,39 +282,919 @@ jobs:
           test -z "$(git -C _kernel_source status --porcelain=v1)"
           git -C _kernel_source remote remove origin
           test -z "$(git -C _kernel_source remote)"
+          private_kernel="$RUNNER_TEMP/phase5-v1-kernel-source"
+          test ! -e "$private_kernel"
+          mv _kernel_source "$private_kernel"
+          test -z "$(git -C "$private_kernel" remote)"
       - name: Revoke the private-kernel reader token before candidate code runs
         if: always() && steps.kernel-reader-token.outputs.token != ''
         env:
           GH_TOKEN: ${{ steps.kernel-reader-token.outputs.token }}
         run: gh api --method DELETE /installation/token
-      - name: Set up Python
-        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
-        with:
-          python-version: ${{ matrix.python-version }}
-          check-latest: false
-          cache: pip
-      - name: Install current project and verification dependencies
-        run: python -m pip install --disable-pip-version-check -e '.[dev]'
-      - name: Run the non-legacy suite without network access
+      - name: Stage netless, then verify in the authorized 3.11 container
         shell: bash
-        env:
-          OWNER_VALUATION_REPO: ${{ github.workspace }}/_kernel_source
         run: |
-          runner_python=$(command -v python)
-          sudo unshare --net -- \
-            env OWNER_VALUATION_REPO="$OWNER_VALUATION_REPO" \
-              PYTHONHASHSEED=0 PYTHONDONTWRITEBYTECODE=1 \
-              "$runner_python" -I scripts/verify_phase5_v1.py \
+          set -euo pipefail
+          private_root="$RUNNER_TEMP/phase5-v1-private-${{ matrix.python-version }}"
+          wheelhouse="$RUNNER_TEMP/phase5-v1-wheelhouse-${{ matrix.python-version }}"
+          supply_lock="$RUNNER_TEMP/phase5-v1-supply-${{ matrix.python-version }}.lock"
+          validator="$RUNNER_TEMP/phase5-v1-supply-validator-${{ matrix.python-version }}.py"
+          private_kernel="$RUNNER_TEMP/phase5-v1-kernel-source"
+          runner_python=$(readlink -f '${{ steps.python.outputs.python-path }}')
+          test -f "$runner_python" && test ! -L "$runner_python"
+          host_uid=$(id -u)
+          host_gid=$(id -g)
+          candidate_uid=65534
+          candidate_gid=65534
+          test "$host_uid" -gt 0 && test "$host_gid" -gt 0
+          test "$candidate_uid" -ne "$host_uid" && test "$candidate_gid" -ne "$host_gid"
+          test -x /usr/bin/setpriv
+          mkdir -m 0700 "$private_root"
+          mkdir -m 0700 \
+            "$private_root/home" \
+            "$private_root/output" \
+            "$private_root/research-wheel" \
+            "$private_root/venv" \
+            "$private_root/kernel-cas"
+          : > "$private_root/stage.stdout"
+          : > "$private_root/stage.stderr"
+          : > "$private_root/container.stdout"
+          : > "$private_root/container.stderr"
+          chmod 0600 \
+            "$private_root/stage.stdout" \
+            "$private_root/stage.stderr" \
+            "$private_root/container.stdout" \
+            "$private_root/container.stderr"
+
+          # Trusted workflow code creates the namespaces and mounts; candidate code runs only
+          # after an irreversible privilege/capability drop inside that sealed boundary.
+          set +e
+          # shellcheck disable=SC2024 # Runner-owned private logs are opened before sudo.
+          /usr/bin/sudo -n /usr/bin/unshare \
+            --mount --net --pid --fork --kill-child --mount-proc -- \
+            /bin/bash -s -- \
+              "$host_uid" \
+              "$host_gid" \
+              "$candidate_uid" \
+              "$candidate_gid" \
+              "$GITHUB_WORKSPACE" \
+              "$private_kernel" \
+              "$wheelhouse" \
+              "$supply_lock" \
+              "$validator" \
+              "$private_root" \
+              "$runner_python" \
+              '${{ matrix.python-version }}' \
+            >"$private_root/stage.stdout" \
+            2>"$private_root/stage.stderr" <<'ROOT_BASH'
+          set -Eeuo pipefail
+          host_uid=$1
+          host_gid=$2
+          candidate_uid=$3
+          candidate_gid=$4
+          workspace_source=$5
+          kernel_source=$6
+          wheelhouse_source=$7
+          supply_lock_source=$8
+          validator_source=$9
+          private_root_source=${10}
+          runner_python=${11}
+          python_minor=${12}
+          stage_code=70
+          trap 'exit "$stage_code"' ERR
+          test "$(id -u)" -eq 0
+          mount --make-rprivate /
+          test "$(readlink -f /var/run)" = /run
+          mount -t tmpfs -o mode=0755,nosuid,nodev,noexec tmpfs /run
+          test -d /tmp && test ! -L /tmp
+          mount -t tmpfs -o rw,exec,nosuid,nodev,size=268435456,mode=1777 tmpfs /tmp
+          mkdir -m 0755 /run/owner-research
+          mkdir -m 0755 \
+            /run/owner-research/workspace \
+            /run/owner-research/private-kernel \
+            /run/owner-research/wheelhouse \
+            /run/owner-research/private
+          : > /run/owner-research/supply.lock
+          : > /run/owner-research/validator.py
+          workspace=/run/owner-research/workspace
+          kernel_checkout=/run/owner-research/private-kernel
+          wheelhouse=/run/owner-research/wheelhouse
+          supply_lock=/run/owner-research/supply.lock
+          validator=/run/owner-research/validator.py
+          private_root=/run/owner-research/private
+          stage_code=71
+          for privileged_channel in /usr/bin/docker /usr/bin/sudo; do
+            test -e "$privileged_channel"
+            mount --bind /dev/null "$privileged_channel"
+            mount -o remount,bind,ro,noexec,nosuid,nodev "$privileged_channel"
+          done
+          stage_code=72
+          mount --bind "$workspace_source" "$workspace"
+          mount -o remount,bind,ro "$workspace"
+          stage_code=73
+          test -z "$(find "$kernel_source" -xdev \
+            \( -type b -o -type c -o -type p -o -type s -o -type f -links +1 \) \
+            -print -quit)"
+          chown -R --no-dereference "$candidate_uid:$candidate_gid" "$kernel_source"
+          test -z "$(find "$kernel_source" -xdev \
+            \( ! -user "$candidate_uid" -o ! -group "$candidate_gid" \) -print -quit)"
+          mount --bind "$kernel_source" "$kernel_source"
+          mount -o remount,bind,ro "$kernel_source"
+          mount --bind "$kernel_source" "$kernel_checkout"
+          mount -o remount,bind,ro "$kernel_checkout"
+          stage_code=74
+          mount --bind "$wheelhouse_source" "$wheelhouse_source"
+          mount -o remount,bind,ro,noexec,nosuid,nodev "$wheelhouse_source"
+          mount --bind "$wheelhouse_source" "$wheelhouse"
+          mount -o remount,bind,ro,noexec,nosuid,nodev "$wheelhouse"
+          mount --bind "$supply_lock_source" "$supply_lock_source"
+          mount -o remount,bind,ro,noexec,nosuid,nodev "$supply_lock_source"
+          mount --bind "$supply_lock_source" "$supply_lock"
+          mount -o remount,bind,ro,noexec,nosuid,nodev "$supply_lock"
+          mount --bind "$validator_source" "$validator_source"
+          mount -o remount,bind,ro,noexec,nosuid,nodev "$validator_source"
+          mount --bind "$validator_source" "$validator"
+          mount -o remount,bind,ro,noexec,nosuid,nodev "$validator"
+          mount --bind "$private_root_source" "$private_root_source"
+          mount -o remount,bind,rw,exec,nosuid,nodev "$private_root_source"
+          mount --bind "$private_root_source" "$private_root"
+          mount -o remount,bind,rw,exec,nosuid,nodev "$private_root"
+          /usr/bin/git config --file "$private_root/home/.gitconfig" \
+            --add safe.directory "$workspace"
+          /usr/bin/git config --file "$private_root/home/.gitconfig" \
+            --add safe.directory "$kernel_checkout"
+          chmod 0400 "$private_root/home/.gitconfig"
+          chown -R --no-dereference "$candidate_uid:$candidate_gid" \
+            "$private_root/home" \
+            "$private_root/output" \
+            "$private_root/research-wheel" \
+            "$private_root/venv" \
+            "$private_root/kernel-cas"
+          chmod 0711 "$private_root"
+          chmod 0755 "$private_root/output"
+          test "$(stat -c '%u:%g:%a' "$private_root")" = \
+            "$host_uid:$host_gid:711"
+          for protected_log in stage.stdout stage.stderr container.stdout container.stderr; do
+            protected_path="$private_root/$protected_log"
+            test -f "$protected_path" && test ! -L "$protected_path"
+            test "$(stat -c '%u:%g:%a:%h' "$protected_path")" = \
+              "$host_uid:$host_gid:600:1"
+          done
+          umask 0022
+
+          stage_code=75
+          exec /usr/bin/setpriv \
+            --reuid="$candidate_uid" \
+            --regid="$candidate_gid" \
+            --clear-groups \
+            --inh-caps=-all \
+            --ambient-caps=-all \
+            --bounding-set=-all \
+            --no-new-privs \
+            /usr/bin/env -i \
+              HOME="$private_root/home" \
+              GIT_CONFIG_GLOBAL="$private_root/home/.gitconfig" \
+              GIT_CONFIG_NOSYSTEM=1 \
+              GIT_OPTIONAL_LOCKS=0 \
+              LANG=C.UTF-8 \
+              LC_ALL=C.UTF-8 \
+              PATH=/usr/local/bin:/usr/bin:/bin \
+              PIP_CONFIG_FILE=/dev/null \
+              PIP_DISABLE_PIP_VERSION_CHECK=1 \
+              PIP_FIND_LINKS="$wheelhouse" \
+              PIP_NO_CACHE_DIR=1 \
+              PIP_NO_INDEX=1 \
+              PYTHONHASHSEED=0 \
+              PYTHONDONTWRITEBYTECODE=1 \
+              SOURCE_DATE_EPOCH=1784088771 \
+              TMPDIR=/tmp \
+              TZ=UTC \
+              /bin/bash -s -- \
+                "$workspace" \
+                "$kernel_checkout" \
+                "$wheelhouse" \
+                "$supply_lock" \
+                "$validator" \
+                "$private_root" \
+                "$runner_python" \
+                "$python_minor" \
+                "$candidate_uid" \
+                "$candidate_gid" <<'CANDIDATE_BASH'
+          set -Eeuo pipefail
+          workspace=$1
+          kernel_checkout=$2
+          wheelhouse=$3
+          supply_lock=$4
+          validator=$5
+          private_root=$6
+          runner_python=$7
+          python_minor=$8
+          expected_uid=$9
+          expected_gid=${10}
+          stage_code=80
+          trap 'exit "$stage_code"' ERR
+          expected_uids="$expected_uid $expected_uid $expected_uid $expected_uid"
+          expected_gids="$expected_gid $expected_gid $expected_gid $expected_gid"
+          test "$(awk '/^Uid:/ {print $2, $3, $4, $5}' /proc/self/status)" = \
+            "$expected_uids"
+          test "$(awk '/^Gid:/ {print $2, $3, $4, $5}' /proc/self/status)" = \
+            "$expected_gids"
+          test "$(id -G)" = "$expected_gid"
+          for capability_set in CapInh CapPrm CapEff CapBnd CapAmb; do
+            test "$(awk -v key="$capability_set:" '$1 == key {print $2}' \
+              /proc/self/status)" = 0000000000000000
+          done
+          test "$(awk '/^NoNewPrivs:/ {print $2}' /proc/self/status)" = 1
+          stage_code=81
+          test ! -w "$private_root"
+          test ! -x /usr/bin/docker
+          test ! -x /usr/bin/sudo
+          test ! -S /var/run/docker.sock
+          test ! -S /run/docker.sock
+          test "$(command -v docker)" = /usr/bin/docker
+          test "$(command -v sudo)" = /usr/bin/sudo
+          stage_code=82
+          mapfile -t network_interfaces < <(
+            awk -F: 'NR > 2 {
+              gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1); print $1
+            }' /proc/net/dev | sort
+          )
+          test "${network_interfaces[*]}" = lo
+          test -z "$(awk 'NR > 1 {print; exit}' /proc/net/route)"
+          stage_code=83
+          findmnt -n -o OPTIONS --target "$workspace" | tr ',' '\n' | grep -Fx ro
+          stage_code=84
+          findmnt -n -o OPTIONS --target "$kernel_checkout" | tr ',' '\n' | grep -Fx ro
+          stage_code=85
+          wheelhouse_mount_options=$(findmnt -n -o OPTIONS --target "$wheelhouse")
+          for required_option in ro noexec nosuid nodev; do
+            printf '%s\n' "$wheelhouse_mount_options" | \
+              tr ',' '\n' | grep -Fx "$required_option"
+          done
+          stage_code=86
+          supply_lock_mount_options=$(findmnt -n -o OPTIONS --target "$supply_lock")
+          for required_option in ro noexec nosuid nodev; do
+            printf '%s\n' "$supply_lock_mount_options" | \
+              tr ',' '\n' | grep -Fx "$required_option"
+          done
+          stage_code=87
+          validator_mount_options=$(findmnt -n -o OPTIONS --target "$validator")
+          for required_option in ro noexec nosuid nodev; do
+            printf '%s\n' "$validator_mount_options" | \
+              tr ',' '\n' | grep -Fx "$required_option"
+          done
+          stage_code=88
+          private_mount_options=$(findmnt -n -o OPTIONS --target "$private_root")
+          printf '%s\n' "$private_mount_options" | tr ',' '\n' | grep -Fx rw
+          printf '%s\n' "$private_mount_options" | tr ',' '\n' | grep -Fx nosuid
+          printf '%s\n' "$private_mount_options" | tr ',' '\n' | grep -Fx nodev
+          ! printf '%s\n' "$private_mount_options" | tr ',' '\n' | grep -Fx noexec
+          stage_code=89
+          test "$TMPDIR" = /tmp
+          tmp_mount_options=$(findmnt -n -o OPTIONS --target /tmp)
+          for required_option in rw nosuid nodev; do
+            printf '%s\n' "$tmp_mount_options" | tr ',' '\n' | grep -Fx "$required_option"
+          done
+          for forbidden_option in ro noexec; do
+            ! printf '%s\n' "$tmp_mount_options" | tr ',' '\n' | grep -Fx "$forbidden_option"
+          done
+          test "$(stat -c '%u:%g:%a' /tmp)" = 0:0:1777
+          stage_code=90
+          cd "$workspace"
+          stage_code=91
+          "$runner_python" -I -c 'import hashlib, os, stat, sys'
+          stage_code=92
+          test -r "$validator" && test ! -w "$validator"
+          test -r "$supply_lock" && test ! -w "$supply_lock"
+          test -r "$wheelhouse" && test -x "$wheelhouse" && test ! -w "$wheelhouse"
+          stage_code=93
+          "$runner_python" -I "$validator" "$wheelhouse" "$python_minor"
+          stage_code=94
+          "$runner_python" -m venv "$private_root/venv"
+          venv_python="$private_root/venv/bin/python"
+          stage_code=95
+          "$venv_python" -I -m pip install \
+            --require-hashes \
+            --only-binary=:all: \
+            --no-deps \
+            --no-index \
+            --no-cache-dir \
+            --find-links "$wheelhouse" \
+            --requirement "$supply_lock"
+          stage_code=96
+          trap - ERR
+          "$venv_python" -I -m build \
+            --wheel \
+            --no-isolation \
+            --skip-dependency-check \
+            --outdir "$private_root/research-wheel" \
+            "$workspace"
+          research_wheel="$private_root/research-wheel/owner_equity_research-0.6.0.dev2-py3-none-any.whl"
+          "$venv_python" -I "$workspace/scripts/verify_wheel.py" "$research_wheel"
+          "$venv_python" -I -m pip install \
+            --only-binary=:all: \
+            --no-deps \
+            --no-index \
+            --no-cache-dir \
+            "$research_wheel"
+          if [[ "$python_minor" == 3.11 ]]; then
+            "$venv_python" -I - \
+              "$kernel_checkout" \
+              "$wheelhouse" \
+              "$private_root/kernel-cas" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          from owner_research.valuation_kernel_materializer import (
+              AUTHORITY_RESOURCE,
+              materialize_pinned_kernel_runtime,
+          )
+
+          kernel, wheelhouse, cas = map(Path, sys.argv[1:])
+          authority = json.loads(AUTHORITY_RESOURCE.read_bytes())
+          dependency_names = [
+              item[0] for item in authority["runtime"]["python_minors"]["3.11"]
+          ]
+          if any(Path(name).name != name for name in dependency_names):
+              raise SystemExit("registered runtime filename is unsafe")
+          materialize_pinned_kernel_runtime(
+              kernel_checkout=kernel,
+              cas_root=cas,
+              setuptools_wheel=(
+                  wheelhouse / authority["build"]["setuptools_wheel_filename"]
+              ),
+              dependency_wheels=[wheelhouse / name for name in dependency_names],
+              target_python_minor="3.11",
+          )
+          PY
+          else
+            PHASE5_V1_KERNEL_EXECUTION_REQUIRED=0 \
+              OWNER_VALUATION_REPO="$kernel_checkout" \
+              "$venv_python" -I "$workspace/scripts/verify_phase5_v1.py" \
               --mode verify \
-              --output "$RUNNER_TEMP/phase5-v1-verify.json"
-      - name: Upload the canonical verification summary
+              --output "$private_root/output/raw-summary.json"
+          fi
+          CANDIDATE_BASH
+          ROOT_BASH
+          stage_status=$?
+          set -e
+          if [[ "$stage_status" -ne 0 || '${{ matrix.python-version }}' != 3.11 ]]; then
+            exit "$stage_status"
+          fi
+
+          # Everything below is fixed workflow code. It never imports the candidate package.
+          test -z "$(find "$private_root/output" -mindepth 1 -print -quit)"
+          mapfile -t manifests < <(/usr/bin/sudo -n /usr/bin/find \
+            "$private_root/kernel-cas/manifests" \
+            -mindepth 1 -maxdepth 1 -type f -name '*.json' -print)
+          test "${#manifests[@]}" -eq 1
+          runtime_manifest=${manifests[0]}
+          /usr/bin/sudo -n /usr/bin/test ! -L "$runtime_manifest"
+          runtime_manifest_sha=$(
+            /usr/bin/sudo -n /usr/bin/sha256sum "$runtime_manifest" | awk '{print $1}'
+          )
+          test "$(basename "$runtime_manifest")" = "$runtime_manifest_sha.json"
+          research_wheel="$private_root/research-wheel/owner_equity_research-0.6.0.dev2-py3-none-any.whl"
+          /usr/bin/sudo -n /usr/bin/test -f "$research_wheel"
+          /usr/bin/sudo -n /usr/bin/test ! -L "$research_wheel"
+          mapfile -t research_entries < <(/usr/bin/sudo -n /usr/bin/find \
+            "$private_root/research-wheel" \
+            -mindepth 1 -maxdepth 1 -printf '%f\n')
+          test "${research_entries[*]}" = "$(basename "$research_wheel")"
+          sudo chown root:root "$private_root/research-wheel" "$research_wheel"
+          sudo chmod 0555 "$private_root/research-wheel"
+          sudo chmod 0444 "$research_wheel"
+          test "$(/usr/bin/docker image inspect --format '{{.Id}}' "$KERNEL_RUNTIME_IMAGE")" = \
+            "$KERNEL_RUNTIME_IMAGE_ID"
+          test "$(/usr/bin/docker image inspect --format '{{.Os}}' "$KERNEL_RUNTIME_IMAGE")" = linux
+          test "$(/usr/bin/docker image inspect --format '{{.Architecture}}' "$KERNEL_RUNTIME_IMAGE")" = amd64
+          manifest_digest=${KERNEL_RUNTIME_IMAGE##*@}
+          /usr/bin/docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' \
+            "$KERNEL_RUNTIME_IMAGE" | \
+            grep -Ex "(docker.io/library/|library/)?python@$manifest_digest"
+          /usr/bin/docker image inspect --format '{{range .Config.Env}}{{println .}}{{end}}' \
+            "$KERNEL_RUNTIME_IMAGE" | grep -Fx PYTHON_VERSION=3.11.15
+
+          attestation_directory="$private_root/trusted-attestation"
+          /usr/bin/sudo -n /bin/mkdir -m 0700 "$attestation_directory"
+          attestation="$attestation_directory/trusted-container-attestation.json"
+          /usr/bin/sudo -n '${{ steps.python.outputs.python-path }}' -I - \
+            "$attestation" "$candidate_uid" "$candidate_gid" \
+            "$KERNEL_RUNTIME_IMAGE" "$KERNEL_RUNTIME_IMAGE_ID" <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          path = Path(sys.argv[1])
+          uid, gid = int(sys.argv[2]), int(sys.argv[3])
+          image_reference, image_config = sys.argv[4:]
+          security_profile = {
+              "boundary": "trusted_workflow_authorized_container",
+              "cap_drop": ["ALL"],
+              "cpu_limit": "1.0",
+              "memory_limit_bytes": 1610612736,
+              "memory_swap_limit_bytes": 1610612736,
+              "network_mode": "none",
+              "pids_limit": 64,
+              "pull_policy": "never",
+              "read_only_mounts": [
+                  {"role": "candidate_workspace", "target": "/workspace"},
+                  {"role": "private_kernel_checkout", "target": "/private-kernel"},
+                  {"role": "binary_supply_wheelhouse", "target": "/supply"},
+                  {"role": "binary_supply_lock", "target": "/supply.lock"},
+                  {"role": "verified_research_wheel", "target": "/research-wheel"},
+                  {"role": "runtime_cas", "target": "/runtime-cas"},
+                  {
+                      "role": "trusted_attestation_directory",
+                      "target": "/run/owner-research",
+                  },
+              ],
+              "read_only_rootfs": True,
+              "security_opt": ["no-new-privileges:true"],
+              "tmpfs": ["/tmp:rw,exec,nosuid,nodev,size=268435456,mode=1777"],
+              "ulimits": ["core=0:0", "fsize=67108864:67108864", "nofile=64:64"],
+              "user": f"{uid}:{gid}",
+              "writable_mounts": [
+                  {"role": "canonical_summary_output", "target": "/output"}
+              ],
+          }
+          canonical_profile = json.dumps(
+              security_profile, separators=(",", ":"), sort_keys=True
+          ).encode()
+          payload = {
+              "authority_kind": "trusted_workflow_container",
+              "image_config_digest": image_config,
+              "image_manifest_digest": image_reference.rsplit("@", 1)[1],
+              "image_reference": image_reference,
+              "platform": "linux/amd64",
+              "python_patch": "3.11.15",
+              "schema_version": "1.0.0",
+              "security_profile": security_profile,
+              "security_profile_sha256": hashlib.sha256(canonical_profile).hexdigest(),
+          }
+          raw = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
+          descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o400)
+          try:
+              os.write(descriptor, raw)
+              os.fsync(descriptor)
+          finally:
+              os.close(descriptor)
+          PY
+          attestation_sha=$(
+            /usr/bin/sudo -n /usr/bin/sha256sum "$attestation" | awk '{print $1}'
+          )
+          sudo chown root:root "$attestation_directory" "$attestation"
+          sudo chmod 0555 "$attestation_directory"
+          sudo chmod 0444 "$attestation"
+          test "$(/usr/bin/sudo -n /usr/bin/stat -c '%u:%g:%a:%h' "$attestation")" = \
+            0:0:444:1
+          test "$(stat -c '%u:%g:%a' "$private_root")" = \
+            "$host_uid:$host_gid:711"
+          for protected_log in stage.stdout stage.stderr container.stdout container.stderr; do
+            protected_path="$private_root/$protected_log"
+            test -f "$protected_path" && test ! -L "$protected_path"
+            test "$(stat -c '%u:%g:%a:%h' "$protected_path")" = \
+              "$host_uid:$host_gid:600:1"
+          done
+
+          set +e
+          /usr/bin/docker run --rm --interactive --pull=never \
+            --platform=linux/amd64 \
+            --network=none \
+            --read-only \
+            --cap-drop=ALL \
+            --security-opt=no-new-privileges:true \
+            --user="$candidate_uid:$candidate_gid" \
+            --pids-limit=64 \
+            --memory=1610612736 \
+            --memory-swap=1610612736 \
+            --cpus=1.0 \
+            --ulimit=core=0:0 \
+            --ulimit=fsize=67108864:67108864 \
+            --ulimit=nofile=64:64 \
+            --tmpfs=/tmp:rw,exec,nosuid,nodev,size=268435456,mode=1777 \
+            --mount="type=bind,src=$GITHUB_WORKSPACE,dst=/workspace,readonly" \
+            --mount="type=bind,src=$wheelhouse,dst=/supply,readonly" \
+            --mount="type=bind,src=$supply_lock,dst=/supply.lock,readonly" \
+            --mount="type=bind,src=$private_root/research-wheel,dst=/research-wheel,readonly" \
+            --mount="type=bind,src=$private_root/kernel-cas,dst=/runtime-cas,readonly" \
+            --mount="type=bind,src=$private_kernel,dst=/private-kernel,readonly" \
+            --mount="type=bind,src=$attestation_directory,dst=/run/owner-research,readonly" \
+            --mount="type=bind,src=$private_root/output,dst=/output" \
+            --entrypoint=/usr/bin/env \
+            "$KERNEL_RUNTIME_IMAGE" \
+              -i \
+              HOME=/tmp/home \
+              GIT_CONFIG_COUNT=2 \
+              GIT_CONFIG_GLOBAL=/dev/null \
+              GIT_CONFIG_KEY_0=safe.directory \
+              GIT_CONFIG_KEY_1=safe.directory \
+              GIT_CONFIG_NOSYSTEM=1 \
+              GIT_CONFIG_VALUE_0=/workspace \
+              GIT_CONFIG_VALUE_1=/private-kernel \
+              GIT_OPTIONAL_LOCKS=0 \
+              LANG=C.UTF-8 \
+              LC_ALL=C.UTF-8 \
+              PATH=/usr/local/bin:/usr/bin:/bin \
+              PIP_CONFIG_FILE=/dev/null \
+              PIP_DISABLE_PIP_VERSION_CHECK=1 \
+              PIP_FIND_LINKS=/supply \
+              PIP_NO_CACHE_DIR=1 \
+              PIP_NO_INDEX=1 \
+              PYTHONHASHSEED=0 \
+              PYTHONDONTWRITEBYTECODE=1 \
+              PYTHONNOUSERSITE=1 \
+              SOURCE_DATE_EPOCH=1784088771 \
+              TMPDIR=/tmp \
+              TZ=UTC \
+              PHASE5_V1_KERNEL_EXECUTION_REQUIRED=1 \
+              OWNER_VALUATION_REPO=/private-kernel \
+              OWNER_RESEARCH_KERNEL_CAS=/runtime-cas \
+              OWNER_RESEARCH_KERNEL_RUNTIME_MANIFEST="/runtime-cas/manifests/$runtime_manifest_sha.json" \
+              OWNER_RESEARCH_KERNEL_RUNTIME_MANIFEST_FILE_SHA256="$runtime_manifest_sha" \
+              OWNER_RESEARCH_TRUSTED_CONTAINER_ATTESTATION_SHA256="$attestation_sha" \
+              /bin/bash -s -- \
+                /workspace \
+                /supply \
+                /supply.lock \
+                /research-wheel/owner_equity_research-0.6.0.dev2-py3-none-any.whl \
+                /output/raw-summary.json \
+              >"$private_root/container.stdout" \
+              2>"$private_root/container.stderr" <<'BASH'
+          set -euo pipefail
+          workspace=$1
+          wheelhouse=$2
+          supply_lock=$3
+          research_wheel=$4
+          raw_summary=$5
+          test -z "$(command -v docker || true)"
+          test ! -S /var/run/docker.sock
+          test "$(command -v git)" = /usr/bin/git
+          test "$(git -C "$workspace" rev-parse --show-toplevel)" = "$workspace"
+          test "$(git -C /private-kernel rev-parse --show-toplevel)" = /private-kernel
+          test "$(python3 -c 'import platform; print(platform.python_version())')" = 3.11.15
+          mkdir -m 0700 "$HOME" /tmp/venv
+          python3 -m venv /tmp/venv
+          venv_python=/tmp/venv/bin/python
+          "$venv_python" -I -m pip install \
+            --require-hashes \
+            --only-binary=:all: \
+            --no-deps \
+            --no-index \
+            --no-cache-dir \
+            --find-links "$wheelhouse" \
+            --requirement "$supply_lock"
+          "$venv_python" -I -m pip install \
+            --only-binary=:all: \
+            --no-deps \
+            --no-index \
+            --no-cache-dir \
+            "$research_wheel"
+          cd "$workspace"
+          "$venv_python" -I scripts/verify_phase5_v1.py \
+            --mode verify \
+            --output "$raw_summary"
+          BASH
+          container_status=$?
+          set -e
+          exit "$container_status"
+      - name: Delete private channels and rebuild one allowlisted canonical summary
+        id: sanitize
         if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          '${{ steps.python.outputs.python-path }}' -I - \
+            "$RUNNER_TEMP/phase5-v1-private-${{ matrix.python-version }}/output" \
+            raw-summary.json \
+            "$RUNNER_TEMP/phase5-v1-private-${{ matrix.python-version }}" \
+            "$GITHUB_WORKSPACE/_kernel_source" \
+            "$RUNNER_TEMP/phase5-v1-kernel-source" \
+            "$RUNNER_TEMP/phase5-v1-wheelhouse-${{ matrix.python-version }}" \
+            "$RUNNER_TEMP/phase5-v1-supply-${{ matrix.python-version }}.lock" \
+            "$RUNNER_TEMP/phase5-v1-runtime-supply.lock" \
+            "$RUNNER_TEMP/phase5-v1-supply-validator-${{ matrix.python-version }}.py" \
+            "$RUNNER_TEMP/phase5-v1-upload-${{ matrix.python-version }}" \
+            '${{ github.event.pull_request.head.sha || github.sha }}' \
+            '${{ steps.supply.outputs.candidate-tree }}' <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          import stat
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          MAXIMUM_RAW_BYTES = 1024 * 1024
+          PRIORITY_BY_CODE = {
+              "P5V1-COMPILE": "P1",
+              "P5V1-RUFF": "P1",
+              "P5V1-TESTS": "P0",
+              "P5V1-WHEEL": "P0",
+          }
+          PRIORITIES = ("P0", "P1", "P2", "P3")
+          LEGACY_PATHS = [
+              "tests/test_phase4d5_phase_state.py",
+              "tests/test_phase5e2b12a_acceptance_gate.py",
+              "tests/test_phase5e2b12b_acceptance_gate.py",
+              "tests/test_phase5e_audit.py",
+              "tests/test_phase5e_successor_gate.py",
+          ]
+
+          def reject_duplicates(pairs):
+              value = {}
+              for key, item in pairs:
+                  if key in value:
+                      raise ValueError("duplicate key")
+                  value[key] = item
+              return value
+
+          def reject_constant(value):
+              raise ValueError(f"non-finite JSON constant: {value}")
+
+          def read_raw(root, name):
+              directory = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+              try:
+                  descriptor = os.open(
+                      name, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW, dir_fd=directory
+                  )
+                  try:
+                      before = os.fstat(descriptor)
+                      if (
+                          not stat.S_ISREG(before.st_mode)
+                          or before.st_nlink != 1
+                          or before.st_size > MAXIMUM_RAW_BYTES
+                      ):
+                          raise ValueError("raw summary is not a bounded regular file")
+                      chunks = []
+                      total = 0
+                      while chunk := os.read(descriptor, 64 * 1024):
+                          total += len(chunk)
+                          if total > MAXIMUM_RAW_BYTES:
+                              raise ValueError("raw summary exceeds its bound")
+                          chunks.append(chunk)
+                      after = os.fstat(descriptor)
+                      if (
+                          before.st_dev,
+                          before.st_ino,
+                          before.st_size,
+                          before.st_mtime_ns,
+                      ) != (
+                          after.st_dev,
+                          after.st_ino,
+                          after.st_size,
+                          after.st_mtime_ns,
+                      ):
+                          raise ValueError("raw summary changed while read")
+                      return b"".join(chunks)
+                  finally:
+                      os.close(descriptor)
+              finally:
+                  os.close(directory)
+
+          def bounded_integer(value):
+              return isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 10**7
+
+          def sanitize(raw, expected_commit, expected_tree):
+              report = json.loads(
+                  raw,
+                  object_pairs_hook=reject_duplicates,
+                  parse_constant=reject_constant,
+              )
+              expected_keys = {
+                  "commit",
+                  "findings",
+                  "mode",
+                  "report_kind",
+                  "P0",
+                  "P1",
+                  "P2",
+                  "P3",
+                  "required_zero",
+                  "schema_version",
+                  "tests",
+                  "tree",
+                  "report_sha256",
+              }
+              if not isinstance(report, dict) or set(report) != expected_keys:
+                  raise ValueError("raw summary shape is not closed")
+              supplied_sha = report["report_sha256"]
+              unhashed = dict(report)
+              unhashed.pop("report_sha256")
+              canonical = json.dumps(
+                  unhashed, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+              ).encode()
+              if (
+                  not isinstance(supplied_sha, str)
+                  or supplied_sha != hashlib.sha256(canonical).hexdigest()
+              ):
+                  raise ValueError("raw summary hash mismatch")
+              if (
+                  report["commit"] != expected_commit
+                  or report["tree"] != expected_tree
+                  or not re.fullmatch(r"[0-9a-f]{40}", expected_commit)
+                  or not re.fullmatch(r"[0-9a-f]{40}", expected_tree)
+                  or report["mode"] != "verify"
+                  or report["report_kind"] != "nonlegacy_verification"
+                  or report["required_zero"] != []
+                  or report["schema_version"] != "1.0.0"
+              ):
+                  raise ValueError("raw summary identity mismatch")
+              findings = report["findings"]
+              if not isinstance(findings, list) or len(findings) > len(PRIORITY_BY_CODE):
+                  raise ValueError("finding inventory is invalid")
+              clean_findings = []
+              counts = {priority: 0 for priority in PRIORITIES}
+              observed_codes = set()
+              for finding in findings:
+                  if not isinstance(finding, dict) or set(finding) != {
+                      "code",
+                      "message",
+                      "priority",
+                  }:
+                      raise ValueError("finding shape is not closed")
+                  code = finding["code"]
+                  priority = finding["priority"]
+                  message = finding["message"]
+                  if (
+                      PRIORITY_BY_CODE.get(code) != priority
+                      or not isinstance(message, str)
+                      or len(message) > 4096
+                  ):
+                      raise ValueError("finding identity is not allowlisted")
+                  if code in observed_codes:
+                      raise ValueError("finding code is duplicated")
+                  observed_codes.add(code)
+                  clean_findings.append({"code": code, "priority": priority})
+                  counts[priority] += 1
+              clean_findings.sort(key=lambda item: item["code"])
+              if any(not bounded_integer(report[key]) or report[key] != counts[key] for key in PRIORITIES):
+                  raise ValueError("finding counts are invalid")
+              if report["P2"] != 0 or report["P3"] != 0:
+                  raise ValueError("verify summary contains an impossible priority")
+              tests = report["tests"]
+              if not isinstance(tests, dict) or set(tests) != {
+                  "collected",
+                  "passed",
+                  "skipped",
+                  "failed",
+                  "excluded_legacy_paths",
+              }:
+                  raise ValueError("test counts shape is not closed")
+              test_counts = {key: tests[key] for key in ("collected", "passed", "skipped", "failed")}
+              infrastructure_failure = test_counts == {
+                  "collected": 0,
+                  "passed": 0,
+                  "skipped": 0,
+                  "failed": 1,
+              }
+              if (
+                  any(not bounded_integer(value) for value in test_counts.values())
+                  or tests["excluded_legacy_paths"] != LEGACY_PATHS
+                  or (
+                      not infrastructure_failure
+                      and test_counts["collected"]
+                      != test_counts["passed"]
+                      + test_counts["skipped"]
+                      + test_counts["failed"]
+                  )
+              ):
+                  raise ValueError("test counts are invalid")
+              return {
+                  "commit": report["commit"],
+                  "finding_counts": counts,
+                  "findings": clean_findings,
+                  "mode": report["mode"],
+                  "test_counts": test_counts,
+                  "tree": report["tree"],
+              }
+
+          def write_exact(directory, name, value):
+              descriptor = os.open(
+                  name,
+                  os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW,
+                  0o600,
+                  dir_fd=directory,
+              )
+              try:
+                  remaining = memoryview(value)
+                  while remaining:
+                      try:
+                          written = os.write(descriptor, remaining)
+                      except InterruptedError:
+                          continue
+                      if written <= 0 or written > len(remaining):
+                          raise ValueError("canonical summary write was incomplete")
+                      remaining = remaining[written:]
+                  os.fsync(descriptor)
+                  written_stat = os.fstat(descriptor)
+                  if (
+                      not stat.S_ISREG(written_stat.st_mode)
+                      or written_stat.st_nlink != 1
+                      or written_stat.st_size != len(value)
+                  ):
+                      raise ValueError("canonical summary metadata changed")
+              finally:
+                  os.close(descriptor)
+
+              descriptor = os.open(
+                  name,
+                  os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                  dir_fd=directory,
+              )
+              try:
+                  reopened_stat = os.fstat(descriptor)
+                  chunks = []
+                  while chunk := os.read(descriptor, 64 * 1024):
+                      chunks.append(chunk)
+                  if (
+                      (reopened_stat.st_dev, reopened_stat.st_ino)
+                      != (written_stat.st_dev, written_stat.st_ino)
+                      or not stat.S_ISREG(reopened_stat.st_mode)
+                      or reopened_stat.st_nlink != 1
+                      or reopened_stat.st_size != len(value)
+                      or b"".join(chunks) != value
+                  ):
+                      raise ValueError("canonical summary did not replay after write")
+              finally:
+                  os.close(descriptor)
+
+          def main():
+              raw_root = Path(sys.argv[1])
+              raw_name = sys.argv[2]
+              private_root = Path(sys.argv[3])
+              kernel_source = Path(sys.argv[4])
+              private_kernel = Path(sys.argv[5])
+              wheelhouse = Path(sys.argv[6])
+              supply_lock = Path(sys.argv[7])
+              runtime_lock = Path(sys.argv[8])
+              validator = Path(sys.argv[9])
+              upload_directory = Path(sys.argv[10])
+              expected_commit = sys.argv[11]
+              expected_tree = sys.argv[12]
+              try:
+                  raw = read_raw(raw_root, raw_name)
+              except Exception:
+                  raw = None
+              cleanup_paths = [
+                  kernel_source,
+                  private_kernel,
+                  private_root,
+                  wheelhouse,
+                  supply_lock,
+                  runtime_lock,
+                  validator,
+              ]
+              cleanup = subprocess.run(
+                  ["/usr/bin/sudo", "/bin/rm", "-rf", "--", *map(str, cleanup_paths)],
+                  stdin=subprocess.DEVNULL,
+                  stdout=subprocess.DEVNULL,
+                  stderr=subprocess.DEVNULL,
+                  check=False,
+              )
+              if cleanup.returncode or any(os.path.lexists(path) for path in cleanup_paths):
+                  raise ValueError("private cleanup failed")
+              if raw is None:
+                  raise ValueError("raw summary unavailable")
+              canonical = json.dumps(
+                  sanitize(raw, expected_commit, expected_tree),
+                  ensure_ascii=False,
+                  separators=(",", ":"),
+                  sort_keys=True,
+              ).encode() + b"\n"
+              os.mkdir(upload_directory, mode=0o700)
+              directory = os.open(
+                  upload_directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+              )
+              try:
+                  write_exact(directory, "phase5-v1-verify.json", canonical)
+              finally:
+                  os.close(directory)
+              entries = list(os.scandir(upload_directory))
+              if (
+                  [entry.name for entry in entries] != ["phase5-v1-verify.json"]
+                  or entries[0].is_symlink()
+                  or not entries[0].is_file(follow_symlinks=False)
+              ):
+                  raise ValueError("upload directory is not a single regular file")
+
+          try:
+              main()
+          except Exception:
+              raise SystemExit("canonical summary unavailable") from None
+          PY
+      - name: Upload only the allowlisted canonical verification summary
+        if: always() && steps.sanitize.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: >-
             phase5-v1-verify-${{ matrix.python-version }}-${{
             github.event.pull_request.head.sha || github.sha }}
-          path: ${{ runner.temp }}/phase5-v1-verify.json
+          path: ${{ runner.temp }}/phase5-v1-upload-${{ matrix.python-version }}/phase5-v1-verify.json
           retention-days: 30
           if-no-files-found: error
 
