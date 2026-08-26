@@ -1,17 +1,22 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import replace
 from pathlib import Path
 
 import pytest
 from test_phase4e1_research_bundle_builder import _completed_graph, _input_graph
 
+import owner_research.research_bundle_artifacts as artifact_module
 from owner_research.fingerprints import canonical_json
 from owner_research.research_bundle_artifacts import (
     ARTIFACT_FILENAMES,
+    RESEARCH_ARTIFACT_MEMBER_MAX_BYTES,
     ResearchBundleArtifactError,
+    load_research_bundle_artifact_snapshot,
     load_research_bundle_artifacts,
+    replay_research_bundle_artifact_snapshot,
     write_research_bundle_artifacts,
 )
 from owner_research.research_bundle_builder import (
@@ -156,6 +161,130 @@ def test_loader_rejects_noncanonical_tampered_or_incomplete_pair(
     (output / "run-manifest.json").unlink()
     with pytest.raises(ResearchBundleArtifactError, match="exactly"):
         load_research_bundle_artifacts(output, graph=graph)
+
+
+def test_loader_and_idempotent_writer_bound_and_no_follow_existing_members(
+    sample_payloads,
+    tmp_path: Path,
+) -> None:
+    graph, result = _result(sample_payloads)
+    output = tmp_path / "bounded-bundle"
+    write_research_bundle_artifacts(graph, result, output_directory=output)
+    bundle = output / "research-bundle.json"
+    bundle.unlink()
+    external = tmp_path / "external.json"
+    external.write_text(canonical_json(result.bundle.to_dict()) + "\n", encoding="utf-8")
+    bundle.symlink_to(external)
+    with pytest.raises(ResearchBundleArtifactError, match="safely readable"):
+        load_research_bundle_artifacts(output, graph=graph)
+
+    bundle.unlink()
+    with bundle.open("wb") as stream:
+        stream.truncate(RESEARCH_ARTIFACT_MEMBER_MAX_BYTES + 1)
+    with pytest.raises(ResearchBundleArtifactError, match="byte limit"):
+        load_research_bundle_artifacts(output, graph=graph)
+    with pytest.raises(ResearchBundleArtifactError, match="byte limit"):
+        write_research_bundle_artifacts(graph, result, output_directory=output)
+
+
+def test_loader_rejects_member_identity_race(
+    sample_payloads,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    graph, result = _result(sample_payloads)
+    output = tmp_path / "racing-bundle"
+    write_research_bundle_artifacts(graph, result, output_directory=output)
+    bundle = output / "research-bundle.json"
+    before = bundle.stat()
+    original_read = os.read
+    raced = False
+
+    def racing_read(descriptor: int, size: int) -> bytes:
+        nonlocal raced
+        content = original_read(descriptor, size)
+        if content and not raced:
+            raced = True
+            os.utime(
+                bundle,
+                ns=(before.st_atime_ns, before.st_mtime_ns + 1_000_000),
+            )
+        return content
+
+    monkeypatch.setattr(artifact_module.os, "read", racing_read)
+    with pytest.raises(ResearchBundleArtifactError, match="changed while read"):
+        load_research_bundle_artifacts(output, graph=graph)
+
+
+def test_loader_callback_gates_the_same_descriptor_snapshot_before_read(
+    sample_payloads,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    graph, result = _result(sample_payloads)
+    output = tmp_path / "callback-bundle"
+    write_research_bundle_artifacts(graph, result, output_directory=output)
+    callback_active = False
+    completed_members = 0
+    observed: list[tuple[str, int]] = []
+    original_read = artifact_module.os.read
+
+    def guarded_read(descriptor: int, size: int) -> bytes:
+        if completed_members < len(ARTIFACT_FILENAMES):
+            assert callback_active
+        return original_read(descriptor, size)
+
+    def read_callback(path: Path, declared_size: int, reader) -> bytes:
+        nonlocal callback_active, completed_members
+        assert declared_size == path.stat().st_size
+        observed.append((path.name, declared_size))
+        callback_active = True
+        try:
+            return reader()
+        finally:
+            callback_active = False
+            completed_members += 1
+
+    monkeypatch.setattr(artifact_module.os, "read", guarded_read)
+    loaded, snapshot = load_research_bundle_artifact_snapshot(
+        output,
+        graph=graph,
+        read_callback=read_callback,
+    )
+
+    assert loaded == result
+    assert [name for name, _ in observed] == sorted(ARTIFACT_FILENAMES)
+    monkeypatch.setattr(
+        artifact_module,
+        "_read_artifact_snapshot",
+        lambda *_args, **_kwargs: pytest.fail("captured replay reopened its source path"),
+    )
+    assert replay_research_bundle_artifact_snapshot(snapshot, graph=graph) == result
+
+
+def test_loader_callback_can_reject_invocation_budget_before_any_member_read(
+    sample_payloads,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    graph, result = _result(sample_payloads)
+    output = tmp_path / "pre-read-budget-bundle"
+    write_research_bundle_artifacts(graph, result, output_directory=output)
+
+    def reject_before_read(_path: Path, _declared_size: int, _reader) -> bytes:
+        raise ResearchBundleArtifactError("invocation budget exhausted before member read")
+
+    monkeypatch.setattr(
+        artifact_module.os,
+        "read",
+        lambda *_args, **_kwargs: pytest.fail("budget rejection occurred after a member read"),
+    )
+    with pytest.raises(ResearchBundleArtifactError, match="before member read"):
+        load_research_bundle_artifact_snapshot(
+            output,
+            graph=graph,
+            read_callback=reject_before_read,
+        )
 
 
 def test_failed_overwrite_restores_original_artifact_pair(

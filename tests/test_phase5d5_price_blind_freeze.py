@@ -212,6 +212,69 @@ def test_writer_and_reloader_are_atomic_canonical_and_strict(
         load_price_blind_input_artifact(output, graph=graph, expected_result=result)
 
 
+def test_price_blind_reader_is_bounded_descriptor_first_and_stable(
+    sample_payloads, monkeypatch, tmp_path: Path
+) -> None:
+    graph, result = _compile(sample_payloads, monkeypatch)
+    output = tmp_path / "price-blind-bounded"
+    write_price_blind_input_artifact(graph, result, output_directory=output)
+
+    def forbidden_path_read(*_args, **_kwargs):
+        raise AssertionError("price-blind loader reopened the caller path")
+
+    monkeypatch.setattr(Path, "read_text", forbidden_path_read)
+    monkeypatch.setattr(Path, "read_bytes", forbidden_path_read)
+    assert load_price_blind_input_artifact(
+        output, graph=graph, expected_result=result
+    ).fingerprint == result.fingerprint
+
+    path = output / freeze_module.PRICE_BLIND_INPUT_FILENAME
+    original_read = freeze_module.os.read
+    changed = False
+
+    def racing_read(descriptor: int, maximum: int) -> bytes:
+        nonlocal changed
+        chunk = original_read(descriptor, maximum)
+        if chunk and not changed:
+            changed = True
+            with path.open("ab") as stream:
+                stream.write(b" ")
+        return chunk
+
+    monkeypatch.setattr(freeze_module.os, "read", racing_read)
+    with pytest.raises(PriceBlindFreezeError, match="changed while being read"):
+        load_price_blind_input_artifact(output, graph=graph, expected_result=result)
+
+
+def test_price_blind_reader_rejects_oversize_symlink_and_different_overwrite(
+    sample_payloads, monkeypatch, tmp_path: Path
+) -> None:
+    graph, result = _compile(sample_payloads, monkeypatch)
+    output = tmp_path / "price-blind-attacks"
+    write_price_blind_input_artifact(graph, result, output_directory=output)
+    path = output / freeze_module.PRICE_BLIND_INPUT_FILENAME
+    original = path.read_bytes()
+    path.write_bytes(b"different")
+    with pytest.raises(PriceBlindFreezeError, match="different content"):
+        write_price_blind_input_artifact(
+            graph,
+            result,
+            output_directory=output,
+            overwrite=True,
+        )
+    with path.open("wb") as stream:
+        stream.truncate(freeze_module.PRICE_BLIND_INPUT_MAX_BYTES + 1)
+    with pytest.raises(PriceBlindFreezeError, match="bounded regular file"):
+        load_price_blind_input_artifact(output, graph=graph, expected_result=result)
+
+    path.unlink()
+    target = tmp_path / "outside-price-blind.json"
+    target.write_bytes(original)
+    path.symlink_to(target)
+    with pytest.raises(PriceBlindFreezeError, match="unsafe entry"):
+        load_price_blind_input_artifact(output, graph=graph, expected_result=result)
+
+
 def test_freeze_rejects_nonhuman_or_nonchronological_authorization() -> None:
     with pytest.raises(ValueError, match="named human"):
         PriceBlindFreezeAuthorization(

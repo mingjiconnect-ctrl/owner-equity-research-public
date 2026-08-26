@@ -78,16 +78,26 @@ def _sha256_bytes(value: bytes) -> str:
 
 
 def _read_regular_file_nofollow(path: Path, *, maximum_size: int = 256 * 1024 * 1024) -> bytes:
-    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    absolute = Path(path).expanduser().absolute()
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_NONBLOCK", 0)
+    )
     try:
-        descriptor = os.open(path, flags)
+        descriptor = os.open(absolute, flags)
     except OSError as exc:
         raise KernelMaterializationError(
             f"input is unavailable or not a regular file: {path}"
         ) from exc
     try:
         before = os.fstat(descriptor)
-        if not stat.S_ISREG(before.st_mode) or before.st_size > maximum_size:
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or before.st_nlink != 1
+            or before.st_size > maximum_size
+        ):
             raise KernelMaterializationError(f"input is not a bounded regular file: {path}")
         chunks: list[bytes] = []
         total = 0
@@ -100,16 +110,28 @@ def _read_regular_file_nofollow(path: Path, *, maximum_size: int = 256 * 1024 * 
             if total > maximum_size:
                 raise KernelMaterializationError(f"input exceeds the size limit: {path}")
         after = os.fstat(descriptor)
+        try:
+            path_after = absolute.lstat()
+        except OSError as exc:
+            raise KernelMaterializationError(f"input changed while being read: {path}") from exc
+
+        def identity(item: os.stat_result) -> tuple[int, ...]:
+            return (
+                item.st_dev,
+                item.st_ino,
+                item.st_mode,
+                item.st_nlink,
+                item.st_uid,
+                item.st_gid,
+                item.st_size,
+                item.st_mtime_ns,
+                item.st_ctime_ns,
+            )
+
         if (
-            before.st_dev,
-            before.st_ino,
-            before.st_size,
-            before.st_mtime_ns,
-        ) != (
-            after.st_dev,
-            after.st_ino,
-            after.st_size,
-            after.st_mtime_ns,
+            total != before.st_size
+            or identity(before) != identity(after)
+            or identity(after) != identity(path_after)
         ):
             raise KernelMaterializationError(f"input changed while being read: {path}")
         return b"".join(chunks)
@@ -446,7 +468,7 @@ def _normalize_registered_zip_timestamps(
 ) -> None:
     """Patch only registered DOS timestamps without recompressing wheel content."""
 
-    raw = bytearray(wheel_path.read_bytes())
+    raw = bytearray(_read_regular_file_nofollow(wheel_path))
     try:
         with zipfile.ZipFile(io.BytesIO(raw)) as archive:
             infos = {item.filename: item for item in archive.infolist()}
@@ -867,8 +889,11 @@ def _build_release_wheel(
     if _sha256_path(executable) != executable_sha256:
         raise KernelMaterializationError("build Python changed during materialization")
     try:
-        filename = filename_file.read_text(encoding="utf-8")
-    except OSError as exc:
+        filename = _read_regular_file_nofollow(
+            filename_file,
+            maximum_size=1024,
+        ).decode("utf-8")
+    except (OSError, UnicodeError, KernelMaterializationError) as exc:
         raise KernelMaterializationError("build backend did not return a wheel filename") from exc
     if filename != authority["kernel"]["wheel_filename"]:
         raise KernelMaterializationError("build backend returned an unexpected wheel filename")

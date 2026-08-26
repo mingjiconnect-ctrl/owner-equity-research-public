@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .business_quality_policies import mechanism_policy
 from .calculation_integrity import build_calculation_result
+from .component_lock import read_stable_file_bytes
 from .contracts import CalculationResult, Fact, FiscalPeriod, SegmentSnapshot
 from .fingerprints import canonical_sha256
 from .units import unit_spec
@@ -367,7 +368,7 @@ def run_diagnostic(
         value, output_period = values[0] / values[1], numerator.period
     fact_map = {fact.fact_id: fact for fact in facts}
     period_map = {period.period_id: period for period in periods_by_role.values()}
-    code_sha = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+    code_sha = hashlib.sha256(read_stable_file_bytes(Path(__file__))).hexdigest()
     calculation_id = (
         f"calc:{facts[0].issuer_id}:{policy.policy_id}:"
         f"{canonical_id(fact_map, period_map)}"

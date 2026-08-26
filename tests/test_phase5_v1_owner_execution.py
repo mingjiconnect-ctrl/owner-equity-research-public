@@ -29,14 +29,24 @@ from owner_research.valuation_final_request import (
     _market_source,
     _validated_prepared_market_context,
 )
+from owner_research.valuation_kernel_materializer import (
+    MANIFEST_POLICY_ID,
+    MANIFEST_POLICY_VERSION,
+)
 from owner_research.valuation_kernel_projection import project_current_share_lineage
 from owner_research.valuation_market_execution_policies import (
     KERNEL_EXECUTION_POLICY,
+    PINNED_KERNEL_COMMIT,
     PINNED_KERNEL_CONTAINER_IMAGE_CONFIG_DIGEST,
     PINNED_KERNEL_CONTAINER_IMAGE_MANIFEST_DIGEST,
     PINNED_KERNEL_CONTAINER_IMAGE_REFERENCE,
     PINNED_KERNEL_CONTAINER_PLATFORM,
+    PINNED_KERNEL_PACKAGE_VERSION,
+    PINNED_KERNEL_PLUGIN_VERSION,
+    PINNED_KERNEL_REPOSITORY,
     PINNED_KERNEL_SCHEMA_SHA256,
+    PINNED_KERNEL_TAG,
+    PINNED_KERNEL_WHEEL_SHA256,
 )
 from owner_research.valuation_market_snapshot import PreparedMarketReference
 from owner_research.valuation_owner_execution import (
@@ -47,6 +57,69 @@ from owner_research.valuation_owner_preparation import OwnerValuationPreparation
 from owner_research.valuation_price_blind_freeze import (
     PriceBlindFreezeCompilationResult,
 )
+
+
+def _runtime_manifest_fixture() -> dict[str, Any]:
+    manifest: dict[str, Any] = {
+        "schema_version": "1.0.0",
+        "manifest_policy_id": MANIFEST_POLICY_ID,
+        "manifest_policy_version": MANIFEST_POLICY_VERSION,
+        "authority": {
+            "path": (
+                "owner_research/resources/phase5-v1-kernel-runtime/"
+                "runtime-authority.json"
+            ),
+            "sha256": "1" * 64,
+        },
+        "producer": {"fixture": "typed-runtime-manifest"},
+        "kernel": {
+            "repository": PINNED_KERNEL_REPOSITORY,
+            "tag": PINNED_KERNEL_TAG,
+            "tag_object": "fixture-tag-object",
+            "commit": PINNED_KERNEL_COMMIT,
+            "tree": "fixture-tree",
+            "package_version": PINNED_KERNEL_PACKAGE_VERSION,
+            "plugin_version": PINNED_KERNEL_PLUGIN_VERSION,
+            "wheel_sha256": PINNED_KERNEL_WHEEL_SHA256,
+        },
+        "target": {"implementation": "cpython", "python_minor": "3.11"},
+        "container": {"fixture": "pinned-container"},
+        "trusted_workflow": {"fixture": "trusted-workflow"},
+        "result_schema": {
+            "filename": "valuation-result.schema.json",
+            "sha256": PINNED_KERNEL_SCHEMA_SHA256[
+                "schemas/valuation-result.schema.json"
+            ],
+            "uri": (
+                "cas://sha256/"
+                + PINNED_KERNEL_SCHEMA_SHA256["schemas/valuation-result.schema.json"]
+            ),
+        },
+        "transport": {
+            "kernel_call": "run_valuation",
+            "kernel_call_count": 1,
+            "network_mode": "docker_network_none",
+            "request": "canonical_json_stdin",
+            "result": "canonical_json_stdout",
+            "result_bytes_preserved": True,
+        },
+        "wheels": [
+            {
+                "filename": "owner_valuation_kernel-2.0.0rc2-py3-none-any.whl",
+                "role": "kernel",
+                "sha256": PINNED_KERNEL_WHEEL_SHA256,
+                "uri": f"cas://sha256/{PINNED_KERNEL_WHEEL_SHA256}",
+            }
+        ],
+    }
+    manifest["manifest_fingerprint"] = canonical_sha256(manifest)
+    return manifest
+
+
+TEST_RUNTIME_MANIFEST = _runtime_manifest_fixture()
+TEST_RUNTIME_MANIFEST_FILE_SHA256 = hashlib.sha256(
+    canonical_json(TEST_RUNTIME_MANIFEST).encode("utf-8")
+).hexdigest()
 
 
 def _noncompiled(
@@ -566,12 +639,12 @@ def _runner_result(
         result_sha256=hashlib.sha256(result_bytes).hexdigest(),
         result_bytes=result_bytes,
         kernel_wheel_sha256=KERNEL_EXECUTION_POLICY.exact_wheel_sha256,
-        runtime_authority_sha256="1" * 64,
-        runtime_manifest_file_sha256="d" * 64,
-        runtime_manifest_fingerprint="2" * 64,
+        runtime_authority_sha256=TEST_RUNTIME_MANIFEST["authority"]["sha256"],
+        runtime_manifest_file_sha256=TEST_RUNTIME_MANIFEST_FILE_SHA256,
+        runtime_manifest_fingerprint=TEST_RUNTIME_MANIFEST["manifest_fingerprint"],
         runner_sha256="3" * 64,
         result_schema_sha256=PINNED_KERNEL_SCHEMA_SHA256["schemas/valuation-result.schema.json"],
-        wheel_inventory_sha256="5" * 64,
+        wheel_inventory_sha256=canonical_sha256(TEST_RUNTIME_MANIFEST["wheels"]),
         docker_executable_sha256="6" * 64 if host_boundary else None,
         container_image_reference=PINNED_KERNEL_CONTAINER_IMAGE_REFERENCE,
         container_image_manifest_digest=PINNED_KERNEL_CONTAINER_IMAGE_MANIFEST_DIGEST,
@@ -611,7 +684,7 @@ def _completed_result(
         expected_freeze=freeze_result,
         kernel_repository=Path("/read-only/kernel"),
         runtime_manifest=Path("/runtime/manifest.json"),
-        runtime_manifest_file_sha256="d" * 64,
+        runtime_manifest_file_sha256=TEST_RUNTIME_MANIFEST_FILE_SHA256,
         cas_root=Path("/runtime/cas"),
         clock=_clock(preparation),
     )
@@ -700,7 +773,7 @@ def test_success_calls_each_stage_once_preserves_stdout_and_adds_only_v5_v6(
         expected_freeze=freeze_result,
         kernel_repository=Path("/read-only/kernel"),
         runtime_manifest=Path("/runtime/manifest.json"),
-        runtime_manifest_file_sha256="d" * 64,
+        runtime_manifest_file_sha256=TEST_RUNTIME_MANIFEST_FILE_SHA256,
         cas_root=Path("/runtime/cas"),
         clock=clock,
         timeout_seconds=27,
@@ -714,7 +787,7 @@ def test_success_calls_each_stage_once_preserves_stdout_and_adds_only_v5_v6(
         compiled.canonical_request_json.encode("utf-8"),
         {
             "runtime_manifest": Path("/runtime/manifest.json"),
-            "runtime_manifest_file_sha256": "d" * 64,
+            "runtime_manifest_file_sha256": TEST_RUNTIME_MANIFEST_FILE_SHA256,
             "cas_root": Path("/runtime/cas"),
             "timeout_seconds": 27,
         },
@@ -861,7 +934,7 @@ def test_preflight_timestamp_block_never_calls_runner_or_returns_handoff(
         expected_freeze=freeze_result,
         kernel_repository=Path("/read-only/kernel"),
         runtime_manifest=Path("/runtime/manifest.json"),
-        runtime_manifest_file_sha256="d" * 64,
+        runtime_manifest_file_sha256=TEST_RUNTIME_MANIFEST_FILE_SHA256,
         cas_root=Path("/runtime/cas"),
         clock=OwnerValuationExecutionClock(
             quote_retrieved_at,
@@ -1000,7 +1073,7 @@ def test_coordinated_base_ledger_rebinding_blocks_before_runner(
         expected_freeze=freeze_result,
         kernel_repository=Path("/read-only/kernel"),
         runtime_manifest=Path("/runtime/manifest.json"),
-        runtime_manifest_file_sha256="d" * 64,
+        runtime_manifest_file_sha256=TEST_RUNTIME_MANIFEST_FILE_SHA256,
         cas_root=Path("/runtime/cas"),
         clock=_clock(preparation),
     )
@@ -1071,7 +1144,7 @@ def test_superseded_and_quarantined_market_run_never_executes(
         expected_freeze=freeze_result,
         kernel_repository=Path("/read-only/kernel"),
         runtime_manifest=Path("/runtime/manifest.json"),
-        runtime_manifest_file_sha256="d" * 64,
+        runtime_manifest_file_sha256=TEST_RUNTIME_MANIFEST_FILE_SHA256,
         cas_root=Path("/runtime/cas"),
         clock=OwnerValuationExecutionClock(
             (replacement_time + timedelta(microseconds=1)).isoformat(),
@@ -1113,7 +1186,7 @@ def test_runner_output_binding_failure_is_closed_and_never_advances_graph(
         expected_freeze=freeze_result,
         kernel_repository=Path("/read-only/kernel"),
         runtime_manifest=Path("/runtime/manifest.json"),
-        runtime_manifest_file_sha256="d" * 64,
+        runtime_manifest_file_sha256=TEST_RUNTIME_MANIFEST_FILE_SHA256,
         cas_root=Path("/runtime/cas"),
         clock=_clock(preparation),
     )
@@ -1372,7 +1445,7 @@ def test_second_active_run_blocks_preflight_and_frozen_result(
         expected_freeze=freeze_result,
         kernel_repository=Path("/read-only/kernel"),
         runtime_manifest=Path("/runtime/manifest.json"),
-        runtime_manifest_file_sha256="d" * 64,
+        runtime_manifest_file_sha256=TEST_RUNTIME_MANIFEST_FILE_SHA256,
         cas_root=Path("/runtime/cas"),
         clock=_clock(two_active_preparation),
     )

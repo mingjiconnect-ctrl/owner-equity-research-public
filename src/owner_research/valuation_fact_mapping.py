@@ -7,6 +7,7 @@ code, writes valuation artifacts, or creates assumptions.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 from dataclasses import dataclass
@@ -18,7 +19,7 @@ from urllib.parse import urlparse
 from jsonschema import Draft202012Validator, FormatChecker
 
 from .calculation_integrity import expected_input_fingerprint, expected_output_fingerprint
-from .component_lock import file_sha256
+from .component_lock import file_sha256, read_stable_file_bytes
 from .contracts import CalculationResult, Fact, FiscalPeriod, SourceDocument
 from .fingerprints import FrozenMap
 from .research_bundle_artifacts import (
@@ -83,12 +84,19 @@ def _load_kernel_fact_schema(repository: Path) -> dict[str, Any]:
     if _git(kernel, "rev-parse", f"{KERNEL_TAG}^{{}}") != KERNEL_COMMIT:
         raise FactLedgerMappingError("kernel release tag does not resolve to the pinned commit")
     path = kernel / "schemas" / "fact-ledger.schema.json"
-    if not path.is_file() or file_sha256(path) != PINNED_FACT_LEDGER_SCHEMA_SHA256:
+    try:
+        raw = read_stable_file_bytes(path)
+    except (OSError, ValueError) as exc:
+        raise FactLedgerMappingError("pinned FactLedger Schema is missing or changed") from exc
+    if hashlib.sha256(raw).hexdigest() != PINNED_FACT_LEDGER_SCHEMA_SHA256:
         raise FactLedgerMappingError("pinned FactLedger Schema is missing or changed")
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError) as exc:
         raise FactLedgerMappingError("pinned FactLedger Schema cannot be loaded") from exc
+    if not isinstance(payload, dict):
+        raise FactLedgerMappingError("pinned FactLedger Schema cannot be loaded")
+    return payload
 
 
 def _bundle_closure(graph: ContractGraph, bundle: Any) -> dict[str, tuple[str, Any]]:

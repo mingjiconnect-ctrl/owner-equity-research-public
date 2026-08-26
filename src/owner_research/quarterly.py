@@ -7,6 +7,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from .calculation_integrity import build_calculation_result
+from .component_lock import read_stable_file_bytes
 from .contracts import (
     CalculationResult,
     Claim,
@@ -42,7 +43,7 @@ class ComparabilityAssessment:
 
 
 def _code_sha256() -> str:
-    return hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+    return hashlib.sha256(read_stable_file_bytes(Path(__file__))).hexdigest()
 
 
 def _numeric_value(item: NumericEvidence) -> float:

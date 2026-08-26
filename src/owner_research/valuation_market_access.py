@@ -14,6 +14,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
+from .component_lock import load_component_lock_snapshot
 from .fingerprints import canonical_sha256, to_json_value
 from .validation import ContractGraph
 from .valuation_market_authority import load_market_access_authority
@@ -561,12 +562,14 @@ def acquire_governed_market_quote(
             issue_codes=("authorization_not_current",),
         )
     try:
-        authority = load_market_access_authority(graph.component_lock_path)
+        component_lock = load_component_lock_snapshot(graph.component_lock_path)
+        authority = load_market_access_authority(
+            graph.component_lock_path,
+            component_lock_snapshot=component_lock,
+        )
     except (OSError, TypeError, ValueError):
         return _result(loaded, status="blocked", issue_codes=("authority_load_failed",))
-    if loaded.artifact.to_dict()["component_lock_sha256"] != hashlib.sha256(
-        Path(graph.component_lock_path).read_bytes()
-    ).hexdigest():
+    if loaded.artifact.to_dict()["component_lock_sha256"] != component_lock.file_sha256:
         return _result(loaded, status="blocked", issue_codes=("authority_lock_mismatch",))
     replayed_security = compile_security_identity(
         graph=graph,

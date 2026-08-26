@@ -177,11 +177,11 @@ def valid_snapshot_graph(sample_payloads, monkeypatch, tmp_path: Path):
         expected_freeze=freeze,
         proposal=security.proposal,
     )
+    directory = tmp_path / "price-blind-phase5c"
     write_price_blind_input_artifact(
         graph,
         freeze,
         output_directory=directory,
-        overwrite=True,
     )
     graph = replace_graph(
         graph,

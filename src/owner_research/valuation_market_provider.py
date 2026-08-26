@@ -24,7 +24,11 @@ from pathlib import Path
 from typing import Any, ClassVar, Literal, Protocol
 from urllib.parse import urlsplit
 
-from .component_lock import load_component_lock
+from .component_lock import (
+    load_component_lock,
+    load_component_lock_snapshot,
+    read_stable_file_bytes,
+)
 from .fingerprints import canonical_json, canonical_sha256, to_json_value
 from .validation import ContractGraph
 from .valuation_market_access import (
@@ -793,7 +797,8 @@ def _authorization_store_policy(component_lock_path: Path) -> tuple[str, str]:
         or store["namespace"] != "market-authorizations-v1"
         or store["root_policy"] != "module_import_user_state_home"
         or store["module_path"] != module_path.name
-        or store["code_sha256"] != hashlib.sha256(module_path.read_bytes()).hexdigest()
+        or store["code_sha256"]
+        != hashlib.sha256(read_stable_file_bytes(module_path)).hexdigest()
     ):
         raise ValueError("market-authorization store authority drifted")
     return store["namespace"], canonical_sha256(store)
@@ -1162,7 +1167,8 @@ def reviewed_file_authority_hashes(
         or registration["endpoint_id"] != REVIEWED_FILE_ENDPOINT_ID
         or registration["price_basis"] != REVIEWED_FILE_PRICE_BASIS
         or registration["module_path"] != module_path.name
-        or registration["adapter_sha256"] != hashlib.sha256(module_path.read_bytes()).hexdigest()
+        or registration["adapter_sha256"]
+        != hashlib.sha256(read_stable_file_bytes(module_path)).hexdigest()
         or registration["parser_sha256"] != registration["adapter_sha256"]
     ):
         raise ValueError("reviewed-file provider registration drifted")
@@ -1225,9 +1231,11 @@ def acquire_reviewed_market_reference(
     ):
         raise ValueError("market authorization is not current")
     artifact = loaded.artifact.to_dict()
-    if artifact["component_lock_sha256"] != hashlib.sha256(
-        graph.component_lock_path.read_bytes()
-    ).hexdigest():
+    try:
+        component_lock = load_component_lock_snapshot(graph.component_lock_path)
+    except (OSError, TypeError, ValueError) as exc:
+        raise ValueError("price-blind component lock cannot be read") from exc
+    if artifact["component_lock_sha256"] != component_lock.file_sha256:
         raise ValueError("price-blind component lock drifted")
     replayed_security = compile_security_identity(
         graph=graph,
@@ -1243,7 +1251,10 @@ def acquire_reviewed_market_reference(
     if security.issuer_id != artifact["issuer_id"]:
         raise ValueError("security identity does not match the price-blind issuer")
     try:
-        authority = load_market_access_authority(graph.component_lock_path)
+        authority = load_market_access_authority(
+            graph.component_lock_path,
+            component_lock_snapshot=component_lock,
+        )
         selection = select_latest_completed_session(
             authority,
             mic=security.exchange,

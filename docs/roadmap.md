@@ -2,16 +2,45 @@
 
 ## Active authority
 
-- `Phase 5 v1 final-request and pinned-kernel vertical slice` is `in_progress` under ADRs 0041 and
-  0042 and `docs/phase5-v1-status.json`.
-- PR1 is accepted on merged `main`. Only `PR2 final-request and pinned-kernel vertical slice` is
-  authorized. It must consume the accepted market preparation without reacquisition, preserve the
-  price-blind ledger and assumptions, compile one complete rc.2 request, and execute the exact
-  pinned kernel in a proven no-network subprocess. Archive, CLI, Skill execution, scoring,
-  reporting, and publishing remain outside this slice.
+- `Phase 5 v1 comprehensive Skill single-PR3 delivery` is a `code_complete_preview` under ADRs
+  0041-0044 and `docs/phase5-v1-status.json`; all four implementation slices are present, while
+  RC publication remains blocked on exact-head acceptance and the external real-Futu canary.
+- PR1 and PR2 are accepted on merged `main`. One PR3 is authorized to deliver four ordered
+  implementation slices with one exact-head acceptance: trusted run/archive core; SEC/IR-primary
+  research plus valuation-intent-only Futu data; independent valuation synthesis plus four-lens
+  scoring; and report/PDF/local Publisher plus the callable Skill. The slices do not create
+  successor gates.
+- Ordinary research remains target-price and market-capitalization blind and makes zero Futu
+  calls. Only explicit valuation intent activates entitled Futu access. Its non-price financial
+  and company data may cross-check but never replace SEC/IR Facts; target-security and peer prices
+  are available only after the price-blind freeze. The pinned kernel remains read-only, runs
+  exactly once, and retains its separate McKinsey/Penman output and strict six-file archive.
+  Synthesis, scoring, reports, and publication are downstream `PROJECT_EXTENSION` consumers.
+- Futu financials and company/corporate-action observations remain secondary. The pinned buyback
+  endpoint does not cover XNYS/XNAS, so US repurchases use SEC/IR authority and emit the explicit
+  `not_supported_for_us_sec_primary` vendor disposition rather than a synthetic Futu record.
+- The v1 production universe is one SEC-reporting XNYS/XNAS USD ordinary common stock. ADRs,
+  dual listings, multiple share classes, banks, insurers, funds, REITs, and other unsupported
+  industries or securities return `specialist_required` before kernel execution.
+- Current-value and twelve-month composites require all three independently frozen McKinsey,
+  Penman, and comparables panels; a missing, partial, blocked, ineligible, or contested panel makes
+  the affected composite `null`. Each of the four lenses has five fixed 0-20 items; `Unknown` and
+  partial evidence are nonnumeric, never zero, and prevent lens and overall scores. Recommendation
+  labels use the fixed ADR 0044 thresholds: `重点关注` 80/80%/25%/20%, `关注`
+  70/70%/15%/10%, `回避` for overall below 50, price at least 15% over intrinsic value, or a
+  permanent-capital-loss critical red flag, `无法评级` for non-complete states, otherwise `观察`.
 - Required pull-request checks are exactly `verify (3.11)`, `verify (3.12)`, `verify (3.13)`, and
-  `phase5/semantic-audit`. Pull requests require P0=P1=0; release candidates require
-  P0=P1=P2=P3=0; merged `main` runs smoke and deterministic replay.
+  `phase5/semantic-audit`. The final PR3 head requires P0=P1=P2=P3=0 in candidate replay and
+  independent fresh-context review; merged `main` runs smoke and deterministic replay.
+- Versions remain in development state until all four slices are complete. No RC tag is permitted
+  without a real, entitled, quote-only, isolated Futu canary on the exact merged commit that uses
+  market, financial-statement, and company-information data and completes strict local PDF-package
+  reload. No fixture, reviewed file, simulated price, alternative API, or technical documentation
+  can substitute.
+- Complete reports are 30-60 page simplified-Chinese LaTeX PDFs with bilingual key terms and
+  Python-generated models, tables, and charts. `research_only` stays price-blind;
+  `full_valuation` binds the strict six-file archive, three panels, scorecard, market comparison,
+  PDF QA, and the local Publisher root manifest.
 - The former recursive G1-G5 and acceptance-only path is retired as `legacy_governance`. Its
   status, closeouts, and tests remain frozen historical evidence and run only by explicit manual
   replay.
@@ -165,9 +194,12 @@
   introduction is independently audited before it becomes
   base-owned. The resulting two-file closeout, special branch, and successor prohibitions are
   retained as historical `legacy_governance`; ADR 0041 supersedes them as current authority.
-- Phase 5F: strict handoff archive, Shadow, final audit, and proposed `v0.5.0-alpha.1` release.
-- Phase 6: Buffett-Munger-style scoring, always marked `PROJECT_EXTENSION`.
-- Phase 7: Publisher consuming only validated research and valuation outputs.
+- Phase 5F: its strict handoff/archive work is the trusted-core slice of comprehensive PR3; the
+  former alpha release proposal is superseded by ADR 0044.
+- Phase 6: its scoring work is folded into comprehensive PR3 as four isolated
+  `PROJECT_EXTENSION` lenses and one deterministic 0-100 aggregate.
+- Phase 7: its Publisher work is folded into comprehensive PR3 as a local-only consumer of
+  validated research, valuation, synthesis, score, and report inputs.
 - Phase 8: multi-company shadow runs judged by audit quality, not target-price proximity.
 - Phase 9: legacy cleanup only after coverage acceptance.
 - Phase 0.5: archive-only recovery verification immediately before local Legacy deletion.
@@ -182,5 +214,6 @@ accepted/closed. Phase 5D is accepted/frozen; Phase 5E-0 and Phase 5E-1.1 are ac
 Phase 5E-2A.1, Phase 5E-2A.2, and Phase 5E-2A.2.1 are accepted/closed. Phase 5E-2B and its
 Phase 5E-2B.1 corrections retain their original governance evidence. The former dual-state gate,
 G1-G5 progression, dynamic successor profiles, and acceptance-only branches are now historical
-`legacy_governance`; none can authorize or block the current Phase 5 v1 slice. Phase 6 through
-Phase 9 still require separate reviewed authorization after Phase 5.
+`legacy_governance`; none can authorize or block the current Phase 5 v1 slice. ADR 0044 authorizes
+the former Phase 6 and Phase 7 capabilities only inside the single comprehensive PR3. Phase 8
+multi-company expansion and Phase 9 cleanup remain outside the current authorization.

@@ -7,7 +7,12 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .component_lock import default_component_lock_path, load_component_lock
+from .component_lock import (
+    ComponentLockSnapshot,
+    default_component_lock_path,
+    load_component_lock_snapshot,
+    read_stable_file_bytes,
+)
 from .fingerprints import canonical_sha256
 from .valuation_market_authority_types import (
     MarketAccessAuthority,
@@ -22,16 +27,17 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent
 
 
 def _file_sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    return hashlib.sha256(read_stable_file_bytes(path)).hexdigest()
 
 
 def _resource(path: str, expected_sha256: str) -> tuple[Path, dict[str, Any]]:
     candidate = (_PACKAGE_ROOT / path).resolve()
     if _PACKAGE_ROOT not in candidate.parents or not candidate.is_file():
         raise ValueError("market authority resource is unavailable")
-    if _file_sha256(candidate) != expected_sha256:
+    raw = read_stable_file_bytes(candidate)
+    if hashlib.sha256(raw).hexdigest() != expected_sha256:
         raise ValueError("market authority resource hash mismatch")
-    payload = json.loads(candidate.read_text(encoding="utf-8"))
+    payload = json.loads(raw.decode("utf-8"))
     if not isinstance(payload, dict):
         raise ValueError("market authority resource must be a JSON object")
     return candidate, payload
@@ -92,9 +98,15 @@ def _calendar_registry(section: dict[str, Any]) -> TradingCalendarRegistry:
 
 def load_market_access_authority(
     component_lock_path: Path | None = None,
+    *,
+    component_lock_snapshot: ComponentLockSnapshot | None = None,
 ) -> MarketAccessAuthority:
     lock_path = Path(component_lock_path or default_component_lock_path())
-    lock = load_component_lock(lock_path)
+    if component_lock_snapshot is None:
+        component_lock_snapshot = load_component_lock_snapshot(lock_path)
+    elif component_lock_snapshot.path != lock_path.expanduser().absolute():
+        raise ValueError("component lock snapshot path does not match the requested authority")
+    lock = component_lock_snapshot.payload
     if lock.get("lock_version") not in {"1.1.0", "1.2.0"}:
         raise ValueError("market authority requires a compatible component lock")
     section = lock.get("market_access_authority")

@@ -1,0 +1,142 @@
+{
+  "decision": "release_candidate_and_stable_release_blocked",
+  "evaluated_on": "2026-08-26",
+  "fallbacks": {
+    "free_api": "forbidden",
+    "manual_price": "forbidden",
+    "reviewed_file": "development_and_replay_only_not_release_canary",
+    "simulated_price": "forbidden",
+    "trading_account_data": "forbidden",
+    "web_scraping": "forbidden"
+  },
+  "gates": {
+    "account": {
+      "blockers": [
+        "receipt_authority_status_is_bootstrap_pending",
+        "account_signer_key_is_not_installed",
+        "no_signed_every_run_qot_true_trd_false_attestation_was_supplied"
+      ],
+      "external_signed_receipt_supplied": false,
+      "required_conditions": [
+        "qot_login_true_while_trade_login_false_is_enforceable"
+      ],
+      "status": "blocked"
+    },
+    "legal": {
+      "blockers": [
+        "receipt_authority_status_is_bootstrap_pending",
+        "legal_signer_key_is_not_installed",
+        "no_signed_exact_account_agreement_rights_receipt_was_supplied",
+        "no_signed_private_encrypted_retention_and_independent_replay_rights_receipt_was_supplied"
+      ],
+      "external_signed_receipt_supplied": false,
+      "required_conditions": [
+        "account_agreement_permits_internal_valuation_use",
+        "data_rights_permit_private_encrypted_cas_retention_and_independent_audit_replay"
+      ],
+      "status": "blocked"
+    },
+    "protocol": {
+      "blockers": [
+        "receipt_authority_status_is_bootstrap_pending",
+        "protocol_signer_key_is_not_installed",
+        "verified_private_sidecar_code_and_supply_are_not_bound_to_a_signed_live_runtime_canary",
+        "no_signed_bounded_raw_protobuf_capture_and_quote_only_isolation_receipt_was_supplied",
+        "no_signed_boot_fetch_finalize_execution_attestation_canary_was_supplied",
+        "no_signed_exact_opend_supply_chain_receipt_was_supplied",
+        "no_signed_rootless_runtime_isolation_receipt_was_supplied",
+        "no_signed_security_identity_receipt_was_supplied",
+        "no_governed_vendor_daily_close_precision_and_rounding_receipt_was_supplied"
+      ],
+      "external_signed_receipt_supplied": false,
+      "required_conditions": [
+        "raw_protobuf_s2c_bytes_are_stably_capturable",
+        "exact_private_sidecar_bundle_sbom_and_provenance_are_verified",
+        "signed_sequenced_session_finalization_binds_every_public_response_to_cas_and_frame_evidence",
+        "exact_opend_supply_is_pinned",
+        "rootless_quote_only_runtime_isolation_is_attested",
+        "issuer_security_and_vendor_code_identity_is_human_reviewed"
+      ],
+      "status": "blocked"
+    }
+  },
+  "governing_policy": {
+    "path": "scripts/phase5e-futu-market-authority-policy-v2.json",
+    "policy_id": "phase5e-futu-market-authority",
+    "policy_version": "2.0.0",
+    "sha256": "b41d2c8b169f7dc4e2fdd400d27e5aa93003437b9b7986111fe99e240abf7a74",
+    "status": "current_comprehensive_skill_policy"
+  },
+  "official_reference_observations": {
+    "authorities_and_quota": {
+      "gate_effect": "technical_reference_only_not_an_account_specific_rights_receipt",
+      "html_sha256": "b4ef0ccd0e81aa8efc636bbf2960986b35e688168b0e6e776b47ff086eeee900",
+      "observation": "The official page distinguishes API quote rights from app rights and requires an API questionnaire and agreements after first login.",
+      "retrieved_on": "2026-08-14",
+      "url": "https://openapi.futunn.com/futu-api-doc/en/intro/authority.html"
+    },
+    "global_state": {
+      "gate_effect": "field_definition_only_not_a_signed_runtime_attestation",
+      "html_sha256": "ce4321a0e8031a0d3fd627da4e5088017fdc2f1f71bd227b05ca3adb78694963",
+      "observation": "The official protocol page defines qotLogined and trdLogined as separate boolean fields.",
+      "retrieved_on": "2026-08-14",
+      "url": "https://openapi.futunn.com/futu-api-doc/en/quote/get-global-state.html"
+    },
+    "history_kline": {
+      "gate_effect": "protocol_definition_only_not_capture_retention_rounding_or_isolation_proof",
+      "html_sha256": "37ea32ccad800bbc579fd2f0d28a9f258e6329bf2482f7ab36bfbeecb1553279",
+      "observation": "The official protocol page defines RequestHistoryKL request and response fields but does not prove this account's contractual rights or the required isolated runtime receipt.",
+      "retrieved_on": "2026-08-14",
+      "url": "https://openapi.futunn.com/futu-api-doc/en/quote/request-history-kline.html"
+    }
+  },
+  "receipt_authority": {
+    "path": "scripts/phase5e2b12a-acceptance-trust.json",
+    "required_order": [
+      "legal",
+      "account",
+      "protocol"
+    ],
+    "sha256": "2681f104e4f44b6c13cacd89d812cd7ecf8635ac01cc16424d77238775eb23ac",
+    "signer_keys_installed": false,
+    "status": "bootstrap_pending"
+  },
+  "release": {
+    "development_version_required": true,
+    "release_candidate_blockers": [
+      "legal_account_protocol_gates_are_blocked",
+      "exact_private_sidecar_supply_is_verified_but_not_bound_to_a_signed_live_canary",
+      "no_real_exact_commit_futu_canary_was_supplied",
+      "no_real_market_financial_statement_and_company_information_run_was_supplied",
+      "no_sec_ir_reconciliation_archive_reload_and_local_pdf_reload_canary_was_supplied"
+    ],
+    "release_candidate_status": "blocked",
+    "release_candidate_tag_created": false,
+    "stable_tag_created": false,
+    "target_release_candidate_tag": "v1.0.0-rc.1",
+    "target_stable_tag": "v1.0.0"
+  },
+  "release_canary": {
+    "bound_commit": null,
+    "bound_tree": null,
+    "required_data_families": [
+      "market",
+      "financial_statement",
+      "company_information"
+    ],
+    "required_evidence": [
+      "signed_legal_receipt",
+      "signed_account_receipt",
+      "signed_protocol_and_isolation_receipt",
+      "exact_private_sidecar_bundle_sbom_and_provenance",
+      "signed_boot_fetch_finalize_and_execution_attestations",
+      "qot_logged_in_true_and_trade_logged_in_false",
+      "private_encrypted_cas_binding",
+      "sec_ir_primary_authority_reconciliation",
+      "strict_six_file_archive_reload",
+      "local_pdf_publication_reload"
+    ],
+    "status": "blocked"
+  },
+  "schema_version": "2.0.0"
+}

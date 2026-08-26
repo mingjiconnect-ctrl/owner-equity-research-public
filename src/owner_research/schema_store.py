@@ -8,6 +8,8 @@ from typing import Any
 from jsonschema import Draft202012Validator, FormatChecker
 from referencing import Registry, Resource
 
+from .component_lock import read_stable_file_bytes
+
 SCHEMA_NAMES = (
     "source-document",
     "fact",
@@ -70,7 +72,10 @@ def load_schema(name: str) -> dict[str, Any]:
     if name not in SCHEMA_NAMES:
         raise KeyError(f"Unknown public schema: {name}")
     path = schema_directory() / f"{name}.schema.json"
-    return json.loads(path.read_text(encoding="utf-8"))
+    payload = json.loads(read_stable_file_bytes(path).decode("utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"Public schema {name} must be a JSON object")
+    return payload
 
 
 @cache

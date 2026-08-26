@@ -15,6 +15,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from .capital_allocation_policies import OFFICIAL_AUTHORITY_LEVELS
+from .component_lock import read_stable_file_bytes
 from .contracts import (
     CapitalAllocationEvent,
     CapitalAllocationEventCandidate,
@@ -607,7 +608,7 @@ def _identify_reviewed_members(
 
 
 def _grouping_code_sha256() -> str:
-    return hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+    return hashlib.sha256(read_stable_file_bytes(Path(__file__))).hexdigest()
 
 
 def _conflict(

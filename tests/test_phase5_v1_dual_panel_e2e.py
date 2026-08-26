@@ -56,7 +56,7 @@ EXPECTED_WHEEL_INVENTORY_SHA256 = "1caf6f35d5045714ef99952c2061f19e53597fa1f867a
 EXPECTED_RUNTIME_AUTHORITY_SHA256 = (
     "0a317935d257e2fb406bc8efd9c90d42b1e572a6f8e6baa3c6d75b7cb48530dd"
 )
-EXPECTED_MATERIALIZER_SHA256 = "d5becc51a3708ec43a5a5712f835bccff3b66a132aa36f3304aeea4eff9fb5c2"
+EXPECTED_MATERIALIZER_SHA256 = "0f7117cb1d34cef5eac421d21f5931bcb0724eff64bc861ef72ace17941b219f"
 EXPECTED_CONTAINER_IMAGE = (
     "docker.io/library/python@"
     "sha256:eaeffb6e8511935426934aac863940fbd004ef31dab0d7fc27a129bb7c19d9a8"
@@ -77,11 +77,11 @@ EXPECTED_WORKFLOW_READ_ONLY_MOUNTS = [
     {"role": "trusted_attestation_directory", "target": "/run/owner-research"},
 ]
 EXPECTED_WORKFLOW_WRITABLE_MOUNTS = [{"role": "canonical_summary_output", "target": "/output"}]
-EXPECTED_REQUEST_SHA256 = "28af1dcdb23102e5b74f648600fabe5afddc0859cf6653ea34649194e41f15ff"
-EXPECTED_RESULT_SHA256 = "2e161729f012d19ed7e6fc636a427e4aea9f3927d9044d93fc611b12d2b8882e"
-EXPECTED_MARKET_RECEIPT_ID = "market-quote-receipt:caf5287d7fab5546255b2e1d"
+EXPECTED_REQUEST_SHA256 = "3862936026a65e7703ce95bb7dfb2475f07c3b576fa1560f90492deb59b9cb6d"
+EXPECTED_RESULT_SHA256 = "2ab9a4f9d27ede629a7882169089f0117813c7b87dfc5e04884929f2df995739"
+EXPECTED_MARKET_RECEIPT_ID = "market-quote-receipt:73e0079acc3ef3c72f9366f9"
 EXPECTED_MARKET_RECEIPT_FINGERPRINT = (
-    "b50814e885d8e3ecc32bca277db84cde5bdd2c138f49e922549f23a242d2b039"
+    "9f4fb1feb35d89e71c1a2d3654bdf94f20554050d570d698c508563b905eb435"
 )
 COMPANY_NAME = "Synthetic Nonfinancial Company"
 COMPANY_NAME_FACT_ID = "fact:acme:issuer-legal-name"
@@ -847,7 +847,7 @@ def test_pr1_rollforward_compiles_and_executes_exact_dual_panel_oracle(
     projection = compiled.fact_ledger_result.current_share_projection
     assert projection.status == "eligible"
     assert projection.evidence_kind == "completed_event_rollforward"
-    assert projection.current_share_fact_id == ("derived:current-shares:653037511cae3cfaace34bd3")
+    assert projection.current_share_fact_id == ("derived:current-shares:96632f26dd3058892be92854")
     projected_facts = {item["fact_id"]: item for item in projection.facts}
     current = projected_facts[projection.current_share_fact_id]
     assert projected_facts["fact:shares:opening"]["value"] == 100.0

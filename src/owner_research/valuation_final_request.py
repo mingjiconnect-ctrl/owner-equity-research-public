@@ -9,6 +9,7 @@ the resulting FactLedger fingerprint.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import subprocess
@@ -22,7 +23,7 @@ from typing import Any
 from jsonschema import Draft202012Validator, FormatChecker
 from referencing import Registry, Resource
 
-from .component_lock import file_sha256
+from .component_lock import read_stable_file_bytes
 from .contracts import CalculationResult, Fact, SourceDocument
 from .fingerprints import FrozenMap, canonical_json, canonical_sha256, freeze, to_json_value
 from .research_bundle_policies import dependency_closure_sha256
@@ -150,14 +151,25 @@ def _verify_kernel(repository: Path) -> tuple[Path, dict[str, dict[str, Any]]]:
     schemas: dict[str, dict[str, Any]] = {}
     for relative, expected_sha in sorted(PINNED_KERNEL_SCHEMA_SHA256.items()):
         path = kernel / relative
-        if not path.is_file() or file_sha256(path) != expected_sha:
+        try:
+            raw = read_stable_file_bytes(path)
+        except (OSError, ValueError) as exc:
+            raise FinalRequestCompilationError(
+                f"pinned kernel Schema changed: {relative}"
+            ) from exc
+        if hashlib.sha256(raw).hexdigest() != expected_sha:
             raise FinalRequestCompilationError(f"pinned kernel Schema changed: {relative}")
         try:
-            schemas[relative] = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            payload = json.loads(raw.decode("utf-8"))
+        except (UnicodeError, json.JSONDecodeError) as exc:
             raise FinalRequestCompilationError(
                 f"pinned kernel Schema cannot be read: {relative}"
             ) from exc
+        if not isinstance(payload, dict):
+            raise FinalRequestCompilationError(
+                f"pinned kernel Schema cannot be read: {relative}"
+            )
+        schemas[relative] = payload
     return kernel, schemas
 
 
