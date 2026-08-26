@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/named-human-review-authority.schema.json",
+  "title": "NamedHumanReviewAuthority",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "review_id", "scope", "issuer_id", "data_cutoff_date",
+    "reviewer_id", "reviewed_at", "rationale", "graph_fingerprint",
+    "research_bundle_id", "research_bundle_fingerprint", "reviewed_payload",
+    "evidence_bindings", "review_fingerprint"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "review_id": {"type": "string", "pattern": "^named-human-review:.+:[a-f0-9]{24}$"},
+    "scope": {"enum": ["valuation_basis", "forward_reoi", "peer_set_selection", "comparable_forecast", "futu_optional_data_plan", "score:graham", "score:buffett", "score:munger", "score:duan_yongping"]},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "data_cutoff_date": {"type": "string", "format": "date"},
+    "reviewer_id": {"type": "string", "pattern": "^human:.+"},
+    "reviewed_at": {"type": "string", "format": "date-time"},
+    "rationale": {"type": "string", "minLength": 1},
+    "graph_fingerprint": {"$ref": "#/$defs/sha256"},
+    "research_bundle_id": {"type": "string", "minLength": 1},
+    "research_bundle_fingerprint": {"$ref": "#/$defs/sha256"},
+    "reviewed_payload": {"type": "object"},
+    "evidence_bindings": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/binding"}},
+    "review_fingerprint": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "binding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["object_type", "object_id", "fingerprint"],
+      "properties": {
+        "object_type": {"type": "string", "minLength": 1},
+        "object_id": {"type": "string", "minLength": 1},
+        "fingerprint": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  }
+}

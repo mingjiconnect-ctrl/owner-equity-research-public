@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/composite-valuation-result.schema.json",
+  "title": "CompositeValuationResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "result_id", "extension_label", "status", "issuer_id",
+    "basis_receipt", "core_archive_fingerprint", "core_result_sha256", "run_input_receipt_fingerprint", "panel_fingerprints",
+    "panel_scenarios", "current_intrinsic_value", "twelve_month_target",
+    "current_relative_dispersion", "twelve_month_relative_dispersion", "market_price",
+    "margin_of_safety", "twelve_month_upside", "contested", "recommendation_eligible",
+    "issue_codes"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "result_id": {"type": "string", "pattern": "^composite-valuation-result:.+:[a-f0-9]{24}$"},
+    "extension_label": {"const": "PROJECT_EXTENSION_UNWEIGHTED_THREE_PANEL_MEDIAN"},
+    "status": {"enum": ["complete", "contested", "blocked"]},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "basis_receipt": {"$ref": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/valuation-basis-receipt.schema.json"},
+    "core_archive_fingerprint": {"$ref": "#/$defs/sha256"},
+    "core_result_sha256": {"$ref": "#/$defs/sha256"},
+    "run_input_receipt_fingerprint": {"$ref": "#/$defs/sha256"},
+    "panel_fingerprints": {
+      "type": "object", "additionalProperties": false,
+      "required": ["mckinsey", "forward_reoi", "comparables"],
+      "properties": {
+        "mckinsey": {"$ref": "#/$defs/sha256"},
+        "forward_reoi": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+        "comparables": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]}
+      }
+    },
+    "panel_scenarios": {"type": "object"},
+    "current_intrinsic_value": {"anyOf": [{"$ref": "#/$defs/positiveDecimal"}, {"type": "null"}]},
+    "twelve_month_target": {"anyOf": [{"$ref": "#/$defs/positiveDecimal"}, {"type": "null"}]},
+    "current_relative_dispersion": {"anyOf": [{"$ref": "#/$defs/nonnegativeDecimal"}, {"type": "null"}]},
+    "twelve_month_relative_dispersion": {"anyOf": [{"$ref": "#/$defs/nonnegativeDecimal"}, {"type": "null"}]},
+    "market_price": {"$ref": "#/$defs/positiveDecimal"},
+    "margin_of_safety": {"anyOf": [{"$ref": "#/$defs/decimal"}, {"type": "null"}]},
+    "twelve_month_upside": {"anyOf": [{"$ref": "#/$defs/decimal"}, {"type": "null"}]},
+    "contested": {"type": "boolean"},
+    "recommendation_eligible": {"type": "boolean"},
+    "issue_codes": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "decimal": {"type": "string", "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"},
+    "nonnegativeDecimal": {"type": "string", "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"},
+    "positiveDecimal": {"type": "string", "pattern": "^(?:[1-9][0-9]*(?:\\.[0-9]+)?|0\\.[0-9]*[1-9][0-9]*)$"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "blocked"}}, "required": ["status"]},
+      "then": {
+        "properties": {
+          "current_intrinsic_value": {"type": "null"},
+          "twelve_month_target": {"type": "null"},
+          "current_relative_dispersion": {"type": "null"},
+          "twelve_month_relative_dispersion": {"type": "null"},
+          "margin_of_safety": {"type": "null"},
+          "twelve_month_upside": {"type": "null"},
+          "contested": {"const": false},
+          "recommendation_eligible": {"const": false},
+          "issue_codes": {"minItems": 1}
+        }
+      },
+      "else": {
+        "properties": {
+          "current_intrinsic_value": {"$ref": "#/$defs/positiveDecimal"},
+          "twelve_month_target": {"$ref": "#/$defs/positiveDecimal"},
+          "current_relative_dispersion": {"$ref": "#/$defs/nonnegativeDecimal"},
+          "twelve_month_relative_dispersion": {"$ref": "#/$defs/nonnegativeDecimal"},
+          "margin_of_safety": {"$ref": "#/$defs/decimal"},
+          "twelve_month_upside": {"$ref": "#/$defs/decimal"}
+        }
+      }
+    }
+  ]
+}

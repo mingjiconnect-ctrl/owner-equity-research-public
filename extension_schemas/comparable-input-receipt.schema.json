@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/comparable-input-receipt.schema.json",
+  "title": "ComparableInputReceipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "receipt_id", "issuer_id", "valuation_date",
+    "basis_receipt_fingerprint", "run_input_receipt_fingerprint", "peer_authority_fingerprint",
+    "peer_graph_fingerprints", "forecast_review_fingerprint",
+    "futu_peer_evidence_set_fingerprint", "selection_frozen_at",
+    "peer_set", "metric_inputs", "reviewer_id", "reviewed_at",
+    "evidence_ids"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "receipt_id": {"type": "string", "pattern": "^comparable-input-receipt:.+:[a-f0-9]{24}$"},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "valuation_date": {"type": "string", "format": "date"},
+    "basis_receipt_fingerprint": {"$ref": "#/$defs/sha256"},
+    "run_input_receipt_fingerprint": {"$ref": "#/$defs/sha256"},
+    "peer_authority_fingerprint": {"$ref": "#/$defs/sha256"},
+    "peer_graph_fingerprints": {"type": "object", "minProperties": 5, "maxProperties": 15, "additionalProperties": {"$ref": "#/$defs/sha256"}},
+    "forecast_review_fingerprint": {"$ref": "#/$defs/sha256"},
+    "futu_peer_evidence_set_fingerprint": {"$ref": "#/$defs/sha256"},
+    "selection_frozen_at": {"type": "string", "format": "date-time"},
+    "peer_set": {"type": "array", "minItems": 5, "maxItems": 15, "items": {"$ref": "#/$defs/peer"}},
+    "metric_inputs": {"type": "array", "minItems": 2, "maxItems": 4, "items": {"$ref": "#/$defs/metricInput"}},
+    "reviewer_id": {"type": "string", "pattern": "^human:.+"},
+    "reviewed_at": {"type": "string", "format": "date-time"},
+    "evidence_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "decimal": {"type": "string", "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"},
+    "positiveDecimal": {"type": "string", "pattern": "^(?:[1-9][0-9]*(?:\\.[0-9]+)?|0\\.[0-9]*[1-9][0-9]*)$"},
+    "peer": {
+      "type": "object", "additionalProperties": false,
+      "required": ["peer_id", "company_name", "issuer_id", "security_id", "ticker", "listing_mic", "currency", "fact_bindings", "futu_peer_session_fingerprint"],
+      "properties": {
+        "peer_id": {"type": "string", "minLength": 1},
+        "company_name": {"type": "string", "minLength": 1},
+        "issuer_id": {"type": "string", "minLength": 1},
+        "security_id": {"type": "string", "minLength": 1},
+        "ticker": {"type": "string", "minLength": 1},
+        "listing_mic": {"enum": ["XNYS", "XNAS"]},
+        "currency": {"const": "USD"},
+        "fact_bindings": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/evidenceBinding"}},
+        "futu_peer_session_fingerprint": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "observation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["peer_id", "current_measure_per_share", "twelve_month_measure_per_share", "current_multiple", "twelve_month_multiple", "fact_bindings", "futu_peer_session_fingerprint"],
+      "properties": {
+        "peer_id": {"type": "string", "minLength": 1},
+        "current_measure_per_share": {"$ref": "#/$defs/positiveDecimal"},
+        "twelve_month_measure_per_share": {"$ref": "#/$defs/positiveDecimal"},
+        "current_multiple": {"$ref": "#/$defs/positiveDecimal"},
+        "twelve_month_multiple": {"$ref": "#/$defs/positiveDecimal"},
+        "fact_bindings": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/evidenceBinding"}},
+        "futu_peer_session_fingerprint": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "scenarioInput": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "current_target_measure_per_share", "twelve_month_target_measure_per_share", "current_net_debt_per_share", "twelve_month_net_debt_per_share"],
+      "properties": {
+        "name": {"enum": ["black_swan", "base", "bull"]},
+        "current_target_measure_per_share": {"$ref": "#/$defs/positiveDecimal"},
+        "twelve_month_target_measure_per_share": {"$ref": "#/$defs/positiveDecimal"},
+        "current_net_debt_per_share": {"$ref": "#/$defs/decimal"},
+        "twelve_month_net_debt_per_share": {"$ref": "#/$defs/decimal"}
+      }
+    },
+    "evidenceBinding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["object_type", "object_id", "fingerprint"],
+      "properties": {
+        "object_type": {"const": "Fact"},
+        "object_id": {"type": "string", "minLength": 1},
+        "fingerprint": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "metricInput": {
+      "type": "object", "additionalProperties": false,
+      "required": ["metric", "peer_observations", "scenarios"],
+      "properties": {
+        "metric": {"enum": ["price_earnings", "price_fcf"]},
+        "peer_observations": {"type": "array", "minItems": 5, "maxItems": 15, "items": {"$ref": "#/$defs/observation"}},
+        "scenarios": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/scenarioInput"}}
+      }
+    }
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/forward-reoi-valuation-result.schema.json",
+  "title": "ForwardReOIValuationResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "result_id", "extension_label", "status", "issuer_id",
+    "basis_receipt", "input_receipt", "scenarios", "issue_codes"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "result_id": {"type": "string", "pattern": "^forward-reoi-result:.+:[a-f0-9]{24}$"},
+    "extension_label": {"const": "PROJECT_EXTENSION_PENMAN_FORWARD_REOI"},
+    "status": {"const": "complete"},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "basis_receipt": {"$ref": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/valuation-basis-receipt.schema.json"},
+    "input_receipt": {"$ref": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/forward-reoi-input-receipt.schema.json"},
+    "scenarios": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/scenarioResult"}},
+    "issue_codes": {"type": "array", "maxItems": 0}
+  },
+  "$defs": {
+    "decimal": {"type": "string", "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"},
+    "positiveDecimal": {"type": "string", "pattern": "^(?:[1-9][0-9]*(?:\\.[0-9]+)?|0\\.[0-9]*[1-9][0-9]*)$"},
+    "scenarioResult": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "name", "method_label", "residual_operating_incomes", "terminal_reoi_next",
+        "current_operating_value", "current_equity_value", "current_value_per_share",
+        "twelve_month_operating_value", "twelve_month_equity_value",
+        "twelve_month_value_per_share"
+      ],
+      "properties": {
+        "name": {"enum": ["black_swan", "base", "bull"]},
+        "method_label": {"const": "PROJECT_EXTENSION_PENMAN_FORWARD_REOI"},
+        "residual_operating_incomes": {"type": "array", "minItems": 2, "items": {"$ref": "#/$defs/decimal"}},
+        "terminal_reoi_next": {"$ref": "#/$defs/decimal"},
+        "current_operating_value": {"$ref": "#/$defs/decimal"},
+        "current_equity_value": {"$ref": "#/$defs/decimal"},
+        "current_value_per_share": {"$ref": "#/$defs/positiveDecimal"},
+        "twelve_month_operating_value": {"$ref": "#/$defs/decimal"},
+        "twelve_month_equity_value": {"$ref": "#/$defs/decimal"},
+        "twelve_month_value_per_share": {"$ref": "#/$defs/positiveDecimal"}
+      }
+    }
+  }
+}

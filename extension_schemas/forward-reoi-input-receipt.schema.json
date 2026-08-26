@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/forward-reoi-input-receipt.schema.json",
+  "title": "ForwardReOIInputReceipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "receipt_id", "issuer_id", "valuation_date",
+    "basis_receipt_fingerprint", "run_input_receipt_fingerprint", "price_blind_input_fingerprint",
+    "assumption_ledger_fingerprint", "current_noa_fact_id", "current_noa",
+    "current_nfo_fact_id", "current_nfo", "scenarios", "review_authority_fingerprint", "reviewer_id", "reviewed_at",
+    "evidence_ids"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "receipt_id": {"type": "string", "pattern": "^forward-reoi-input-receipt:.+:[a-f0-9]{24}$"},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "valuation_date": {"type": "string", "format": "date"},
+    "basis_receipt_fingerprint": {"$ref": "#/$defs/sha256"},
+    "run_input_receipt_fingerprint": {"$ref": "#/$defs/sha256"},
+    "price_blind_input_fingerprint": {"$ref": "#/$defs/sha256"},
+    "assumption_ledger_fingerprint": {"$ref": "#/$defs/sha256"},
+    "current_noa_fact_id": {"type": "string", "minLength": 1},
+    "current_noa": {"$ref": "#/$defs/positiveDecimal"},
+    "current_nfo_fact_id": {"type": "string", "minLength": 1},
+    "current_nfo": {"$ref": "#/$defs/decimal"},
+    "scenarios": {
+      "type": "array", "minItems": 3, "maxItems": 3,
+      "items": {"$ref": "#/$defs/scenario"}
+    },
+    "review_authority_fingerprint": {"$ref": "#/$defs/sha256"},
+    "reviewer_id": {"type": "string", "pattern": "^human:.+"},
+    "reviewed_at": {"type": "string", "format": "date-time"},
+    "evidence_ids": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "decimal": {"type": "string", "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"},
+    "positiveDecimal": {"type": "string", "pattern": "^(?:[1-9][0-9]*(?:\\.[0-9]+)?|0\\.[0-9]*[1-9][0-9]*)$"},
+    "forecastRow": {
+      "type": "object", "additionalProperties": false,
+      "required": ["period_end", "operating_income_after_tax", "ending_noa"],
+      "properties": {
+        "period_end": {"type": "string", "format": "date"},
+        "operating_income_after_tax": {"$ref": "#/$defs/decimal"},
+        "ending_noa": {"$ref": "#/$defs/positiveDecimal"}
+      }
+    },
+    "scenario": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "hurdle_rate", "terminal_growth", "forecast"],
+      "properties": {
+        "name": {"enum": ["black_swan", "base", "bull"]},
+        "hurdle_rate": {"$ref": "#/$defs/positiveDecimal"},
+        "terminal_growth": {"$ref": "#/$defs/decimal"},
+        "forecast": {"type": "array", "minItems": 2, "maxItems": 30, "items": {"$ref": "#/$defs/forecastRow"}}
+      }
+    }
+  }
+}

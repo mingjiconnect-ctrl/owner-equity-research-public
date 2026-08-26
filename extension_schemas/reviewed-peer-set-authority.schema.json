@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/reviewed-peer-set-authority.schema.json",
+  "title": "ReviewedPeerSetAuthority",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "authority_id", "issuer_id", "target_security_id",
+    "selection_frozen_at", "forecast_reviewer_id", "forecast_reviewed_at",
+    "forecast_review_rationale", "run_input_receipt_fingerprint",
+    "selection_review_fingerprint", "forecast_review_fingerprint",
+    "peer_graph_fingerprints",
+    "futu_peer_evidence_set_fingerprint", "peer_set", "metric_inputs",
+    "authority_fingerprint"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "authority_id": {"type": "string", "pattern": "^reviewed-peer-set:.+:[a-f0-9]{24}$"},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "target_security_id": {"type": "string", "minLength": 1},
+    "selection_frozen_at": {"type": "string", "format": "date-time"},
+    "forecast_reviewer_id": {"type": "string", "pattern": "^human:.+"},
+    "forecast_reviewed_at": {"type": "string", "format": "date-time"},
+    "forecast_review_rationale": {"type": "string", "minLength": 1},
+    "run_input_receipt_fingerprint": {"$ref": "#/$defs/sha256"},
+    "selection_review_fingerprint": {"$ref": "#/$defs/sha256"},
+    "forecast_review_fingerprint": {"$ref": "#/$defs/sha256"},
+    "peer_graph_fingerprints": {"type": "object", "minProperties": 5, "maxProperties": 15, "additionalProperties": {"$ref": "#/$defs/sha256"}},
+    "futu_peer_evidence_set_fingerprint": {"$ref": "#/$defs/sha256"},
+    "peer_set": {"type": "array", "minItems": 5, "maxItems": 15, "items": {"$ref": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/comparable-input-receipt.schema.json#/$defs/peer"}},
+    "metric_inputs": {"type": "array", "minItems": 2, "maxItems": 4, "items": {"$ref": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/comparable-input-receipt.schema.json#/$defs/metricInput"}},
+    "authority_fingerprint": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+  }
+}

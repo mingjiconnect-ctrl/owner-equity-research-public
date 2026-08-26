@@ -101,6 +101,7 @@ from owner_research.owner_scorecard import (
     LENS_COMPONENTS,
     build_owner_scorecard,
     build_score_v2,
+    resolve_score_review_authority,
 )
 from owner_research.valuation_assumption_types import AssumptionCandidateCompilationResult
 from owner_research.valuation_kernel_projection import project_current_share_lineage
@@ -1384,14 +1385,21 @@ def _frozen_conclusion(
             }
             for component_id in component_ids
         ]
+        planned_review = _review(
+            run_result,
+            scope=f"score:{lens}",
+            reviewed_at="2026-07-14T01:07:00Z",
+            reviewed_payload={
+                "composite_valuation_fingerprint": composite.fingerprint,
+                "components": components,
+            },
+        )
         scores.append(
             build_score_v2(
                 composite_valuation=composite,
-                review_authority=_review(
-                    run_result,
-                    scope=f"score:{lens}",
-                    reviewed_at="2026-07-14T01:07:00Z",
-                    reviewed_payload={"components": components},
+                review_authority=resolve_score_review_authority(
+                    composite_valuation=composite,
+                    planned_review=planned_review,
                 ),
             )
         )

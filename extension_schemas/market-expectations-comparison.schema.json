@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/market-expectations-comparison.schema.json",
+  "title": "MarketExpectationsComparison",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "artifact_type", "comparison_id", "status", "issuer_id", "as_of_date",
+    "futu_session_id", "futu_session_fingerprint", "composite_valuation_fingerprint",
+    "owner_scorecard_fingerprint", "frozen_conclusion_receipt", "post_valuation_execution",
+    "post_requests", "post_responses", "frozen_conclusion", "observations", "issue_codes",
+    "influence_attestation", "comparison_fingerprint"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "artifact_type": {"const": "market-expectations-comparison"},
+    "comparison_id": {"type": "string", "pattern": "^market-expectations-comparison:.+:[a-f0-9]{24}$"},
+    "status": {"enum": ["complete", "partial"]},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "as_of_date": {"type": "string", "format": "date"},
+    "futu_session_id": {"type": "string", "minLength": 1},
+    "futu_session_fingerprint": {"$ref": "#/$defs/sha256"},
+    "composite_valuation_fingerprint": {"$ref": "#/$defs/sha256"},
+    "owner_scorecard_fingerprint": {"$ref": "#/$defs/sha256"},
+    "frozen_conclusion_receipt": {"$ref": "#/$defs/objectReference"},
+    "post_valuation_execution": {"$ref": "#/$defs/objectReference"},
+    "post_requests": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"$ref": "#/$defs/objectReference"}
+    },
+    "post_responses": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"$ref": "#/$defs/objectReference"}
+    },
+    "frozen_conclusion": {"$ref": "#/$defs/conclusion"},
+    "observations": {"type": "array", "items": {"$ref": "#/$defs/observation"}},
+    "issue_codes": {
+      "type": "array", "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "influence_attestation": {
+      "const": "post_conclusion_context_only_no_model_or_score_input"
+    },
+    "comparison_fingerprint": {"$ref": "#/$defs/sha256"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "complete"}}, "required": ["status"]},
+      "then": {"properties": {"observations": {"minItems": 3}, "issue_codes": {"maxItems": 0}}},
+      "else": {"properties": {"issue_codes": {"minItems": 1}}}
+    }
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "objectReference": {
+      "type": "object", "additionalProperties": false,
+      "required": ["object_id", "fingerprint"],
+      "properties": {
+        "object_id": {"type": "string", "minLength": 1},
+        "fingerprint": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "decimal": {"type": "string", "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$"},
+    "conclusion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "composite_status", "current_intrinsic_value", "twelve_month_target",
+        "recommendation", "recommendation_eligible"
+      ],
+      "properties": {
+        "composite_status": {"enum": ["complete", "contested", "blocked"]},
+        "current_intrinsic_value": {"anyOf": [{"$ref": "#/$defs/decimal"}, {"type": "null"}]},
+        "twelve_month_target": {"anyOf": [{"$ref": "#/$defs/decimal"}, {"type": "null"}]},
+        "recommendation": {"enum": ["重点关注", "关注", "观察", "回避", "无法评级"]},
+        "recommendation_eligible": {"type": "boolean"}
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "observation_id", "issuer_id", "security_id", "data_family",
+        "field_id", "canonical_concept", "period", "qualifiers", "value_type", "value",
+        "unit", "currency", "binary64_hex", "exact_binary64_decimal", "response_fingerprint",
+        "retrieved_at", "point_in_time_status", "source_role", "use_scope",
+        "comparison_eligible", "observation_fingerprint"
+      ],
+      "properties": {
+        "schema_version": {"const": "1.0.0"},
+        "observation_id": {"type": "string", "pattern": "^futu-observation:[a-f0-9]{64}$"},
+        "issuer_id": {"type": "string", "minLength": 1},
+        "security_id": {"type": "string", "minLength": 1},
+        "observation_fingerprint": {"$ref": "#/$defs/sha256"},
+        "data_family": {"enum": ["analyst_consensus", "analyst_ratings", "valuation_context"]},
+        "field_id": {"type": "string", "minLength": 1},
+        "canonical_concept": {"type": ["string", "null"]},
+        "period": {
+          "type": "object", "additionalProperties": false,
+          "required": ["start", "end"],
+          "properties": {
+            "start": {"type": ["string", "null"], "format": "date"},
+            "end": {"type": ["string", "null"], "format": "date"}
+          }
+        },
+        "qualifiers": {"type": "object"},
+        "value_type": {"enum": ["number", "text", "boolean", "null"]},
+        "value": {"type": ["string", "boolean", "null"]},
+        "unit": {"type": ["string", "null"]},
+        "currency": {"type": ["string", "null"]},
+        "binary64_hex": {"type": ["string", "null"], "pattern": "^[a-f0-9]{16}$"},
+        "exact_binary64_decimal": {"type": ["string", "null"], "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?([eE][+-]?[0-9]+)?$"},
+        "response_fingerprint": {"$ref": "#/$defs/sha256"},
+        "retrieved_at": {"type": "string", "format": "date-time"},
+        "point_in_time_status": {"enum": ["current_snapshot", "not_point_in_time"]},
+        "source_role": {"const": "vendor_secondary"},
+        "use_scope": {"const": "post_valuation_context"},
+        "comparison_eligible": {"type": "boolean"}
+      }
+    }
+  }
+}

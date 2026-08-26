@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/valuation-basis-receipt.schema.json",
+  "title": "ValuationBasisReceipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "receipt_id", "issuer_id", "security_id", "ticker", "listing_mic",
+    "share_class", "currency", "model_unit", "share_unit", "valuation_date",
+    "twelve_month_date", "current_shares", "twelve_month_shares",
+    "current_nonoperating_assets", "current_nonequity_claims",
+    "current_net_financial_obligations_fact_id", "current_net_financial_obligations",
+    "twelve_month_nonoperating_assets", "twelve_month_nonequity_claims",
+    "twelve_month_net_financial_obligations", "core_archive_fingerprint",
+    "core_result_sha256", "run_input_receipt_fingerprint", "price_blind_input_fingerprint",
+    "market_reference_snapshot_fingerprint", "share_basis_decision_fingerprint",
+    "review_authority_fingerprint", "reviewer_id", "reviewed_at", "evidence_ids"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "receipt_id": {"type": "string", "pattern": "^valuation-basis-receipt:.+:[a-f0-9]{24}$"},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "security_id": {"type": "string", "minLength": 1},
+    "ticker": {"type": "string", "minLength": 1},
+    "listing_mic": {"enum": ["XNYS", "XNAS"]},
+    "share_class": {"const": "common"},
+    "currency": {"const": "USD"},
+    "model_unit": {"type": "string", "minLength": 1},
+    "share_unit": {"type": "string", "minLength": 1},
+    "valuation_date": {"type": "string", "format": "date"},
+    "twelve_month_date": {"type": "string", "format": "date"},
+    "current_shares": {"$ref": "#/$defs/positiveDecimal"},
+    "twelve_month_shares": {"$ref": "#/$defs/positiveDecimal"},
+    "current_nonoperating_assets": {"$ref": "#/$defs/nonnegativeDecimal"},
+    "current_nonequity_claims": {"$ref": "#/$defs/nonnegativeDecimal"},
+    "current_net_financial_obligations_fact_id": {"type": "string", "minLength": 1},
+    "current_net_financial_obligations": {"$ref": "#/$defs/decimal"},
+    "twelve_month_nonoperating_assets": {"$ref": "#/$defs/nonnegativeDecimal"},
+    "twelve_month_nonequity_claims": {"$ref": "#/$defs/nonnegativeDecimal"},
+    "twelve_month_net_financial_obligations": {"$ref": "#/$defs/decimal"},
+    "core_archive_fingerprint": {"$ref": "#/$defs/sha256"},
+    "core_result_sha256": {"$ref": "#/$defs/sha256"},
+    "run_input_receipt_fingerprint": {"$ref": "#/$defs/sha256"},
+    "price_blind_input_fingerprint": {"$ref": "#/$defs/sha256"},
+    "market_reference_snapshot_fingerprint": {"$ref": "#/$defs/sha256"},
+    "share_basis_decision_fingerprint": {"$ref": "#/$defs/sha256"},
+    "review_authority_fingerprint": {"$ref": "#/$defs/sha256"},
+    "reviewer_id": {"type": "string", "pattern": "^human:.+"},
+    "reviewed_at": {"type": "string", "format": "date-time"},
+    "evidence_ids": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "decimal": {"type": "string", "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"},
+    "nonnegativeDecimal": {"type": "string", "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"},
+    "positiveDecimal": {"type": "string", "pattern": "^(?:[1-9][0-9]*(?:\\.[0-9]+)?|0\\.[0-9]*[1-9][0-9]*)$"}
+  }
+}
