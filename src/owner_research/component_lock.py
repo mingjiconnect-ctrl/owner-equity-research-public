@@ -21,6 +21,13 @@ _PINNED_RESEARCH_SCHEMA_MAP_CANONICAL_SHA256 = (
 _PR3_MANIFEST_VERSION = "1.0.0"
 _PR3_PACKAGE_VERSION = "1.0.0.dev0"
 _PR3_FUTU_POLICY_PATH = "resources/futu/market-authority-policy-v2.json"
+_PR3_KERNEL_SCHEMA_RESOURCE_ROOT = "resources/phase5-v1-kernel-schemas"
+_PR3_KERNEL_SCHEMA_RESOURCE_FILENAMES = (
+    "assumption-ledger.schema.json",
+    "fact-ledger.schema.json",
+    "valuation-request.schema.json",
+    "valuation-result.schema.json",
+)
 _PR3_MODULE_PATHS = (
     "__init__.py",
     "component_lock.py",
@@ -405,6 +412,7 @@ def _pr3_locked_snapshot(
         module_root = repository_root / "src" / "owner_research"
         extension_root = repository_root / "extension_schemas"
         futu_root = module_root / "resources" / "futu"
+        kernel_schema_root = module_root / _PR3_KERNEL_SCHEMA_RESOURCE_ROOT
         report_root = (
             repository_root
             / "plugins"
@@ -421,6 +429,7 @@ def _pr3_locked_snapshot(
         module_root = package_root
         extension_root = package_root / "extension_schemas"
         futu_root = package_root / "resources" / "futu"
+        kernel_schema_root = package_root / _PR3_KERNEL_SCHEMA_RESOURCE_ROOT
         report_root = package_root / "report_assets"
         policy_path = package_root / _PR3_FUTU_POLICY_PATH
 
@@ -429,6 +438,7 @@ def _pr3_locked_snapshot(
     for filesystem_root, logical_prefix in (
         (extension_root, "extension_schemas"),
         (futu_root, "resources/futu"),
+        (kernel_schema_root, _PR3_KERNEL_SCHEMA_RESOURCE_ROOT),
         (report_root, "report_assets"),
     ):
         discovered = _collect_pr3_directory(filesystem_root, logical_prefix, budget)
@@ -487,12 +497,17 @@ def verify_pr3_comprehensive_snapshot(
         _PINNED_RESEARCH_SCHEMA_MAP_CANONICAL_SHA256
     ):
         errors.append("Frozen public research Schema map drifted")
+    if _canonical_payload_sha256(lock.get("valuation_kernel")) != (
+        _PINNED_KERNEL_LOCK_CANONICAL_SHA256
+    ):
+        errors.append("Pinned valuation-kernel lock drifted")
     expected_manifest_keys = {
         "manifest_version",
         "package_version",
         "extension_schema_sha256",
         "futu_authority_policy",
         "futu_resource_sha256",
+        "kernel_schema_resource_sha256",
         "report_asset_sha256",
         "module_sha256",
     }
@@ -516,6 +531,11 @@ def verify_pr3_comprehensive_snapshot(
             for path, raw in members.items()
             if path.startswith("resources/futu/") and path != _PR3_FUTU_POLICY_PATH
         },
+        "kernel_schema_resource_sha256": {
+            path: hashlib.sha256(raw).hexdigest()
+            for path, raw in members.items()
+            if path.startswith(f"{_PR3_KERNEL_SCHEMA_RESOURCE_ROOT}/")
+        },
         "report_asset_sha256": {
             path: hashlib.sha256(raw).hexdigest()
             for path, raw in members.items()
@@ -531,6 +551,21 @@ def verify_pr3_comprehensive_snapshot(
         locked = manifest.get(key)
         if locked != expected:
             errors.append(f"PR3 comprehensive {key} map mismatch")
+    try:
+        kernel_schema_hashes = lock["valuation_kernel"]["public_schema_sha256"]
+        expected_kernel_schema_resources = {
+            f"{_PR3_KERNEL_SCHEMA_RESOURCE_ROOT}/{filename}": kernel_schema_hashes[
+                f"schemas/{filename}"
+            ]
+            for filename in _PR3_KERNEL_SCHEMA_RESOURCE_FILENAMES
+        }
+    except (KeyError, TypeError):
+        expected_kernel_schema_resources = {}
+        errors.append("Pinned valuation-kernel archive Schema subset is unavailable")
+    if expected_maps["kernel_schema_resource_sha256"] != expected_kernel_schema_resources:
+        errors.append(
+            "PR3 kernel Schema resource inventory differs from the pinned kernel subset"
+        )
     if set(expected_maps["module_sha256"]) != set(_PR3_MODULE_PATHS):
         errors.append("PR3 comprehensive required module snapshot is incomplete")
 

@@ -836,6 +836,7 @@ def _bridge_context(
     close: str = "2.9",
     close_qualifiers: dict[str, Any] | None = None,
     current_share_value: int | float = 10_000_000,
+    kernel_example: dict[str, Any] | None = None,
 ):
     def write_rebound_price_blind_artifact(*args, output_directory, **kwargs):
         # The upstream fixture first writes its pre-Phase-5c artifact. Remove that
@@ -888,6 +889,7 @@ def _bridge_context(
         monkeypatch,
         tmp_path,
         current_share_value=current_share_value,
+        kernel_example=kernel_example,
     )
     assert security.decision is not None
     company_source = graph.documents[0]
@@ -1074,13 +1076,70 @@ def _run_fixed_valuation(context, monkeypatch, tmp_path: Path):
     def compile_request(**kwargs):
         compiled = _compiled_request(kwargs["preparation"])
         request = to_json_value(compiled.request_payload)
-        wacc_assumption_id = request["assumption_ledger"]["assumptions"][0][
-            "assumption_id"
+        fact_ids = tuple(item["fact_id"] for item in request["fact_ledger"]["facts"])
+        source_fact_id = (
+            compiled.company_name_fact_id
+            if compiled.company_name_fact_id in fact_ids
+            else fact_ids[0]
+        )
+        current_share_id = request["mckinsey"]["equity_bridge"][
+            "share_denominator_fact_id"
         ]
-        request["mckinsey"]["scenarios"] = [
-            {"name": name, "wacc_assumption_id": wacc_assumption_id}
-            for name in ("black_swan", "bear", "base", "bull")
-        ]
+        market_equity_value_id = request["penman"]["market_equity_value_fact_id"]
+        assessment = {
+            "value": True,
+            "rationale": "Schema-valid deterministic completion fixture.",
+            "source_fact_ids": [source_fact_id],
+        }
+        request.update(
+            {
+                "model_unit": f"{request['fact_ledger']['reporting_currency']} millions",
+                "share_unit": "millions shares",
+                "company": {
+                    "name": compiled.company_legal_name_value,
+                    "type": "nonfinancial_operating_company",
+                    "classification_rationale": (
+                        "Schema-valid deterministic completion fixture."
+                    ),
+                    "source_fact_ids": [source_fact_id],
+                },
+                "routing_assessments": {
+                    name: dict(assessment)
+                    for name in (
+                        "required_data_complete",
+                        "stable_capital_structure",
+                        "operating_financing_separable",
+                        "credible_noa",
+                        "credible_near_term_earnings",
+                        "equity_bridge_complete",
+                    )
+                },
+                "accounting_checks": {
+                    "balance_sheet": {
+                        "assets_fact_id": source_fact_id,
+                        "liabilities_fact_id": source_fact_id,
+                        "equity_fact_id": source_fact_id,
+                    },
+                    "clean_surplus": {
+                        "beginning_equity_fact_id": source_fact_id,
+                        "comprehensive_income_fact_id": source_fact_id,
+                        "net_distributions_fact_id": source_fact_id,
+                        "ending_equity_fact_id": source_fact_id,
+                    },
+                    "quality_issues": [],
+                },
+                "method_views": {
+                    "mckinsey_adjustments": [],
+                    "penman_adjustments": [],
+                },
+            }
+        )
+        request["mckinsey"] = copy.deepcopy(kernel_example["mckinsey"])
+        request["mckinsey"]["equity_bridge"][
+            "share_denominator_fact_id"
+        ] = current_share_id
+        request["penman"] = copy.deepcopy(kernel_example["penman"])
+        request["penman"]["market_equity_value_fact_id"] = market_equity_value_id
         compiled = replace(
             compiled,
             request_payload=request,
@@ -1103,6 +1162,10 @@ def _run_fixed_valuation(context, monkeypatch, tmp_path: Path):
         )
         result_payload.update(
             {
+                "company": {
+                    "name": request["company"]["name"],
+                    "type": request["company"]["type"],
+                },
                 "assumption_ledger_fingerprint": canonical_sha256(
                     request["assumption_ledger"]
                 ),
@@ -1695,7 +1758,13 @@ def test_two_stage_futu_checkpoint_builds_existing_kernel_input_without_post_pre
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    context = _bridge_context(sample_payloads, monkeypatch, tmp_path)
+    _kernel_repository, kernel_example = _pinned_kernel_fixture()
+    context = _bridge_context(
+        sample_payloads,
+        monkeypatch,
+        tmp_path,
+        kernel_example=kernel_example,
+    )
     post_protocols = {3229, 3230, 3232}
     assert type(context["evidence"]) is FutuMarketExecutionEvidence
     assert tuple(item.bundle.stage for item in context["evidence"].executions) == (
@@ -1856,9 +1925,9 @@ def test_graph_fingerprint_caches_are_constructor_derived_and_rebind_closed(
     )
     assert not ticket_cache.init
     assert not evidence_cache.init
-    with pytest.raises(ValueError, match="init=False"):
+    with pytest.raises((TypeError, ValueError), match="init=False"):
         replace(ticket, _contract_graph_fingerprint="0" * 64)
-    with pytest.raises(ValueError, match="init=False"):
+    with pytest.raises((TypeError, ValueError), match="init=False"):
         replace(evidence, _contract_graph_fingerprint="0" * 64)
 
     rebound_graph = replace(
@@ -1917,7 +1986,13 @@ def test_post_context_is_rejected_from_pre_kernel_checkpoint_and_must_extend_lat
         print(f"bridge-profile {label}: {now - phase_started:.3f}s")
         phase_started = now
 
-    context = _bridge_context(sample_payloads, monkeypatch, tmp_path)
+    _kernel_repository, kernel_example = _pinned_kernel_fixture()
+    context = _bridge_context(
+        sample_payloads,
+        monkeypatch,
+        tmp_path,
+        kernel_example=kernel_example,
+    )
     phase("context")
     authority_set = context["authority_set"]
     assert authority_set.runtime_authorization is not None

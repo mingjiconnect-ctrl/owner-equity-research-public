@@ -1,0 +1,20 @@
+{
+  "name": "owner-equity-research-release",
+  "interface": {
+    "displayName": "Owner Equity Research Release"
+  },
+  "plugins": [
+    {
+      "name": "owner-equity-research",
+      "source": {
+        "source": "local",
+        "path": "./plugins/owner-equity-research"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

@@ -12,7 +12,6 @@ from test_phase5_v1_owner_execution import (
     TEST_RUNTIME_MANIFEST_FILE_SHA256,
     _clock,
     _compiled,
-    _completed_result,
     _noncompiled,
     _prepared_inputs,
 )
@@ -28,6 +27,7 @@ from owner_research.valuation_market_execution_policies import PINNED_KERNEL_WHE
 from owner_research.valuation_market_provider import ReviewedFileMarketProvider, RunClock
 from owner_research.valuation_owner_execution import (
     OwnerValuationExecutionClock,
+    OwnerValuationExecutionError,
     execute_owner_valuation,
 )
 from owner_research.valuation_run import (
@@ -84,14 +84,20 @@ def test_explicit_run_archives_one_completed_execution(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    preparation, freeze = _prepared_inputs(sample_payloads, monkeypatch, tmp_path)
-    compiled = _compiled(preparation)
-    completed = _completed_result(
-        preparation=preparation,
-        freeze_result=freeze,
-        compiled=compiled,
-        monkeypatch=monkeypatch,
+    from test_phase5_v1_valuation_synthesis import _completed_run
+
+    fixture_root = tmp_path / "schema-valid-completion"
+    fixture_root.mkdir()
+    fixture_run, *_ = _completed_run(
+        sample_payloads,
+        monkeypatch,
+        fixture_root,
     )
+    completed = fixture_run.execution
+    assert completed is not None
+    preparation = completed.preparation
+    freeze = completed.expected_freeze
+    assert freeze is not None
     authority = _authority(preparation, freeze, tmp_path)
     monkeypatch.setattr(
         run_module,
@@ -386,6 +392,106 @@ def test_missing_reviewed_market_evidence_returns_honest_blocked_result(
     assert result.input_receipt.runtime_manifest_authority.status == "not_exercised"
 
 
+def test_execution_preflight_block_returns_typed_result_with_prepared_input(
+    sample_payloads: dict[str, dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    preparation, freeze = _prepared_inputs(sample_payloads, monkeypatch, tmp_path)
+    authority = _authority(preparation, freeze, tmp_path)
+    compiled = _compiled(preparation)
+    monkeypatch.setattr(
+        owner_execution_module,
+        "compile_final_valuation_request",
+        lambda **_kwargs: compiled,
+    )
+
+    def block_preflight(**_kwargs: Any) -> Any:
+        raise OwnerValuationExecutionError("deterministic preflight rejection")
+
+    monkeypatch.setattr(owner_execution_module, "_compiled_context", block_preflight)
+    stopped = execute_owner_valuation(
+        preparation=preparation,
+        expected_freeze=freeze,
+        kernel_repository=Path("/read-only/kernel"),
+        runtime_manifest=Path("/runtime/manifest.json"),
+        runtime_manifest_file_sha256=TEST_RUNTIME_MANIFEST_FILE_SHA256,
+        cas_root=Path("/runtime/cas"),
+        clock=_clock(preparation),
+    )
+    assert stopped.status == "blocked"
+    assert stopped.preparation.status == "blocked"
+    assert stopped.preparation.prepared_market_reference is None
+    assert stopped.final_request_result.status == "blocked"
+
+    monkeypatch.setattr(
+        run_module,
+        "_replay_assumption_inputs",
+        lambda **_kwargs: _candidate_compilation(freeze),
+    )
+    monkeypatch.setattr(run_module, "prepare_owner_valuation", lambda **_kwargs: preparation)
+    monkeypatch.setattr(
+        run_module,
+        "_verify_runtime_supply",
+        lambda **_kwargs: _typed_runtime_authority(),
+    )
+    monkeypatch.setattr(run_module, "execute_owner_valuation", lambda **_kwargs: stopped)
+
+    result = run_owner_valuation(
+        graph=preparation.prepared_market_reference.graph,
+        bundle_artifact_directory=tmp_path / "bundle",
+        assumption_proposals=(),
+        assumption_reviews=(),
+        market_provider=object(),
+        kernel_wheel=Path("/runtime/cas/sha256") / ("f" * 64),
+        output_directory=tmp_path / "archive",
+        clock=_run_clock(preparation),
+        authority=authority,
+    )
+
+    assert result.status == "blocked"
+    assert result.preparation is preparation
+    assert result.execution is stopped
+    assert result.archive is None
+    assert result.input_receipt.runtime_manifest_authority.status == "verified"
+    assert result.issue_codes == (
+        "owner_execution_preflight_blocked:OwnerValuationExecutionError",
+    )
+    with pytest.raises(ValueError):
+        replace(result, preparation=stopped.preparation)
+
+    prepared = preparation.prepared_market_reference
+    assert prepared is not None
+    rebound_graph = replace(
+        prepared.graph,
+        documents=prepared.graph.documents + (prepared.market_source,),
+        facts=prepared.graph.facts + (prepared.quote_fact,),
+        calculations=(
+            prepared.graph.calculations + (prepared.market_equity_calculation,)
+        ),
+        market_reference_snapshots=(
+            prepared.graph.market_reference_snapshots + (prepared.snapshot,)
+        ),
+    )
+    rebound_prepared = replace(prepared, graph=rebound_graph)
+    rebound_preparation = replace(
+        preparation,
+        prepared_market_reference=rebound_prepared,
+    )
+
+    # PreparedMarketReference advertises the same fingerprint because its graph is
+    # deliberately outside that projection.  The retained run must still replay the
+    # graph and reject duplicate additions instead of accepting the old run fingerprint.
+    assert rebound_prepared.fingerprint == prepared.fingerprint
+    advertised_fingerprint = result.fingerprint
+    with pytest.raises(ValueError, match="Duplicate identifier"):
+        replace(
+            result,
+            preparation=rebound_preparation,
+            _integrity_binding=advertised_fingerprint,
+        )
+
+
 def test_generic_run_reads_are_descriptor_first_nofollow_and_bounded(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -415,3 +521,18 @@ def test_generic_run_reads_are_descriptor_first_nofollow_and_bounded(
         run_module._read_regular_file(link, "fixture", maximum=64)
     with pytest.raises(run_module.ValuationRunError, match="bounded"):
         run_module._read_regular_file(source, "fixture", maximum=4)
+    real_parent = tmp_path / "real-parent"
+    real_parent.mkdir()
+    nested = real_parent / "authority.json"
+    nested.write_bytes(b'{"ok":true}')
+    parent_alias = tmp_path / "parent-alias"
+    parent_alias.symlink_to(real_parent, target_is_directory=True)
+    with pytest.raises(run_module.ValuationRunError, match="symlinked component"):
+        run_module._read_regular_file(
+            parent_alias / nested.name,
+            "fixture",
+            maximum=64,
+        )
+    source.chmod(0o666)
+    with pytest.raises(run_module.ValuationRunError, match="bounded regular"):
+        run_module._read_regular_file(source, "fixture", maximum=64)

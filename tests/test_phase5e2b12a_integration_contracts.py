@@ -2786,13 +2786,13 @@ def test_exact_type_module_ast_and_raw_bytes_reject_surface_and_body_mutations()
     path = ROOT / "src/owner_research/valuation_share_event_integration_types.py"
     source = path.read_text(encoding="utf-8")
     expected_ast = {
-        (3, 11): "d242cf697494f21377f3260a25f5e6f3d2cacdaedeca65034dc5b448e5761a1c",
-        (3, 12): "e18d6d9c55fd19392a6009252710865d9676d825186704dab7254fdafb6c629c",
-        (3, 13): "78c8f6e361f62cbbefe10834517d5dcaba9fd43258e2507b7dcb9f7655dc0411",
-        (3, 14): "78c8f6e361f62cbbefe10834517d5dcaba9fd43258e2507b7dcb9f7655dc0411",
+        (3, 11): "b7d44984de606d56a64e67780c3ac2c615b9fcfbcde0dcd38026f7f71dfe296b",
+        (3, 12): "7ba493aafd4792678d165cf8e9fdbb5b8e315a6015ddabc1f78f950a25ab1a43",
+        (3, 13): "b8707ccea29e2257415d8e01351a00373010bd4440807f7307c990a5a8e58535",
+        (3, 14): "b8707ccea29e2257415d8e01351a00373010bd4440807f7307c990a5a8e58535",
     }
     assert hashlib.sha256(path.read_bytes()).hexdigest() == (
-        "003dfad8e1da2d07bddeaaf39310ad5a7529643e9a2aedbaffaa6d552683051d"
+        "ff6b570d9503e3108c53536562f31cc33c6964837d3a8515abd5ac2601028a58"
     )
     assert _independent_ast_sha256(source) == expected_ast[sys.version_info[:2]]
 

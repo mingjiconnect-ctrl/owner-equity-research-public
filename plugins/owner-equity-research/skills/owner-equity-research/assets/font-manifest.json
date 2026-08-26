@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0.0",
+  "artifact_type": "report-font-manifest",
+  "policy": "bundled-open-font-license-assets-only",
+  "primary_cjk_family": "Noto Sans CJK SC",
+  "primary_latin_family": "TeX Gyre",
+  "fallback_policy": "forbidden",
+  "embedded_font_files": [
+    {
+      "path": "NotoSansCJKsc-Regular.otf",
+      "sha256": "2c76254f6fc379fddfce0a7e84fb5385bb135d3e399294f6eeb6680d0365b74b",
+      "size": 16437364,
+      "source_url": "https://github.com/notofonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf",
+      "license_path": "NOTO-CJK-LICENSE.txt",
+      "license_sha256": "6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2"
+    }
+  ],
+  "required_engine": "offline-xetex-compatible",
+  "shell_escape": false,
+  "network_access": false
+}

@@ -35,8 +35,13 @@ def _security_context(
     tmp_path: Path,
     *,
     structure: str = "single_primary_common",
+    kernel_example: dict | None = None,
 ):
-    graph, freeze = _compile(sample_payloads, monkeypatch)
+    graph, freeze = _compile(
+        sample_payloads,
+        monkeypatch,
+        kernel_example=kernel_example,
+    )
     document = graph.documents[0]
     cutoff = freeze.artifact.to_dict()["data_cutoff_date"]
     values = {

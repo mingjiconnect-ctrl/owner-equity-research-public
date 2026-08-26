@@ -1,0 +1,280 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/publication-manifest.schema.json",
+  "title": "PublicationManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "publication_id",
+    "profile",
+    "valuation_context_status",
+    "effective_recommendation",
+    "frozen_score_recommendation",
+    "issuer_id",
+    "data_cutoff_date",
+    "report_build_id",
+    "report_build_receipt_fingerprint",
+    "report_content_fingerprint",
+    "research_bundle_fingerprint",
+    "research_source_index_fingerprint",
+    "valuation_archive_fingerprint",
+    "futu_session_evidence_fingerprint",
+    "futu_session_publication_manifest_fingerprint",
+    "futu_market_execution_evidence_fingerprint",
+    "futu_peer_evidence_set_fingerprint",
+    "futu_partial_session_evidence_fingerprint",
+    "futu_partial_session_publication_manifest_fingerprint",
+    "futu_optional_data_disposition_fingerprints",
+    "futu_optional_data_disposition_publication_manifest_fingerprints",
+    "forward_reoi_fingerprint",
+    "comparable_valuation_fingerprint",
+    "composite_valuation_fingerprint",
+    "score_v2_fingerprints",
+    "owner_scorecard_fingerprint",
+    "forward_reoi_publication_manifest_fingerprint",
+    "comparable_valuation_publication_manifest_fingerprint",
+    "composite_valuation_publication_manifest_fingerprint",
+    "score_v2_publication_manifest_fingerprints",
+    "owner_scorecard_publication_manifest_fingerprint",
+    "market_expectations_fingerprint",
+    "market_expectations_publication_manifest_fingerprint",
+    "runtime_gap_fingerprint",
+    "runtime_gap_publication_manifest_fingerprint",
+    "payload_member_count",
+    "payload_total_bytes",
+    "payload_members",
+    "manifest_fingerprint"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "artifact_type": {"const": "publication-manifest"},
+    "publication_id": {"type": "string", "minLength": 1},
+    "profile": {"enum": ["research_only", "full_valuation"]},
+    "valuation_context_status": {
+      "enum": ["not_applicable", "complete", "post_context_not_run"]
+    },
+    "effective_recommendation": {
+      "oneOf": [
+        {"enum": ["重点关注", "关注", "观察", "回避", "无法评级"]},
+        {"type": "null"}
+      ]
+    },
+    "frozen_score_recommendation": {
+      "oneOf": [
+        {"enum": ["重点关注", "关注", "观察", "回避", "无法评级"]},
+        {"type": "null"}
+      ]
+    },
+    "issuer_id": {"type": "string", "minLength": 1},
+    "data_cutoff_date": {"type": "string", "format": "date"},
+    "report_build_id": {"type": "string", "minLength": 1},
+    "report_build_receipt_fingerprint": {"$ref": "#/$defs/sha256"},
+    "report_content_fingerprint": {"$ref": "#/$defs/sha256"},
+    "research_bundle_fingerprint": {"$ref": "#/$defs/sha256"},
+    "research_source_index_fingerprint": {"$ref": "#/$defs/sha256"},
+    "valuation_archive_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "futu_session_evidence_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "futu_session_publication_manifest_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "futu_market_execution_evidence_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "futu_peer_evidence_set_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "futu_partial_session_evidence_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "futu_partial_session_publication_manifest_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "futu_optional_data_disposition_fingerprints": {
+      "type": "array", "maxItems": 4, "uniqueItems": true,
+      "items": {"$ref": "#/$defs/sha256"}
+    },
+    "futu_optional_data_disposition_publication_manifest_fingerprints": {
+      "type": "array", "maxItems": 4, "uniqueItems": true,
+      "items": {"$ref": "#/$defs/sha256"}
+    },
+    "forward_reoi_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "comparable_valuation_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "composite_valuation_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "score_v2_fingerprints": {
+      "type": "array",
+      "maxItems": 4,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/sha256"}
+    },
+    "owner_scorecard_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "forward_reoi_publication_manifest_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "comparable_valuation_publication_manifest_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "composite_valuation_publication_manifest_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "score_v2_publication_manifest_fingerprints": {
+      "type": "array", "maxItems": 4, "uniqueItems": true,
+      "items": {"$ref": "#/$defs/sha256"}
+    },
+    "owner_scorecard_publication_manifest_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "market_expectations_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "market_expectations_publication_manifest_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "runtime_gap_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "runtime_gap_publication_manifest_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "payload_member_count": {"type": "integer", "minimum": 1, "maximum": 510},
+    "payload_total_bytes": {"type": "integer", "minimum": 1, "maximum": 536870912},
+    "payload_members": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 510,
+      "items": {"$ref": "#/$defs/member"}
+    },
+    "manifest_fingerprint": {"$ref": "#/$defs/sha256"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"profile": {"const": "research_only"}}},
+      "then": {
+        "properties": {
+          "valuation_context_status": {"const": "not_applicable"},
+          "effective_recommendation": {"type": "null"},
+          "frozen_score_recommendation": {"type": "null"},
+          "valuation_archive_fingerprint": {"type": "null"},
+          "futu_session_evidence_fingerprint": {"type": "null"},
+          "futu_session_publication_manifest_fingerprint": {"type": "null"},
+          "futu_market_execution_evidence_fingerprint": {"type": "null"},
+          "futu_peer_evidence_set_fingerprint": {"type": "null"},
+          "futu_partial_session_evidence_fingerprint": {"type": "null"},
+          "futu_partial_session_publication_manifest_fingerprint": {"type": "null"},
+          "futu_optional_data_disposition_fingerprints": {"maxItems": 0},
+          "futu_optional_data_disposition_publication_manifest_fingerprints": {"maxItems": 0},
+          "forward_reoi_fingerprint": {"type": "null"},
+          "comparable_valuation_fingerprint": {"type": "null"},
+          "composite_valuation_fingerprint": {"type": "null"},
+          "score_v2_fingerprints": {"maxItems": 0},
+          "owner_scorecard_fingerprint": {"type": "null"},
+          "forward_reoi_publication_manifest_fingerprint": {"type": "null"},
+          "comparable_valuation_publication_manifest_fingerprint": {"type": "null"},
+          "composite_valuation_publication_manifest_fingerprint": {"type": "null"},
+          "score_v2_publication_manifest_fingerprints": {"maxItems": 0},
+          "owner_scorecard_publication_manifest_fingerprint": {"type": "null"},
+          "market_expectations_fingerprint": {"type": "null"},
+          "market_expectations_publication_manifest_fingerprint": {"type": "null"},
+          "runtime_gap_fingerprint": {"type": "null"},
+          "runtime_gap_publication_manifest_fingerprint": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"valuation_context_status": {"const": "not_applicable"}}},
+      "then": {"properties": {"profile": {"const": "research_only"}}}
+    },
+    {
+      "if": {"properties": {"profile": {"const": "full_valuation"}}},
+      "then": {
+        "properties": {
+          "valuation_archive_fingerprint": {"$ref": "#/$defs/sha256"},
+          "effective_recommendation": {
+            "enum": ["重点关注", "关注", "观察", "回避", "无法评级"]
+          },
+          "frozen_score_recommendation": {
+            "enum": ["重点关注", "关注", "观察", "回避", "无法评级"]
+          },
+          "futu_optional_data_disposition_fingerprints": {"minItems": 4, "maxItems": 4},
+          "futu_optional_data_disposition_publication_manifest_fingerprints": {"minItems": 4, "maxItems": 4},
+          "composite_valuation_fingerprint": {"$ref": "#/$defs/sha256"},
+          "score_v2_fingerprints": {"minItems": 4, "maxItems": 4},
+          "owner_scorecard_fingerprint": {"$ref": "#/$defs/sha256"},
+          "composite_valuation_publication_manifest_fingerprint": {"$ref": "#/$defs/sha256"},
+          "score_v2_publication_manifest_fingerprints": {"minItems": 4, "maxItems": 4},
+          "owner_scorecard_publication_manifest_fingerprint": {"$ref": "#/$defs/sha256"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"valuation_context_status": {"const": "complete"}}},
+      "then": {
+        "properties": {
+          "profile": {"const": "full_valuation"},
+          "futu_session_evidence_fingerprint": {"$ref": "#/$defs/sha256"},
+          "futu_session_publication_manifest_fingerprint": {"$ref": "#/$defs/sha256"},
+          "futu_market_execution_evidence_fingerprint": {"type": "null"},
+          "futu_peer_evidence_set_fingerprint": {"type": "null"},
+          "futu_partial_session_evidence_fingerprint": {"type": "null"},
+          "futu_partial_session_publication_manifest_fingerprint": {"type": "null"},
+          "forward_reoi_fingerprint": {"$ref": "#/$defs/sha256"},
+          "comparable_valuation_fingerprint": {"$ref": "#/$defs/sha256"},
+          "forward_reoi_publication_manifest_fingerprint": {"$ref": "#/$defs/sha256"},
+          "comparable_valuation_publication_manifest_fingerprint": {"$ref": "#/$defs/sha256"},
+          "market_expectations_fingerprint": {"$ref": "#/$defs/sha256"},
+          "market_expectations_publication_manifest_fingerprint": {"$ref": "#/$defs/sha256"},
+          "runtime_gap_fingerprint": {"type": "null"},
+          "runtime_gap_publication_manifest_fingerprint": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"valuation_context_status": {"const": "post_context_not_run"}}
+      },
+      "then": {
+        "properties": {
+          "profile": {"const": "full_valuation"},
+          "effective_recommendation": {"const": "无法评级"},
+          "futu_session_evidence_fingerprint": {"type": "null"},
+          "futu_session_publication_manifest_fingerprint": {"type": "null"},
+          "futu_market_execution_evidence_fingerprint": {"$ref": "#/$defs/sha256"},
+          "futu_peer_evidence_set_fingerprint": {"$ref": "#/$defs/sha256"},
+          "futu_partial_session_evidence_fingerprint": {"$ref": "#/$defs/sha256"},
+          "futu_partial_session_publication_manifest_fingerprint": {"$ref": "#/$defs/sha256"},
+          "market_expectations_fingerprint": {"type": "null"},
+          "market_expectations_publication_manifest_fingerprint": {"type": "null"},
+          "runtime_gap_fingerprint": {"$ref": "#/$defs/sha256"},
+          "runtime_gap_publication_manifest_fingerprint": {"$ref": "#/$defs/sha256"}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "member": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "media_type", "size", "sha256"],
+      "properties": {
+        "path": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._/-]*$"},
+        "media_type": {"type": "string", "minLength": 1},
+        "size": {"type": "integer", "minimum": 1},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  }
+}

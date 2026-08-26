@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://owner-research.local/schemas/owner-research-gap-publication-manifest.schema.json",
+  "title": "Owner Research Runtime Gap Publication Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "manifest_id",
+    "manifest_fingerprint",
+    "source_receipt_id",
+    "source_receipt_fingerprint",
+    "phase",
+    "issuer_id",
+    "data_cutoff_date",
+    "upstream_fingerprints",
+    "issue_codes"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "artifact_type": {"const": "owner-research-gap-publication-manifest"},
+    "manifest_id": {"type": "string", "pattern": "^owner-research-gap-publication:.+:[0-9a-f]{24}$"},
+    "manifest_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "source_receipt_id": {"type": "string", "pattern": "^owner-research-gap:[A-Za-z0-9_.:-]+:[0-9a-f]{24}$"},
+    "source_receipt_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "phase": {"type": "string", "minLength": 1, "maxLength": 128},
+    "issuer_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "data_cutoff_date": {"type": "string", "format": "date"},
+    "upstream_fingerprints": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+    },
+    "issue_codes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1, "maxLength": 256}
+    }
+  }
+}

@@ -16,7 +16,11 @@ from typing import Any, ClassVar, Protocol
 from jsonschema import Draft202012Validator, FormatChecker
 
 from .fingerprints import FrozenMap, canonical_json, canonical_sha256, freeze, to_json_value
-from .valuation_synthesis_types import CompositeValuationResult, OwnerScorecard
+from .valuation_synthesis_types import (
+    CompositeValuationResult,
+    OwnerScorecard,
+    retained_authority_replay_scope,
+)
 
 FUTU_SCHEMA_VERSION = "1.0.0"
 FUTU_POLICY_VERSION = "2.0.0"
@@ -1007,6 +1011,7 @@ class FutuFrozenConclusionReceipt:
     receipt_id: str
     receipt_fingerprint: str
 
+    @retained_authority_replay_scope
     def __post_init__(self) -> None:
         if (
             type(self.composite_valuation) is not CompositeValuationResult

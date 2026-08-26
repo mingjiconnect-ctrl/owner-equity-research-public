@@ -1,6 +1,6 @@
 interface:
   display_name: "Owner Equity Research"
-  short_description: "Build evidence and management review ledgers"
-  default_prompt: "Use $owner-equity-research to build governed SEC evidence and a deterministic Statement-to-Commitment-to-Outcome-to-Review ledger."
+  short_description: "SEC-first research, explicit valuation, score and PDF"
+  default_prompt: "Use $owner-equity-research. Keep ordinary research price-blind with zero Futu calls. Only when I explicitly request valuation, use the signed quote-only Futu path, run the pinned kernel once, build all three valuation panels and four-lens score, then create the Chinese PDF and strict local package."
 policy:
   allow_implicit_invocation: true

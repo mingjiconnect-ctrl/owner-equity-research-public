@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from dataclasses import replace
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -8,6 +9,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from jsonschema import Draft202012Validator
 from phase5e2a_support import valid_snapshot_graph
 
 import owner_research.valuation_owner_execution as owner_execution_module
@@ -69,7 +71,9 @@ def _runtime_manifest_fixture() -> dict[str, Any]:
                 "owner_research/resources/phase5-v1-kernel-runtime/"
                 "runtime-authority.json"
             ),
-            "sha256": "1" * 64,
+            "sha256": (
+                "0a317935d257e2fb406bc8efd9c90d42b1e572a6f8e6baa3c6d75b7cb48530dd"
+            ),
         },
         "producer": {"fixture": "typed-runtime-manifest"},
         "kernel": {
@@ -570,7 +574,14 @@ def _compiled(
         "schema_version": "2.0.0",
         "fact_ledger": fact_ledger,
         "assumption_ledger": assumption_ledger,
-        "company": {"name": company_legal_name, "source_fact_ids": []},
+        "company": {
+            "name": company_legal_name,
+            "type": "nonfinancial_operating_company",
+            "classification_rationale": (
+                "Schema-valid deterministic owner-execution fixture."
+            ),
+            "source_fact_ids": [facts[0]["fact_id"]],
+        },
         "routing_assessments": {},
         "method_views": {},
         "mckinsey": {"equity_bridge": {"share_denominator_fact_id": current_share_id}},
@@ -626,10 +637,42 @@ def _runner_result(
     assert compiled.request_sha256 is not None
     fact_fingerprint = canonical_sha256(compiled.request_payload["fact_ledger"])
     assumption_fingerprint = canonical_sha256(compiled.request_payload["assumption_ledger"])
+    company = compiled.request_payload["company"]
     result_payload = {
+        "schema_version": "2.0.0",
+        "company": {"name": company["name"], "type": company["type"]},
         "assumption_ledger_fingerprint": assumption_fingerprint,
         "fact_ledger_fingerprint": fact_fingerprint,
         "model_input_fingerprint": compiled.request_sha256,
+        "accounting_validation": {
+            "balance_sheet_status": "reconciles_by_construction",
+            "clean_surplus_status": "reconciles_by_construction",
+            "quality_gate": {"status": "blocked", "unresolved_material_issues": []},
+            "method_label": "IMPLEMENTATION_CONTROL_ACCOUNTING_VALIDATION",
+        },
+        "equity_bridge_validation": {
+            "status": "not_evaluated",
+            "modeled_roles": [],
+            "included_but_unresolved_roles": [],
+            "explicitly_absent_roles": [],
+            "not_applicable_roles": [],
+            "unresolved_roles": [],
+            "method_label": "IMPLEMENTATION_CONTROL_EQUITY_BRIDGE_COMPLETENESS",
+        },
+        "routing": {
+            "status": "blocked_missing_required_source",
+            "supported_methods": [],
+            "blocked_methods": [],
+            "required_extension": None,
+            "reasons": ["Schema-valid deterministic owner-execution fixture."],
+        },
+        "panels": {},
+        "decision_protocol": {
+            "keep_panels_separate": True,
+            "book_core_and_project_extensions_are_labeled": True,
+            "owner_judgment_required": True,
+            "method_label": "PROJECT_EXTENSION_OWNER_DECISION_PROTOCOL",
+        },
     }
     result_bytes = canonical_json(result_payload).encode("utf-8")
     host_boundary = execution_boundary == "trusted_host_docker_launcher"
@@ -642,7 +685,9 @@ def _runner_result(
         runtime_authority_sha256=TEST_RUNTIME_MANIFEST["authority"]["sha256"],
         runtime_manifest_file_sha256=TEST_RUNTIME_MANIFEST_FILE_SHA256,
         runtime_manifest_fingerprint=TEST_RUNTIME_MANIFEST["manifest_fingerprint"],
-        runner_sha256="3" * 64,
+        runner_sha256=(
+            "1baebaaa11aab5165ff3d6d1e1567b2dfbc2dac2cd23576572112038ca16fd0b"
+        ),
         result_schema_sha256=PINNED_KERNEL_SCHEMA_SHA256["schemas/valuation-result.schema.json"],
         wheel_inventory_sha256=canonical_sha256(TEST_RUNTIME_MANIFEST["wheels"]),
         docker_executable_sha256="6" * 64 if host_boundary else None,
@@ -871,7 +916,10 @@ def test_success_calls_each_stage_once_preserves_stdout_and_adds_only_v5_v6(
             result_bytes=None,
             issue_codes=("fixture_blocked",),
         )
-    with pytest.raises(ValueError, match="receipt or Handoff binding changed"):
+    with pytest.raises(
+        ValueError,
+        match="company does not bind|receipt or Handoff binding changed",
+    ):
         replace(result, result_bytes=b"{}")
     request_handoff, result_handoff = result.execution_handoffs
     authorization = freeze_result.handoffs[-1]
@@ -902,6 +950,111 @@ def test_success_calls_each_stage_once_preserves_stdout_and_adds_only_v5_v6(
         result_handoff,
     )
     result.validated_graph.validate()
+
+
+@pytest.mark.parametrize(
+    ("company_field", "forged_value"),
+    (
+        ("name", "Different Issuer Corporation"),
+        ("type", "bank"),
+    ),
+)
+def test_schema_valid_kernel_result_cannot_rebind_request_company(
+    sample_payloads: dict[str, dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    company_field: str,
+    forged_value: str,
+) -> None:
+    preparation, freeze_result = _prepared_inputs(
+        sample_payloads,
+        monkeypatch,
+        tmp_path,
+    )
+    compiled = _compiled(preparation)
+    execution = _runner_result(compiled)
+    completed = _completed_result(
+        preparation=preparation,
+        freeze_result=freeze_result,
+        compiled=compiled,
+        monkeypatch=monkeypatch,
+    )
+    forged_payload = json.loads(execution.result_bytes)
+    forged_payload["company"][company_field] = forged_value
+    result_schema = json.loads(
+        (
+            Path(__file__).parents[1]
+            / "src/owner_research/resources/phase5-v1-kernel-schemas/valuation-result.schema.json"
+        ).read_bytes()
+    )
+    Draft202012Validator(result_schema).validate(forged_payload)
+    forged_bytes = canonical_json(forged_payload).encode("utf-8")
+    forged_execution = SimpleNamespace(
+        **{
+            **execution.__dict__,
+            "result_sha256": hashlib.sha256(forged_bytes).hexdigest(),
+            "result_bytes": forged_bytes,
+        }
+    )
+    monkeypatch.setattr(
+        owner_execution_module,
+        "compile_final_valuation_request",
+        lambda **_kwargs: compiled,
+    )
+    monkeypatch.setattr(
+        owner_execution_module,
+        "execute_pinned_kernel",
+        lambda *_args, **_kwargs: forged_execution,
+    )
+
+    result = execute_owner_valuation(
+        preparation=preparation,
+        expected_freeze=freeze_result,
+        kernel_repository=Path("/read-only/kernel"),
+        runtime_manifest=Path("/runtime/manifest.json"),
+        runtime_manifest_file_sha256=TEST_RUNTIME_MANIFEST_FILE_SHA256,
+        cas_root=Path("/runtime/cas"),
+        clock=_clock(preparation),
+    )
+
+    assert result.status == "blocked"
+    assert result.issue_codes == (
+        "kernel_result_blocked:OwnerValuationExecutionError",
+    )
+    assert result.kernel_execution_result is None
+    assert result.kernel_execution_receipt is None
+    assert result.result_bytes is None
+
+    completed_receipt = completed.kernel_execution_receipt
+    prepared = completed.preparation.prepared_market_reference
+    assert completed_receipt is not None and prepared is not None
+    receipt_payload = completed_receipt.to_dict()
+    receipt_payload["result_sha256"] = forged_execution.result_sha256
+    receipt_payload.pop("receipt_id")
+    receipt_payload["receipt_id"] = (
+        "kernel-execution-receipt:"
+        f"{canonical_sha256(receipt_payload)[:24]}"
+    )
+    forged_receipt = type(completed_receipt)(**receipt_payload)
+    request_handoff, result_handoff = completed.execution_handoffs
+    forged_result_handoff = replace(
+        result_handoff,
+        valuation_result_sha256=forged_execution.result_sha256,
+    )
+    forged_handoffs = (request_handoff, forged_result_handoff)
+    forged_graph = replace(
+        prepared.graph,
+        valuation_handoffs=(*prepared.graph.valuation_handoffs, *forged_handoffs),
+    )
+    with pytest.raises(ValueError, match="company does not bind canonical request bytes"):
+        replace(
+            completed,
+            kernel_execution_result=forged_execution,
+            kernel_execution_receipt=forged_receipt,
+            execution_handoffs=forged_handoffs,
+            validated_graph=forged_graph,
+            result_bytes=forged_bytes,
+        )
 
 
 def test_preflight_timestamp_block_never_calls_runner_or_returns_handoff(
@@ -1017,34 +1170,35 @@ def test_coordinated_base_ledger_rebinding_blocks_before_runner(
         for item in final_ledger["sources"]
         if item["source_id"] == current_share_fact["source_id"]
     )
-    forged_base = {
-        "schema_version": final_ledger["schema_version"],
-        "entity_id": final_ledger["entity_id"],
-        "valuation_date": final_ledger["valuation_date"],
-        "reporting_currency": final_ledger["reporting_currency"],
-        "sources": [current_share_source],
-        "facts": [current_share_fact],
-    }
+    forged_base = to_json_value(fact_result.base_ledger_payload)
+    source_index = {item["source_id"]: item for item in forged_base["sources"]}
+    source_index[current_share_source["source_id"]] = current_share_source
+    fact_index = {item["fact_id"]: item for item in forged_base["facts"]}
+    fact_index[current_share_fact["fact_id"]] = current_share_fact
+    forged_base["sources"] = [source_index[key] for key in sorted(source_index)]
+    forged_base["facts"] = [fact_index[key] for key in sorted(fact_index)]
     forged_base_sha256 = canonical_sha256(forged_base)
     forged_fact_result = replace(
         fact_result,
         base_ledger_sha256=forged_base_sha256,
         base_ledger_payload=freeze(forged_base),
-        base_source_fingerprints=(
-            (current_share_source["source_id"], canonical_sha256(current_share_source)),
+        base_source_fingerprints=tuple(
+            (item["source_id"], canonical_sha256(item))
+            for item in forged_base["sources"]
         ),
-        base_fact_fingerprints=(
-            (current_share_fact["fact_id"], canonical_sha256(current_share_fact)),
+        base_fact_fingerprints=tuple(
+            (item["fact_id"], canonical_sha256(item))
+            for item in forged_base["facts"]
         ),
         added_source_ids=tuple(
             item["source_id"]
             for item in final_ledger["sources"]
-            if item["source_id"] != current_share_source["source_id"]
+            if item["source_id"] not in source_index
         ),
         added_fact_ids=tuple(
             item["fact_id"]
             for item in final_ledger["facts"]
-            if item["fact_id"] != current_share_fact["fact_id"]
+            if item["fact_id"] not in fact_index
         ),
     )
     forged_assumption_result = replace(

@@ -64,16 +64,95 @@
           "recommendation_eligible": {"const": false},
           "issue_codes": {"minItems": 1}
         }
-      },
-      "else": {
+      }
+    },
+    {
+      "if": {"properties": {"status": {"const": "complete"}}, "required": ["status"]},
+      "then": {
         "properties": {
           "current_intrinsic_value": {"$ref": "#/$defs/positiveDecimal"},
           "twelve_month_target": {"$ref": "#/$defs/positiveDecimal"},
           "current_relative_dispersion": {"$ref": "#/$defs/nonnegativeDecimal"},
           "twelve_month_relative_dispersion": {"$ref": "#/$defs/nonnegativeDecimal"},
           "margin_of_safety": {"$ref": "#/$defs/decimal"},
-          "twelve_month_upside": {"$ref": "#/$defs/decimal"}
+          "twelve_month_upside": {"$ref": "#/$defs/decimal"},
+          "contested": {"const": false},
+          "recommendation_eligible": {"const": true},
+          "issue_codes": {"maxItems": 0}
         }
+      }
+    },
+    {
+      "if": {"properties": {"status": {"const": "contested"}}, "required": ["status"]},
+      "then": {
+        "properties": {
+          "current_relative_dispersion": {"$ref": "#/$defs/nonnegativeDecimal"},
+          "twelve_month_relative_dispersion": {"$ref": "#/$defs/nonnegativeDecimal"},
+          "contested": {"const": true},
+          "recommendation_eligible": {"const": false},
+          "issue_codes": {
+            "minItems": 1,
+            "maxItems": 2,
+            "items": {
+              "enum": [
+                "current_panel_dispersion_exceeds_50_percent",
+                "twelve_month_panel_dispersion_exceeds_50_percent"
+              ]
+            },
+            "contains": {
+              "enum": [
+                "current_panel_dispersion_exceeds_50_percent",
+                "twelve_month_panel_dispersion_exceeds_50_percent"
+              ]
+            }
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "issue_codes": {
+                  "contains": {"const": "current_panel_dispersion_exceeds_50_percent"}
+                }
+              },
+              "required": ["issue_codes"]
+            },
+            "then": {
+              "properties": {
+                "current_intrinsic_value": {"type": "null"},
+                "margin_of_safety": {"type": "null"}
+              }
+            },
+            "else": {
+              "properties": {
+                "current_intrinsic_value": {"$ref": "#/$defs/positiveDecimal"},
+                "margin_of_safety": {"$ref": "#/$defs/decimal"}
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "issue_codes": {
+                  "contains": {"const": "twelve_month_panel_dispersion_exceeds_50_percent"}
+                }
+              },
+              "required": ["issue_codes"]
+            },
+            "then": {
+              "properties": {
+                "twelve_month_target": {"type": "null"},
+                "twelve_month_upside": {"type": "null"}
+              }
+            },
+            "else": {
+              "properties": {
+                "twelve_month_target": {"$ref": "#/$defs/positiveDecimal"},
+                "twelve_month_upside": {"$ref": "#/$defs/decimal"}
+              }
+            }
+          }
+        ]
       }
     }
   ]

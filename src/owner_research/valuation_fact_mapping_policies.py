@@ -386,7 +386,7 @@ CALCULATION_POLICIES = {
     ("owner-research-quarterly", "0.2.0-alpha.1"): CalculationMappingPolicy(
         calculator_id="owner-research-quarterly",
         calculator_version="0.2.0-alpha.1",
-        code_sha256="54231c3bb331fd2669f99f9591d66dc8db972f6ba08aa7a4e32e67e51ac26115",
+        code_sha256="5013f5efe6343abbdb15b8b6624c2a38d91121035b6eed49c6dda1d414f37ec0",
         allowed_output_suffixes=(".single_quarter", ".ttm"),
         requires_empty_assumptions=True,
         requires_single_source_lineage=True,

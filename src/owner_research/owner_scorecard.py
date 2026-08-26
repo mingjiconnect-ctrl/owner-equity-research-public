@@ -11,7 +11,15 @@ import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date
-from decimal import Decimal, InvalidOperation, localcontext
+from decimal import (
+    ROUND_HALF_EVEN,
+    Context,
+    Decimal,
+    DivisionByZero,
+    InvalidOperation,
+    Overflow,
+    localcontext,
+)
 from typing import Any
 
 from .fingerprints import canonical_sha256, to_json_value
@@ -25,6 +33,8 @@ from .valuation_synthesis_types import (
     _graph_fingerprint,
     _graph_object_id,
     _object_fingerprint,
+    extension_decimal_in_domain,
+    retained_authority_replay_scope,
 )
 
 LENS_COMPONENTS: dict[str, tuple[str, ...]] = {
@@ -74,8 +84,22 @@ _RED_FLAG_FIELDS = {"code", "severity", "rationale", "evidence_bindings"}
 _SHA256 = re.compile(r"^[a-f0-9]{64}$")
 _MAX_COMPONENT_SCORE = Decimal(20)
 _MAX_CONFIDENCE = Decimal(100)
-_CALCULATION_PRECISION = 1100
-_MAX_DECIMAL_PLACES_OR_MAGNITUDE = 1000
+SCORE_CALCULATION_PRECISION = 1100
+
+
+def score_calculation_context() -> Context:
+    """Return the complete deterministic Decimal context for score arithmetic."""
+
+    return Context(
+        prec=SCORE_CALCULATION_PRECISION,
+        rounding=ROUND_HALF_EVEN,
+        Emin=-999_999,
+        Emax=999_999,
+        capitals=1,
+        clamp=0,
+        flags=[],
+        traps=[InvalidOperation, DivisionByZero, Overflow],
+    )
 
 
 class OwnerScorecardError(ValueError):
@@ -286,12 +310,7 @@ def _decimal(value: object, label: str) -> Decimal:
         raise OwnerScorecardError(f"{label} must be a finite decimal") from exc
     if not parsed.is_finite():
         raise OwnerScorecardError(f"{label} must be a finite decimal")
-    exponent = parsed.as_tuple().exponent
-    if (
-        not isinstance(exponent, int)
-        or exponent < -_MAX_DECIMAL_PLACES_OR_MAGNITUDE
-        or abs(parsed.adjusted()) > _MAX_DECIMAL_PLACES_OR_MAGNITUDE
-    ):
+    if not extension_decimal_in_domain(parsed):
         raise OwnerScorecardError(f"{label} exceeds the bounded decimal domain")
     return parsed
 
@@ -303,6 +322,17 @@ def _decimal_text(value: Decimal) -> str:
     if "." in rendered:
         rendered = rendered.rstrip("0").rstrip(".")
     return rendered
+
+
+def _materially_overvalued(market: Decimal, intrinsic: Decimal) -> bool:
+    """Compare market >= 115% of intrinsic without Decimal-context rounding."""
+
+    market_numerator, market_denominator = market.as_integer_ratio()
+    intrinsic_numerator, intrinsic_denominator = intrinsic.as_integer_ratio()
+    return (
+        20 * market_numerator * intrinsic_denominator
+        >= 23 * intrinsic_numerator * market_denominator
+    )
 
 
 def _date(value: str, label: str) -> str:
@@ -612,8 +642,7 @@ def _score_payload(
     else:
         status = "complete"
     if status == "complete":
-        with localcontext() as context:
-            context.prec = _CALCULATION_PRECISION
+        with localcontext(score_calculation_context()):
             total = sum(
                 (_decimal(item["score"], "component score") for item in normalized),
                 Decimal(0),
@@ -659,6 +688,7 @@ def _score_payload(
     return payload
 
 
+@retained_authority_replay_scope
 def build_score_v2(
     *,
     composite_valuation: CompositeValuationResult,
@@ -666,11 +696,15 @@ def build_score_v2(
 ) -> ScoreV2:
     """Build one fixed five-component lens from exact graph-bound review authority."""
 
-    return ScoreV2(
-        **_score_payload(composite_valuation, review_authority),
-        _composite_authority=composite_valuation,
-        _review_authority=review_authority,
-    )
+    # Replay of the retained graph is part of this public operation and can perform
+    # exact Decimal unit conversions before the score arithmetic is reached.  Bound
+    # the whole operation so caller-owned Decimal state cannot change validation.
+    with localcontext(score_calculation_context()):
+        return ScoreV2(
+            **_score_payload(composite_valuation, review_authority),
+            _composite_authority=composite_valuation,
+            _review_authority=review_authority,
+        )
 
 
 def _scorecard_status(
@@ -722,9 +756,7 @@ def _recommendation(
     margin = _decimal(composite.margin_of_safety, "margin of safety")
     upside = _decimal(composite.twelve_month_upside, "twelve-month upside")
     permanent_loss = any(item["severity"] == "permanent_loss" for item in critical_flags)
-    with localcontext() as context:
-        context.prec = _CALCULATION_PRECISION
-        materially_overvalued = market >= intrinsic * Decimal("1.15")
+    materially_overvalued = _materially_overvalued(market, intrinsic)
     if overall < 50 or materially_overvalued or permanent_loss:
         return "回避"
     if (
@@ -800,8 +832,7 @@ def _owner_scorecard_payload(
             raise OwnerScorecardError("lens total is outside zero to 100")
         if any(not 0 <= item <= 100 for item in confidences):
             raise OwnerScorecardError("lens confidence is outside zero to 100")
-        with localcontext() as context:
-            context.prec = _CALCULATION_PRECISION
+        with localcontext(score_calculation_context()):
             overall: Decimal | None = sum(totals, Decimal(0)) / Decimal(4)
             confidence: Decimal | None = sum(confidences, Decimal(0)) / Decimal(4)
     else:
@@ -848,6 +879,8 @@ def _owner_scorecard_payload(
         "overall_score": _decimal_text(overall) if overall is not None else None,
         "confidence_percent": (_decimal_text(confidence) if confidence is not None else None),
         "recommendation": recommendation,
+        "current_intrinsic_value": composite_valuation.current_intrinsic_value,
+        "market_price": composite_valuation.market_price,
         "margin_of_safety": composite_valuation.margin_of_safety,
         "twelve_month_upside": composite_valuation.twelve_month_upside,
         "critical_red_flags": tuple(critical_flags),
@@ -859,6 +892,7 @@ def _owner_scorecard_payload(
     return payload
 
 
+@retained_authority_replay_scope
 def build_owner_scorecard(
     *,
     composite_valuation: CompositeValuationResult,
@@ -866,15 +900,16 @@ def build_owner_scorecard(
 ) -> OwnerScorecard:
     """Aggregate four exact retained lens scores and apply fixed thresholds."""
 
-    scores = tuple(lens_scores)
-    return OwnerScorecard(
-        **_owner_scorecard_payload(
-            composite_valuation=composite_valuation,
-            lens_scores=scores,
-        ),
-        _composite_authority=composite_valuation,
-        _score_authorities=scores,
-    )
+    with localcontext(score_calculation_context()):
+        scores = tuple(lens_scores)
+        return OwnerScorecard(
+            **_owner_scorecard_payload(
+                composite_valuation=composite_valuation,
+                lens_scores=scores,
+            ),
+            _composite_authority=composite_valuation,
+            _score_authorities=scores,
+        )
 
 
 def _replay_extension_contract(contract: ExtensionContract) -> None:

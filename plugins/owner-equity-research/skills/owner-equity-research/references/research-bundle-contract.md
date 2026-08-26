@@ -20,6 +20,9 @@ entries, and requires explicit safe overwrite for changed artifacts. The loader 
 the same pair, canonical serialization, matching fingerprints and component lock, and a successful
 ContractGraph replay. Identical writes are idempotent.
 
-Do not expose an integration CLI, start orchestration, fabricate full company integration graphs
-from metadata-only Shadows, create a valuation handoff, score, report, or publish. A complete Bundle
-means integration evidence closure only.
+These prohibitions apply to the Bundle builder itself: it must not acquire sources, start the
+comprehensive orchestration, fabricate full company integration graphs from metadata-only Shadows,
+create a valuation handoff, score, render reports, or publish. After exact graph validation and a
+strict canonical reload, the comprehensive orchestrator may consume the Bundle downstream according
+to the selected main-Skill route. A complete Bundle still means integration evidence closure only;
+it never means that the company is high quality or investable.

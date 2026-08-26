@@ -7,7 +7,7 @@ import subprocess
 import sys
 from dataclasses import replace
 from datetime import date, timedelta
-from decimal import Decimal
+from decimal import ROUND_DOWN, ROUND_UP, Context, Decimal, Subnormal, localcontext
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -15,6 +15,7 @@ from typing import Any
 import pytest
 import test_phase5_v1_dual_panel_e2e as dual_panel_fixtures
 import test_phase5_v1_owner_execution as owner_execution_fixtures
+from jsonschema import ValidationError
 from test_phase5_v1_run_orchestration import (
     _authority,
     _candidate_compilation,
@@ -24,6 +25,7 @@ from test_phase5_v1_run_orchestration import (
 
 import owner_research.valuation_owner_execution as owner_execution_module
 import owner_research.valuation_run as run_module
+import owner_research.valuation_synthesis as synthesis_module
 from owner_research.contracts import Fact, SourceDocument
 from owner_research.fingerprints import canonical_json, canonical_sha256, to_json_value
 from owner_research.owner_scorecard import (
@@ -48,6 +50,8 @@ from owner_research.valuation_synthesis_types import (
     CompositeValuationResult,
     NamedHumanReviewAuthority,
     build_named_human_review_authority,
+    retained_authority_replay_scope,
+    validate_extension_payload,
 )
 
 _SYNTHESIS_CACHE: tuple[Any, ...] | None = None
@@ -55,21 +59,60 @@ _SYNTHESIS_CACHE_STATE_BASE: Path | None = None
 
 
 def _pinned_kernel_fixture() -> tuple[Path, dict[str, Any]]:
-    candidates = []
     configured = os.environ.get("OWNER_VALUATION_REPO")
-    if configured:
-        candidates.append(Path(configured))
-    candidates.extend(
-        (
-            Path("/Users/mingji/Documents/New project/owner-valuation-kernel"),
-            Path("/Users/mingji/dev/owner-valuation-kernel"),
-        )
-    )
-    for candidate in candidates:
+    if configured is not None:
+        candidate = Path(configured)
         example = candidate / "examples/synthetic_nonfinancial.json"
         if example.is_file():
             return candidate, json.loads(example.read_text(encoding="utf-8"))
-    pytest.fail("exact pinned kernel checkout with its synthetic oracle is unavailable")
+        pytest.fail("OWNER_VALUATION_REPO is not a usable pinned kernel checkout")
+
+    candidates = (
+        Path("/Users/mingji/Documents/New project/owner-valuation-kernel"),
+        Path("/Users/mingji/dev/owner-valuation-kernel"),
+    )
+    checkout_found = False
+    for candidate in candidates:
+        checkout_found = checkout_found or candidate.exists()
+        example = candidate / "examples/synthetic_nonfinancial.json"
+        if example.is_file():
+            return candidate, json.loads(example.read_text(encoding="utf-8"))
+    if checkout_found:
+        pytest.fail("local pinned kernel checkout has no synthetic oracle")
+    pytest.skip("private kernel checkout is intentionally unavailable in this job")
+
+
+def test_pinned_kernel_fixture_rejects_explicit_invalid_checkout(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("OWNER_VALUATION_REPO", str(tmp_path / "missing-kernel"))
+    with pytest.raises(pytest.fail.Exception, match="not a usable pinned kernel checkout"):
+        _pinned_kernel_fixture()
+
+
+@pytest.mark.parametrize("rounding", (ROUND_DOWN, ROUND_UP))
+def test_decimal_helpers_ignore_hostile_ambient_context(rounding: str) -> None:
+    values = (
+        Decimal("1." + "1" * 60),
+        Decimal("2." + "2" * 60),
+    )
+    hostile = Context(
+        prec=7,
+        rounding=rounding,
+        Emin=-3,
+        Emax=3,
+        capitals=0,
+        clamp=1,
+        traps=[Subnormal],
+    )
+
+    with localcontext(hostile):
+        assert synthesis_module._median(values) == Decimal("1." + "6" * 59)
+        assert synthesis_module._same_decimal(Decimal("1e-1000"), Decimal(0))
+        assert synthesis_module._snapshot_shares_in_model_unit(
+            Decimal("1e1000"), "millions shares"
+        ) == Decimal("1e994")
 
 
 def _run_pinned_kernel_oracle(
@@ -491,6 +534,7 @@ def _peer_graphs_and_inputs(peer_evidence_set):
     return tuple(peer_graphs), selected_peers, metrics
 
 
+@retained_authority_replay_scope
 def _complete_synthesis_from_run(run_result: ValuationRunResult) -> tuple[Any, ...]:
     """Build the exact downstream chain without executing another kernel run."""
 
@@ -706,6 +750,51 @@ def _contested_composite(
     )
 
 
+def _single_horizon_contested_composite(
+    run_result: ValuationRunResult,
+    basis,
+    forward,
+    peer_authority: ReviewedPeerSetAuthority,
+    *,
+    horizon: str,
+) -> CompositeValuationResult:
+    field_name = {
+        "current": "current_target_measure_per_share",
+        "twelve_month": "twelve_month_target_measure_per_share",
+    }[horizon]
+    reviewed = to_json_value(peer_authority.forecast_review.reviewed_payload)
+    for metric in reviewed["metric_inputs"]:
+        for scenario in metric["scenarios"]:
+            scenario[field_name] = str(
+                Decimal(scenario[field_name]) * Decimal("100")
+            )
+    extreme_forecast_review = _review(
+        run_result,
+        scope="comparable_forecast",
+        reviewed_at=peer_authority.forecast_review.reviewed_at,
+        reviewed_payload=reviewed,
+    )
+    extreme_peer_authority = build_reviewed_peer_set_authority(
+        run_result=run_result,
+        selection_review=peer_authority.selection_review,
+        forecast_review=extreme_forecast_review,
+        peer_graphs=peer_authority.peer_graphs,
+        futu_peer_evidence_set=peer_authority.futu_peer_evidence_set,
+        verifier=peer_authority.verifier,
+    )
+    extreme_comparables = build_comparable_valuation(
+        run_result,
+        basis_receipt=basis,
+        peer_authority=extreme_peer_authority,
+    )
+    return build_composite_valuation(
+        run_result,
+        basis_receipt=basis,
+        forward_reoi=forward,
+        comparables=extreme_comparables,
+    )
+
+
 def test_real_completed_run_builds_basis_and_forward_reoi(
     sample_payloads: dict[str, dict[str, Any]],
     monkeypatch: pytest.MonkeyPatch,
@@ -762,6 +851,85 @@ def test_real_completed_run_builds_full_retained_authority_chain(
     assert Decimal(composite.twelve_month_target) == future_values[1]
     assert len(scores) == 4
     assert scorecard.composite_valuation_fingerprint == composite.fingerprint
+
+
+def test_all_synthesis_builders_and_replays_ignore_hostile_decimal_context(
+    sample_payloads: dict[str, dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    (
+        run_result,
+        basis,
+        forward,
+        peer_authority,
+        comparables,
+        composite,
+        *_rest,
+    ) = _complete_synthesis(sample_payloads, monkeypatch, tmp_path)
+    expected_bytes = tuple(
+        canonical_json(contract.to_dict()).encode("utf-8")
+        for contract in (basis, forward, peer_authority, comparables, composite)
+    )
+    hostile = Context(
+        prec=7,
+        rounding=ROUND_DOWN,
+        Emin=-3,
+        Emax=3,
+        capitals=0,
+        clamp=1,
+        traps=[Subnormal],
+    )
+
+    with localcontext(hostile) as ambient:
+        rebuilt_basis = build_valuation_basis_receipt(
+            run_result,
+            review_authority=basis._review_authority,
+        )
+        rebuilt_forward = build_forward_reoi_valuation(
+            run_result,
+            basis_receipt=rebuilt_basis,
+            review_authority=forward._input_authority._review_authority,
+        )
+        rebuilt_peer_authority = build_reviewed_peer_set_authority(
+            run_result=run_result,
+            selection_review=peer_authority.selection_review,
+            forecast_review=peer_authority.forecast_review,
+            peer_graphs=peer_authority.peer_graphs,
+            futu_peer_evidence_set=peer_authority.futu_peer_evidence_set,
+            verifier=peer_authority.verifier,
+        )
+        rebuilt_comparables = build_comparable_valuation(
+            run_result,
+            basis_receipt=rebuilt_basis,
+            peer_authority=rebuilt_peer_authority,
+        )
+        rebuilt_composite = build_composite_valuation(
+            run_result,
+            basis_receipt=rebuilt_basis,
+            forward_reoi=rebuilt_forward,
+            comparables=rebuilt_comparables,
+        )
+        rebuilt_contracts = (
+            rebuilt_basis,
+            rebuilt_forward,
+            rebuilt_peer_authority,
+            rebuilt_comparables,
+            rebuilt_composite,
+        )
+        for contract in rebuilt_contracts:
+            contract.__post_init__()
+        observed_bytes = tuple(
+            canonical_json(contract.to_dict()).encode("utf-8")
+            for contract in rebuilt_contracts
+        )
+        assert ambient.prec == 7
+        assert ambient.rounding == ROUND_DOWN
+        assert ambient.Emin == -3
+        assert ambient.Emax == 3
+        assert ambient.traps[Subnormal]
+
+    assert observed_bytes == expected_bytes
 
 
 def test_downstream_replay_uses_retained_archive_without_reopening_path(
@@ -870,11 +1038,105 @@ def test_dispersion_above_fifty_percent_is_contested_and_ineligible(
     assert composite.status == "contested"
     assert composite.contested is True
     assert composite.recommendation_eligible is False
-    assert max(
-        Decimal(composite.current_relative_dispersion),
-        Decimal(composite.twelve_month_relative_dispersion),
-    ) > Decimal("0.50")
-    assert composite.issue_codes == ("panel_dispersion_exceeds_50_percent",)
+    assert Decimal(composite.current_relative_dispersion) > Decimal("0.50")
+    assert Decimal(composite.twelve_month_relative_dispersion) > Decimal("0.50")
+    assert composite.current_intrinsic_value is None
+    assert composite.margin_of_safety is None
+    assert composite.twelve_month_target is None
+    assert composite.twelve_month_upside is None
+    assert composite.issue_codes == (
+        "current_panel_dispersion_exceeds_50_percent",
+        "twelve_month_panel_dispersion_exceeds_50_percent",
+    )
+
+
+def test_current_only_dispersion_nulls_only_current_composite_and_metric(
+    sample_payloads: dict[str, dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    (
+        run_result,
+        basis,
+        forward,
+        peer_authority,
+        _comparables,
+        baseline,
+        *_rest,
+    ) = _complete_synthesis(sample_payloads, monkeypatch, tmp_path)
+    composite = _single_horizon_contested_composite(
+        run_result,
+        basis,
+        forward,
+        peer_authority,
+        horizon="current",
+    )
+
+    assert composite.status == "contested"
+    assert composite.contested is True
+    assert composite.recommendation_eligible is False
+    assert composite.current_intrinsic_value is None
+    assert composite.margin_of_safety is None
+    assert Decimal(composite.current_relative_dispersion) > Decimal("0.50")
+    assert composite.twelve_month_target == baseline.twelve_month_target
+    assert composite.twelve_month_upside == baseline.twelve_month_upside
+    assert (
+        composite.twelve_month_relative_dispersion
+        == baseline.twelve_month_relative_dispersion
+    )
+    assert composite.issue_codes == (
+        "current_panel_dispersion_exceeds_50_percent",
+    )
+    composite.__post_init__()
+    mismatched_projection = composite.to_dict()
+    mismatched_projection["issue_codes"] = [
+        "twelve_month_panel_dispersion_exceeds_50_percent"
+    ]
+    with pytest.raises(ValidationError):
+        validate_extension_payload("composite-valuation-result", mismatched_projection)
+
+
+def test_twelve_month_only_dispersion_nulls_only_target_and_upside(
+    sample_payloads: dict[str, dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    (
+        run_result,
+        basis,
+        forward,
+        peer_authority,
+        _comparables,
+        baseline,
+        *_rest,
+    ) = _complete_synthesis(sample_payloads, monkeypatch, tmp_path)
+    composite = _single_horizon_contested_composite(
+        run_result,
+        basis,
+        forward,
+        peer_authority,
+        horizon="twelve_month",
+    )
+
+    assert composite.status == "contested"
+    assert composite.contested is True
+    assert composite.recommendation_eligible is False
+    assert composite.twelve_month_target is None
+    assert composite.twelve_month_upside is None
+    assert Decimal(composite.twelve_month_relative_dispersion) > Decimal("0.50")
+    assert composite.current_intrinsic_value == baseline.current_intrinsic_value
+    assert composite.margin_of_safety == baseline.margin_of_safety
+    assert composite.current_relative_dispersion == baseline.current_relative_dispersion
+    assert composite.issue_codes == (
+        "twelve_month_panel_dispersion_exceeds_50_percent",
+    )
+    composite.__post_init__()
+    mismatched_projection = composite.to_dict()
+    mismatched_projection["issue_codes"] = [
+        "current_panel_dispersion_exceeds_50_percent"
+    ]
+    with pytest.raises(ValidationError):
+        validate_extension_payload("composite-valuation-result", mismatched_projection)
 
 
 def test_extension_schema_set_is_separate_from_frozen_root_schemas() -> None:

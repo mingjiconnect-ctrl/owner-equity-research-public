@@ -27,7 +27,7 @@ jobs:
     name: verify (${{ matrix.python-version }})
     runs-on: ubuntu-24.04
     environment: phase5e-private-kernel-readonly
-    timeout-minutes: 30
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
@@ -35,6 +35,14 @@ jobs:
     # Trust assumption: only the owner may write an environment-approved head. The isolation below
     # contains accidental candidate output; it is not a boundary against a malicious owner-writer.
     steps:
+      - name: Fail closed until external release control is deployed
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' \
+            '::error title=Release control unavailable::release_control_root_not_deployed' >&2
+          exit 1
       - name: Check out the exact current candidate
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -49,21 +57,33 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           check-latest: false
-      - name: Prefetch and seal the exact binary supply before private access
-        id: supply
+      - name: Validate the machine-readable direct-runtime supply identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -I scripts/phase5_v1_dependency_lock.py validate \
+            --repository "$GITHUB_WORKSPACE" \
+            --expected-git-commit "$(git rev-parse HEAD)"
+      - name: Materialize the exact dependency lock files before private access
         shell: bash
         run: |
           set -euo pipefail
           wheelhouse="$RUNNER_TEMP/phase5-v1-wheelhouse-${{ matrix.python-version }}"
           supply_lock="$RUNNER_TEMP/phase5-v1-supply-${{ matrix.python-version }}.lock"
           runtime_lock="$RUNNER_TEMP/phase5-v1-runtime-supply.lock"
-          validator="$RUNNER_TEMP/phase5-v1-supply-validator-${{ matrix.python-version }}.py"
+          sidecar_lock="$wheelhouse/sidecar.lock"
+          futu_source_lock="$wheelhouse/futu-source.lock"
           mkdir -m 0700 "$wheelhouse"
           cat > "$supply_lock" <<'LOCK'
           anyio==4.14.2 --hash=sha256:9f505dda5ac9f0c8309b5e8bd445a8c2bf7246f3ce950121e45ea15bc41d1494
           attrs==26.1.0 --hash=sha256:c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309
           build==1.3.0 --hash=sha256:7145f0b5061ba90a1500d60bd1b13ca0a8a4cebdd0cc16ed8adf1c0e739f43b4
           certifi==2026.6.17 --hash=sha256:2227dcbaafe0d2f59279d1762ddddc37783ed4354594f194ffc31d20f41fc3db
+          cffi==2.1.1 \
+              --hash=sha256:34e261f78cb6ceaaa36f42f2613f4380d94d9c759a9c73c769ee6e0247364632 \
+              --hash=sha256:c1453022f490d2459a11819d83ad1d586e9ff65a12ac3e705ffebd46d3685dcf \
+              --hash=sha256:a931079504ecc49efed7744c476a5c343a92fabf66dec2db95edb1b2fdc770e2
+          cryptography==50.0.0 --hash=sha256:06a32a980526a6ab9a4b9bf8f7385800791e2bb960903cb6b530e4817509a3b7
           exceptiongroup==1.3.1 --hash=sha256:a7a39a3bd276781e98394987d3a5701d0c4edffb633bb7a5144577f82c773598
           h11==0.16.0 --hash=sha256:63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86
           hatchling==1.27.0 --hash=sha256:d3a2f3567c4f926ea39849cdf924c7e99e6686c9c8e288ae1037c8fa2a5d937b
@@ -80,7 +100,10 @@ jobs:
           packaging==26.2 --hash=sha256:5fc45236b9446107ff2415ce77c807cee2862cb6fac22b8a73826d0693b0980e
           pathspec==1.1.1 --hash=sha256:a00ce642f577bf7f473932318056212bc4f8bfdf53128c78bbd5af0b9b20b189
           pluggy==1.6.0 --hash=sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746
+          pycparser==3.0 --hash=sha256:b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992
           pygments==2.20.0 --hash=sha256:81a9e26dd42fd28a23a2d169d86d7ac03b46e2f8b59ed4698fb4785f946d0176
+          pypdf==6.16.1 --hash=sha256:63fec31c4092ae50b6729beedcb469055b60d20c834bde1c402df241f371f644
+          pypdfium2==5.13.0 --hash=sha256:81df25c1ab4c13ff773102d3cbea1967511d079123b067fc077bd0c4d57d91d8
           pyproject-hooks==1.2.0 --hash=sha256:9e5c6bfa8dcc30091c74b0cf803c81fdd29d94f01992a7707bc97babb1141913
           pytest==8.4.1 --hash=sha256:539c70ba6fcead8e78eebbf1115e8b589e7565830d7d006a8723f19ac8a0afb7
           PyYAML==6.0.2 \
@@ -101,6 +124,53 @@ jobs:
           trove-classifiers==2026.6.1.19 --hash=sha256:ab4c4ec93cc4a4e7815fa759906e05e6bb3f2fbd92ea0f897288c6a43efd15b3
           typing-extensions==4.16.0 --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8
           LOCK
+          cat > "$sidecar_lock" <<'LOCK'
+          attrs==26.1.0 --hash=sha256:c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309
+          cffi==2.1.1 \
+              --hash=sha256:34e261f78cb6ceaaa36f42f2613f4380d94d9c759a9c73c769ee6e0247364632 \
+              --hash=sha256:c1453022f490d2459a11819d83ad1d586e9ff65a12ac3e705ffebd46d3685dcf \
+              --hash=sha256:a931079504ecc49efed7744c476a5c343a92fabf66dec2db95edb1b2fdc770e2
+          cryptography==50.0.0 --hash=sha256:06a32a980526a6ab9a4b9bf8f7385800791e2bb960903cb6b530e4817509a3b7
+          hatchling==1.27.0 --hash=sha256:d3a2f3567c4f926ea39849cdf924c7e99e6686c9c8e288ae1037c8fa2a5d937b
+          iniconfig==2.3.0 --hash=sha256:f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12
+          jsonschema==4.26.0 --hash=sha256:d489f15263b8d200f8387e64b4c3a75f06629559fb73deb8fdfb525f2dab50ce
+          jsonschema-specifications==2025.9.1 --hash=sha256:98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe
+          numpy==2.4.2 \
+              --hash=sha256:c02ef4401a506fb60b411467ad501e1429a3487abca4664871d9ae0b46c8ba32 \
+              --hash=sha256:9e35d3e0144137d9fdae62912e869136164534d64a169f86438bc9561b6ad49f \
+              --hash=sha256:d0d9b7c93578baafcbc5f0b83eaf17b79d345c6f36917ba0c67f45226911d499
+          packaging==26.3 --hash=sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c
+          pandas==3.0.5 \
+              --hash=sha256:2c0cf1dd9b55a22d105fc46c1b489af3bd42264fcba7c66297bf47a9a1d9c78a \
+              --hash=sha256:d373ce03ffd84010ed9839fa73672a9c8256990532e158440c0085db7d914b34 \
+              --hash=sha256:4b11c36e218331d0387cbe3a0a5f75162357a1d92d57b2b08a336ff94b19b2be
+          pathspec==1.1.1 --hash=sha256:a00ce642f577bf7f473932318056212bc4f8bfdf53128c78bbd5af0b9b20b189
+          pluggy==1.6.0 --hash=sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746
+          protobuf==7.35.1 --hash=sha256:74758715c53d7158fb76caf4f0cfdacc5329a4b1bb994f865d6cf302d413a1c4
+          pycparser==3.0 --hash=sha256:b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992
+          pycryptodome==3.23.0 --hash=sha256:c8987bd3307a39bc03df5c8e0e3d8be0c4c3518b7f044b0f4c15d1aa78f52575
+          pygments==2.20.0 --hash=sha256:81a9e26dd42fd28a23a2d169d86d7ac03b46e2f8b59ed4698fb4785f946d0176
+          pytest==8.4.2 --hash=sha256:872f880de3fc3a5bdc88a11b39c9710c3497a547cfa9320bc3c5e62fbf272e79
+          python-dateutil==2.9.0.post0 --hash=sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427
+          referencing==0.37.0 --hash=sha256:381329a9f99628c9069361716891d34ad94af76e461dcb0335825aecc7692231
+          rpds-py==2026.6.3 \
+              --hash=sha256:9c1255b302953c86a486b81d330d5ee1d5bd937691ce271b6be0ef0e299eaab7 \
+              --hash=sha256:ecabd69db66de867690f9797f2f8fa27ba501bbc24540cbdbdc649cd15888ba6 \
+              --hash=sha256:acac386b453c2516111b50985d60ce46e7fadb5ea71ae7b25f4c946935bf27cf
+          ruff==0.12.9 --hash=sha256:9fc83e4e9751e6c13b5046d7162f205d0a7bac5840183c5beebf824b08a27340
+          setuptools==80.9.0 --hash=sha256:062d34222ad13e0cc312a4c02d73f059e86a4acbfbdea8f8f76b28c99f306922
+          simplejson==4.1.1 \
+              --hash=sha256:7ce252b28fddbdd83db5bd7d93dad2a8a591d7ada098afec9c1b23d6b722a7a4 \
+              --hash=sha256:45ec18e337fec538b7e902d489505c450b2454653d1290f3f50385e6fd8aa607 \
+              --hash=sha256:8e5cdd6a5d52299f345c15ab5678cc4249e24f383f361d986afbc3c7072a6b6b
+          six==1.17.0 --hash=sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274
+          trove-classifiers==2026.6.1.19 --hash=sha256:ab4c4ec93cc4a4e7815fa759906e05e6bb3f2fbd92ea0f897288c6a43efd15b3
+          typing-extensions==4.16.0 --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8
+          wheel==0.48.0 --hash=sha256:3217dcc807155e45db462d7ef2431f5ddda0d7273b700d05a67b271ceb1287ab
+          LOCK
+          cat > "$futu_source_lock" <<'LOCK'
+          futu-api==10.10.7008 --hash=sha256:3c607c7dce02a3a2b308f3424420277a360d7b3a4ba4508b39eaa4ff11271f98
+          LOCK
           cat > "$runtime_lock" <<'LOCK'
           attrs==26.1.0 --hash=sha256:c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309
           jsonschema==4.26.0 --hash=sha256:d489f15263b8d200f8387e64b4c3a75f06629559fb73deb8fdfb525f2dab50ce
@@ -109,6 +179,11 @@ jobs:
           rpds-py==2026.6.3 --hash=sha256:9c1255b302953c86a486b81d330d5ee1d5bd937691ce271b6be0ef0e299eaab7
           typing-extensions==4.16.0 --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8
           LOCK
+      - name: Materialize the exact dependency supply validator
+        shell: bash
+        run: |
+          set -euo pipefail
+          validator="$RUNNER_TEMP/phase5-v1-supply-validator-${{ matrix.python-version }}.py"
           cat > "$validator" <<'PY'
           import hashlib
           import os
@@ -121,7 +196,10 @@ jobs:
               "attrs-26.1.0-py3-none-any.whl": "c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309",
               "build-1.3.0-py3-none-any.whl": "7145f0b5061ba90a1500d60bd1b13ca0a8a4cebdd0cc16ed8adf1c0e739f43b4",
               "certifi-2026.6.17-py3-none-any.whl": "2227dcbaafe0d2f59279d1762ddddc37783ed4354594f194ffc31d20f41fc3db",
+              "cryptography-50.0.0-cp311-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl": "06a32a980526a6ab9a4b9bf8f7385800791e2bb960903cb6b530e4817509a3b7",
               "exceptiongroup-1.3.1-py3-none-any.whl": "a7a39a3bd276781e98394987d3a5701d0c4edffb633bb7a5144577f82c773598",
+              "futu-source.lock": "6da209692c78e9a5b09c6567177684876df7348dacdb7db29afaf15cdb87b048",
+              "futu_api-10.10.7008.tar.gz": "3c607c7dce02a3a2b308f3424420277a360d7b3a4ba4508b39eaa4ff11271f98",
               "h11-0.16.0-py3-none-any.whl": "63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86",
               "hatchling-1.27.0-py3-none-any.whl": "d3a2f3567c4f926ea39849cdf924c7e99e6686c9c8e288ae1037c8fa2a5d937b",
               "httpcore-1.0.9-py3-none-any.whl": "2d400746a40668fc9dec9810239072b40b4484b640a8c38fd654a024c7a1bf55",
@@ -131,39 +209,67 @@ jobs:
               "jsonschema-4.26.0-py3-none-any.whl": "d489f15263b8d200f8387e64b4c3a75f06629559fb73deb8fdfb525f2dab50ce",
               "jsonschema_specifications-2025.9.1-py3-none-any.whl": "98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe",
               "packaging-26.2-py3-none-any.whl": "5fc45236b9446107ff2415ce77c807cee2862cb6fac22b8a73826d0693b0980e",
+              "packaging-26.3-py3-none-any.whl": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c",
               "pathspec-1.1.1-py3-none-any.whl": "a00ce642f577bf7f473932318056212bc4f8bfdf53128c78bbd5af0b9b20b189",
               "pluggy-1.6.0-py3-none-any.whl": "e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746",
+              "protobuf-7.35.1-cp310-abi3-manylinux2014_x86_64.whl": "74758715c53d7158fb76caf4f0cfdacc5329a4b1bb994f865d6cf302d413a1c4",
+              "pycparser-3.0-py3-none-any.whl": "b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992",
+              "pycryptodome-3.23.0-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl": "c8987bd3307a39bc03df5c8e0e3d8be0c4c3518b7f044b0f4c15d1aa78f52575",
               "pygments-2.20.0-py3-none-any.whl": "81a9e26dd42fd28a23a2d169d86d7ac03b46e2f8b59ed4698fb4785f946d0176",
+              "pypdf-6.16.1-py3-none-any.whl": "63fec31c4092ae50b6729beedcb469055b60d20c834bde1c402df241f371f644",
+              "pypdfium2-5.13.0-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl": "81df25c1ab4c13ff773102d3cbea1967511d079123b067fc077bd0c4d57d91d8",
               "pyproject_hooks-1.2.0-py3-none-any.whl": "9e5c6bfa8dcc30091c74b0cf803c81fdd29d94f01992a7707bc97babb1141913",
               "pytest-8.4.1-py3-none-any.whl": "539c70ba6fcead8e78eebbf1115e8b589e7565830d7d006a8723f19ac8a0afb7",
+              "pytest-8.4.2-py3-none-any.whl": "872f880de3fc3a5bdc88a11b39c9710c3497a547cfa9320bc3c5e62fbf272e79",
+              "python_dateutil-2.9.0.post0-py2.py3-none-any.whl": "a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427",
               "referencing-0.37.0-py3-none-any.whl": "381329a9f99628c9069361716891d34ad94af76e461dcb0335825aecc7692231",
               "ruff-0.14.14-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl": "bb8481604b7a9e75eff53772496201690ce2687067e038b3cc31aaf16aa0b974",
+              "ruff-0.12.9-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl": "9fc83e4e9751e6c13b5046d7162f205d0a7bac5840183c5beebf824b08a27340",
               "setuptools-80.9.0-py3-none-any.whl": "062d34222ad13e0cc312a4c02d73f059e86a4acbfbdea8f8f76b28c99f306922",
+              "sidecar.lock": "444b04fda92f93a67c434e74584b5f6d072e2c79ed57c4a07f96dcdb842d36a4",
+              "six-1.17.0-py2.py3-none-any.whl": "4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274",
               "trove_classifiers-2026.6.1.19-py3-none-any.whl": "ab4c4ec93cc4a4e7815fa759906e05e6bb3f2fbd92ea0f897288c6a43efd15b3",
               "typing_extensions-4.16.0-py3-none-any.whl": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+              "wheel-0.48.0-py3-none-any.whl": "3217dcc807155e45db462d7ef2431f5ddda0d7273b700d05a67b271ceb1287ab",
           }
           per_minor = {
               "3.11": {
+                  "cffi-2.1.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl": "34e261f78cb6ceaaa36f42f2613f4380d94d9c759a9c73c769ee6e0247364632",
                   "lxml-6.0.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl": "58ffd35bd5425c3c3b9692d078bf7ab851441434531a7e517c4984d5634cd65b",
+                  "numpy-2.4.2-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl": "c02ef4401a506fb60b411467ad501e1429a3487abca4664871d9ae0b46c8ba32",
+                  "pandas-3.0.5-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl": "2c0cf1dd9b55a22d105fc46c1b489af3bd42264fcba7c66297bf47a9a1d9c78a",
                   "PyYAML-6.0.2-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl": "3ad2a3decf9aaba3d29c8f537ac4b243e36bef957511b4766cb0057d32b0be85",
                   "rpds_py-2026.6.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl": "9c1255b302953c86a486b81d330d5ee1d5bd937691ce271b6be0ef0e299eaab7",
+                  "simplejson-4.1.1-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl": "7ce252b28fddbdd83db5bd7d93dad2a8a591d7ada098afec9c1b23d6b722a7a4",
                   "tomli-2.4.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl": "5a881ab208c0baf688221f8cecc5401bd291d67e38a1ac884d6736cbcd8247e9",
               },
               "3.12": {
+                  "cffi-2.1.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl": "c1453022f490d2459a11819d83ad1d586e9ff65a12ac3e705ffebd46d3685dcf",
                   "lxml-6.0.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl": "bd5913b4972681ffc9718bc2d4c53cde39ef81415e1671ff93e9aa30b46595e7",
+                  "numpy-2.4.2-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl": "9e35d3e0144137d9fdae62912e869136164534d64a169f86438bc9561b6ad49f",
+                  "pandas-3.0.5-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl": "d373ce03ffd84010ed9839fa73672a9c8256990532e158440c0085db7d914b34",
                   "PyYAML-6.0.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl": "80bab7bfc629882493af4aa31a4cfa43a4c57c83813253626916b8c7ada83476",
                   "rpds_py-2026.6.3-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl": "ecabd69db66de867690f9797f2f8fa27ba501bbc24540cbdbdc649cd15888ba6",
+                  "simplejson-4.1.1-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl": "45ec18e337fec538b7e902d489505c450b2454653d1290f3f50385e6fd8aa607",
                   "tomli-2.4.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl": "136443dbd7e1dee43c68ac2694fde36b2849865fa258d39bf822c10e8068eac5",
               },
               "3.13": {
+                  "cffi-2.1.1-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl": "a931079504ecc49efed7744c476a5c343a92fabf66dec2db95edb1b2fdc770e2",
                   "lxml-6.0.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl": "d4f0c66df4386b75d2ab1e20a489f30dc7fd9a06a896d64980541506086be1f1",
+                  "numpy-2.4.2-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl": "d0d9b7c93578baafcbc5f0b83eaf17b79d345c6f36917ba0c67f45226911d499",
+                  "pandas-3.0.5-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl": "4b11c36e218331d0387cbe3a0a5f75162357a1d92d57b2b08a336ff94b19b2be",
                   "PyYAML-6.0.2-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl": "70b189594dbe54f75ab3a1acec5f1e3faa7e8cf2f1e08d9b561cb41b845f69d5",
                   "rpds_py-2026.6.3-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl": "acac386b453c2516111b50985d60ce46e7fadb5ea71ae7b25f4c946935bf27cf",
+                  "simplejson-4.1.1-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl": "8e5cdd6a5d52299f345c15ab5678cc4249e24f383f361d986afbc3c7072a6b6b",
                   "tomli-2.4.1-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl": "f3c6818a1a86dd6dca7ddcaaf76947d5ba31aecc28cb1b67009a5877c9a64f3f",
               },
           }
+          def verify_observed(observed, minor):
+              expected = common | per_minor[minor]
+              if observed != expected:
+                  raise SystemExit("sealed supply inventory or hashes drifted")
+
           root = Path(sys.argv[1])
-          expected = common | per_minor[sys.argv[2]]
           observed = {}
           directory = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
           try:
@@ -185,9 +291,25 @@ jobs:
                   observed[entry.name] = digest.hexdigest()
           finally:
               os.close(directory)
-          if observed != expected:
-              raise SystemExit("binary supply inventory or hashes drifted")
+          verify_observed(observed, sys.argv[2])
           PY
+      - name: Prefetch and seal the exact dependency supply before private access
+        id: supply
+        shell: bash
+        run: |
+          set -euo pipefail
+          wheelhouse="$RUNNER_TEMP/phase5-v1-wheelhouse-${{ matrix.python-version }}"
+          supply_lock="$RUNNER_TEMP/phase5-v1-supply-${{ matrix.python-version }}.lock"
+          runtime_lock="$RUNNER_TEMP/phase5-v1-runtime-supply.lock"
+          validator="$RUNNER_TEMP/phase5-v1-supply-validator-${{ matrix.python-version }}.py"
+          sidecar_lock="$wheelhouse/sidecar.lock"
+          futu_source_lock="$wheelhouse/futu-source.lock"
+          report_bootstrap="$RUNNER_TEMP/phase5-v1-report-bootstrap-${{ matrix.python-version }}"
+          report_runtime="$RUNNER_TEMP/phase5-v1-report-runtime-${{ matrix.python-version }}"
+          report_bootstrap_script="scripts/bootstrap_linux_x64_report_toolchain.py"
+          report_font="plugins/owner-equity-research/skills/owner-equity-research/assets/NotoSansCJKsc-Regular.otf"
+          report_registry="src/owner_research/resources/report/report-toolchain-authority-v1.json"
+          report_candidate="docs/report-toolchain-evidence/linux-x64/linux-x64-report-toolchain-authority-candidate.json"
           minor='${{ matrix.python-version }}'
           abi="cp${minor/.}"
           PIP_CONFIG_FILE=/dev/null PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_NO_CACHE_DIR=1 \
@@ -197,12 +319,33 @@ jobs:
               --no-deps \
               --no-cache-dir \
               --platform manylinux2014_x86_64 \
+              --platform manylinux_2_28_x86_64 \
               --implementation cp \
               --python-version "$minor" \
               --abi "$abi" \
               --dest "$wheelhouse" \
               --requirement "$supply_lock"
-          "${{ steps.python.outputs.python-path }}" -I "$validator" "$wheelhouse" "$minor"
+          PIP_CONFIG_FILE=/dev/null PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_NO_CACHE_DIR=1 \
+            "${{ steps.python.outputs.python-path }}" -I -m pip download \
+              --require-hashes \
+              --only-binary=:all: \
+              --no-deps \
+              --no-cache-dir \
+              --platform manylinux2014_x86_64 \
+              --platform manylinux_2_28_x86_64 \
+              --implementation cp \
+              --python-version "$minor" \
+              --abi "$abi" \
+              --dest "$wheelhouse" \
+              --requirement "$sidecar_lock"
+          PIP_CONFIG_FILE=/dev/null PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_NO_CACHE_DIR=1 \
+            "${{ steps.python.outputs.python-path }}" -I -m pip download \
+              --require-hashes \
+              --no-binary=:all: \
+              --no-deps \
+              --no-cache-dir \
+              --dest "$wheelhouse" \
+              --requirement "$futu_source_lock"
           test "$(command -v docker)" = /usr/bin/docker
           if [[ "$minor" == 3.11 ]]; then
             PIP_CONFIG_FILE=/dev/null PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_NO_CACHE_DIR=1 \
@@ -217,7 +360,6 @@ jobs:
                 --abi cp311 \
                 --dest "$wheelhouse" \
                 --requirement "$runtime_lock"
-            "${{ steps.python.outputs.python-path }}" -I "$validator" "$wheelhouse" "$minor"
             /usr/bin/docker pull --platform linux/amd64 "$KERNEL_RUNTIME_IMAGE"
             test "$(/usr/bin/docker image inspect --format '{{.Id}}' "$KERNEL_RUNTIME_IMAGE")" = \
               "$KERNEL_RUNTIME_IMAGE_ID"
@@ -237,6 +379,207 @@ jobs:
               "$KERNEL_RUNTIME_IMAGE" \
               -ceu 'test "$(command -v git)" = /usr/bin/git'
           fi
+          "${{ steps.python.outputs.python-path }}" -I "$validator" "$wheelhouse" "$minor"
+          # Verify the downloaded bytes against the committed machine-readable
+          # release manifest before this wheelhouse is sealed or private access.
+          "${{ steps.python.outputs.python-path }}" -I scripts/phase5_v1_dependency_lock.py \
+            verify-artifacts \
+            --repository "$GITHUB_WORKSPACE" \
+            --wheelhouse "$wheelhouse" \
+            --python-target "$minor" \
+            --downloaded-only \
+            --ci-supply-lock "$supply_lock" \
+            --ci-supply-lock "$sidecar_lock" \
+            --ci-supply-lock "$futu_source_lock" \
+            --expected-git-commit "$(git -C "$GITHUB_WORKSPACE" rev-parse HEAD)"
+          test "$(sha256sum "$report_bootstrap_script" | awk '{print $1}')" = \
+            2f80b744f1e397a8b9b7570b3464c313fa14629bf358e69aa2c7b4089b3c8790
+          test "$(sha256sum "$report_font" | awk '{print $1}')" = \
+            2c76254f6fc379fddfce0a7e84fb5385bb135d3e399294f6eeb6680d0365b74b
+          test "$(stat -c '%s' "$report_font")" = 16437364
+          test "$(sha256sum "$report_registry" | awk '{print $1}')" = \
+            f4b3aa468ddfbc8214410f611e7014f6d311a9d5922ac8e5e41ef25dbaa0775c
+          "${{ steps.python.outputs.python-path }}" -I "$report_bootstrap_script" \
+            --output "$report_bootstrap" \
+            --font "$report_font"
+          mkdir -m 0700 "$report_runtime"
+          install -m 0500 "$report_bootstrap/tectonic" "$report_runtime/tectonic"
+          install -d -m 0700 "$report_runtime/home/.cache/tectonic"
+          cp -a "$report_bootstrap/tectonic-cache/." \
+            "$report_runtime/home/.cache/tectonic/"
+          sudo chown -R root:root "$report_runtime"
+          sudo find "$report_runtime" -type d -exec chmod 0555 {} +
+          sudo find "$report_runtime" -type f -exec chmod 0444 {} +
+          sudo chmod 0555 "$report_runtime/tectonic"
+          test "$(sha256sum "$report_candidate" | awk '{print $1}')" = \
+            4a2ac210d3aafabdfc2c6f887552632ec6f0dc78c6b232261445074312b1378c
+          "${{ steps.python.outputs.python-path }}" -I - \
+            "$report_registry" \
+            "$report_candidate" \
+            "$report_bootstrap/linux-x64-report-toolchain-authority-candidate.json" \
+            "$report_runtime" <<'PY'
+          import hashlib
+          import json
+          import os
+          import stat
+          import sys
+          from pathlib import Path
+
+          MAX_JSON_BYTES = 16 * 1024 * 1024
+          MAX_CACHE_BYTES = 512 * 1024 * 1024
+          MAX_CACHE_MEMBERS = 8_192
+
+          def reject_duplicates(pairs):
+              value = {}
+              for key, item in pairs:
+                  if key in value:
+                      raise SystemExit("report authority contains a duplicate key")
+                  value[key] = item
+              return value
+
+          def read_regular(path, limit):
+              descriptor = os.open(
+                  path,
+                  os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW,
+              )
+              try:
+                  before = os.fstat(descriptor)
+                  if (
+                      not stat.S_ISREG(before.st_mode)
+                      or before.st_nlink != 1
+                      or before.st_size > limit
+                  ):
+                      raise SystemExit("report supply member is unsafe")
+                  chunks = []
+                  consumed = 0
+                  while chunk := os.read(descriptor, min(1024 * 1024, limit - consumed + 1)):
+                      consumed += len(chunk)
+                      if consumed > limit:
+                          raise SystemExit("report supply member exceeds its byte limit")
+                      chunks.append(chunk)
+                  after = os.fstat(descriptor)
+                  identity = (
+                      before.st_dev,
+                      before.st_ino,
+                      before.st_size,
+                      before.st_mtime_ns,
+                      before.st_mode,
+                      before.st_uid,
+                      before.st_gid,
+                      before.st_nlink,
+                  )
+                  if consumed != before.st_size or identity != (
+                      after.st_dev,
+                      after.st_ino,
+                      after.st_size,
+                      after.st_mtime_ns,
+                      after.st_mode,
+                      after.st_uid,
+                      after.st_gid,
+                      after.st_nlink,
+                  ):
+                      raise SystemExit("report supply member changed while read")
+                  return b"".join(chunks)
+              finally:
+                  os.close(descriptor)
+
+          def load_canonical(path):
+              content = read_regular(path, MAX_JSON_BYTES)
+              value = json.loads(
+                  content,
+                  object_pairs_hook=reject_duplicates,
+                  parse_constant=lambda value: (_ for _ in ()).throw(
+                      ValueError(f"non-finite JSON constant: {value}")
+                  ),
+              )
+              canonical = json.dumps(
+                  value,
+                  ensure_ascii=False,
+                  sort_keys=True,
+                  separators=(",", ":"),
+                  allow_nan=False,
+              ).encode() + b"\n"
+              if content != canonical:
+                  raise SystemExit("report authority is not canonical JSON")
+              return value
+
+          registry_path, committed_candidate_path, candidate_path, runtime_path = map(
+              Path, sys.argv[1:]
+          )
+          registry = load_canonical(registry_path)
+          committed_candidate = load_canonical(committed_candidate_path)
+          candidate = load_canonical(candidate_path)
+          linux = [
+              item for item in registry["authorities"]
+              if item.get("platform_target") == "linux-x64"
+          ]
+          if (
+              len(linux) != 1
+              or candidate != committed_candidate
+              or committed_candidate != linux[0]
+              or candidate.get("renderer") != linux[0].get("renderer")
+              or candidate.get("offline_bundle") != linux[0].get("offline_bundle")
+              or candidate.get("pdf_text_backend", {}).get("distribution") != "pypdf"
+              or candidate.get("pdf_text_backend", {}).get("version") != "6.16.1"
+              or candidate.get("pdf_render_backend", {}).get("distribution")
+              != "pypdfium2"
+              or candidate.get("pdf_render_backend", {}).get("version") != "5.13.0"
+              or registry.get("registry_fingerprint")
+              != "81a40c76ba93c36365e3ed965949685d4e1042dfb4cc5b285ef2a3f9c51a4b42"
+              or linux[0].get("authority_fingerprint")
+              != "feb6abd5dea694c23d4e94151ef09719f1a47e124a8d98a24d1f331a9c352f41"
+              or candidate.get("offline_bundle")
+              != {
+                  "tree_sha256": "1d224c0e9a26652d51c531f78e15de5a361d7f6f9c3029486846cce90d272f11",
+                  "member_count": 327,
+                  "total_bytes": 45096797,
+              }
+          ):
+              raise SystemExit("bootstrapped Linux report authority differs from the registry")
+          executable = runtime_path / "tectonic"
+          executable_content = read_regular(executable, 128 * 1024 * 1024)
+          if (
+              len(executable_content) != candidate["renderer"]["size"]
+              or hashlib.sha256(executable_content).hexdigest()
+              != candidate["renderer"]["sha256"]
+              or executable.stat().st_uid != 0
+              or stat.S_IMODE(executable.stat().st_mode) != 0o555
+          ):
+              raise SystemExit("sealed report renderer identity differs")
+          cache = runtime_path / "home" / ".cache" / "tectonic"
+          digest = hashlib.sha256()
+          count = 0
+          total = 0
+          for path in sorted(cache.rglob("*"), key=lambda item: item.relative_to(cache).as_posix()):
+              details = path.lstat()
+              relative = path.relative_to(cache).as_posix()
+              if path.is_symlink() or details.st_uid != 0 or stat.S_IMODE(details.st_mode) & 0o022:
+                  raise SystemExit("sealed report cache member is unsafe")
+              if path.is_dir():
+                  count += 1
+                  digest.update(relative.encode())
+                  digest.update(b"\0directory\0")
+                  continue
+              if not stat.S_ISREG(details.st_mode) or details.st_nlink != 1:
+                  raise SystemExit("sealed report cache member is not regular")
+              content = read_regular(path, MAX_CACHE_BYTES - total)
+              count += 1
+              total += len(content)
+              if count > MAX_CACHE_MEMBERS or total > MAX_CACHE_BYTES:
+                  raise SystemExit("sealed report cache exceeds its limits")
+              digest.update(relative.encode())
+              digest.update(b"\0")
+              digest.update(str(len(content)).encode())
+              digest.update(b"\0")
+              digest.update(hashlib.sha256(content).digest())
+          observed = {
+              "tree_sha256": digest.hexdigest(),
+              "member_count": count,
+              "total_bytes": total,
+          }
+          if observed != candidate["offline_bundle"]:
+              raise SystemExit("sealed report cache identity differs")
+          PY
           reviewed_commit='${{ github.event.pull_request.head.sha || github.sha }}'
           test "$(git rev-parse HEAD)" = "$reviewed_commit"
           candidate_tree=$(git rev-parse 'HEAD^{tree}')
@@ -300,6 +643,7 @@ jobs:
           supply_lock="$RUNNER_TEMP/phase5-v1-supply-${{ matrix.python-version }}.lock"
           validator="$RUNNER_TEMP/phase5-v1-supply-validator-${{ matrix.python-version }}.py"
           private_kernel="$RUNNER_TEMP/phase5-v1-kernel-source"
+          report_runtime="$RUNNER_TEMP/phase5-v1-report-runtime-${{ matrix.python-version }}"
           runner_python=$(readlink -f '${{ steps.python.outputs.python-path }}')
           test -f "$runner_python" && test ! -L "$runner_python"
           host_uid=$(id -u)
@@ -314,8 +658,12 @@ jobs:
             "$private_root/home" \
             "$private_root/output" \
             "$private_root/research-wheel" \
+            "$private_root/sidecar-wheel" \
+            "$private_root/futu-wheel" \
+            "$private_root/sidecar-venv" \
             "$private_root/venv" \
             "$private_root/kernel-cas"
+          install -d -m 0700 "$private_root/home/.cache/tectonic"
           : > "$private_root/stage.stdout"
           : > "$private_root/stage.stderr"
           : > "$private_root/container.stdout"
@@ -345,6 +693,7 @@ jobs:
               "$private_root" \
               "$runner_python" \
               '${{ matrix.python-version }}' \
+              "$report_runtime" \
             >"$private_root/stage.stdout" \
             2>"$private_root/stage.stderr" <<'ROOT_BASH'
           set -Eeuo pipefail
@@ -360,12 +709,16 @@ jobs:
           private_root_source=${10}
           runner_python=${11}
           python_minor=${12}
+          report_runtime_source=${13}
           stage_code=70
           trap 'exit "$stage_code"' ERR
           test "$(id -u)" -eq 0
           mount --make-rprivate /
           test "$(readlink -f /var/run)" = /run
           mount -t tmpfs -o mode=0755,nosuid,nodev,noexec tmpfs /run
+          test -x /usr/sbin/ip
+          /usr/sbin/ip link set dev lo up
+          /usr/sbin/ip link show dev lo | grep -F '<LOOPBACK,UP,'
           test -d /tmp && test ! -L /tmp
           mount -t tmpfs -o rw,exec,nosuid,nodev,size=268435456,mode=1777 tmpfs /tmp
           mkdir -m 0755 /run/owner-research
@@ -373,7 +726,12 @@ jobs:
             /run/owner-research/workspace \
             /run/owner-research/private-kernel \
             /run/owner-research/wheelhouse \
+            /run/owner-research/report-toolchain \
             /run/owner-research/private
+          mkdir -m 0700 /run/owner-research/tmp
+          mount -t tmpfs \
+            -o rw,exec,nosuid,nodev,size=1073741824,mode=0700 \
+            tmpfs /run/owner-research/tmp
           : > /run/owner-research/supply.lock
           : > /run/owner-research/validator.py
           workspace=/run/owner-research/workspace
@@ -381,6 +739,7 @@ jobs:
           wheelhouse=/run/owner-research/wheelhouse
           supply_lock=/run/owner-research/supply.lock
           validator=/run/owner-research/validator.py
+          report_runtime=/run/owner-research/report-toolchain
           private_root=/run/owner-research/private
           stage_code=71
           for privileged_channel in /usr/bin/docker /usr/bin/sudo; do
@@ -415,6 +774,10 @@ jobs:
           mount -o remount,bind,ro,noexec,nosuid,nodev "$validator_source"
           mount --bind "$validator_source" "$validator"
           mount -o remount,bind,ro,noexec,nosuid,nodev "$validator"
+          mount --bind "$report_runtime_source" "$report_runtime_source"
+          mount -o remount,bind,ro,exec,nosuid,nodev "$report_runtime_source"
+          mount --bind "$report_runtime_source" "$report_runtime"
+          mount -o remount,bind,ro,exec,nosuid,nodev "$report_runtime"
           mount --bind "$private_root_source" "$private_root_source"
           mount -o remount,bind,rw,exec,nosuid,nodev "$private_root_source"
           mount --bind "$private_root_source" "$private_root"
@@ -425,11 +788,22 @@ jobs:
             --add safe.directory "$kernel_checkout"
           chmod 0400 "$private_root/home/.gitconfig"
           chown -R --no-dereference "$candidate_uid:$candidate_gid" \
+            /run/owner-research/tmp \
             "$private_root/home" \
             "$private_root/output" \
             "$private_root/research-wheel" \
+            "$private_root/sidecar-wheel" \
+            "$private_root/futu-wheel" \
+            "$private_root/sidecar-venv" \
             "$private_root/venv" \
             "$private_root/kernel-cas"
+          chown root:root "$private_root/home/.cache"
+          chmod 0555 "$private_root/home/.cache"
+          mount --bind \
+            "$report_runtime/home/.cache/tectonic" \
+            "$private_root/home/.cache/tectonic"
+          mount -o remount,bind,ro,noexec,nosuid,nodev \
+            "$private_root/home/.cache/tectonic"
           chmod 0711 "$private_root"
           chmod 0755 "$private_root/output"
           test "$(stat -c '%u:%g:%a' "$private_root")" = \
@@ -458,7 +832,7 @@ jobs:
               GIT_OPTIONAL_LOCKS=0 \
               LANG=C.UTF-8 \
               LC_ALL=C.UTF-8 \
-              PATH=/usr/local/bin:/usr/bin:/bin \
+              PATH="$report_runtime:/usr/local/bin:/usr/bin:/bin" \
               PIP_CONFIG_FILE=/dev/null \
               PIP_DISABLE_PIP_VERSION_CHECK=1 \
               PIP_FIND_LINKS="$wheelhouse" \
@@ -466,8 +840,8 @@ jobs:
               PIP_NO_INDEX=1 \
               PYTHONHASHSEED=0 \
               PYTHONDONTWRITEBYTECODE=1 \
-              SOURCE_DATE_EPOCH=1784088771 \
-              TMPDIR=/tmp \
+              SOURCE_DATE_EPOCH=1580601600 \
+              TMPDIR=/run/owner-research/tmp \
               TZ=UTC \
               /bin/bash -s -- \
                 "$workspace" \
@@ -476,6 +850,7 @@ jobs:
                 "$supply_lock" \
                 "$validator" \
                 "$private_root" \
+                "$report_runtime" \
                 "$runner_python" \
                 "$python_minor" \
                 "$candidate_uid" \
@@ -487,10 +862,11 @@ jobs:
           supply_lock=$4
           validator=$5
           private_root=$6
-          runner_python=$7
-          python_minor=$8
-          expected_uid=$9
-          expected_gid=${10}
+          report_runtime=$7
+          runner_python=$8
+          python_minor=$9
+          expected_uid=${10}
+          expected_gid=${11}
           stage_code=80
           trap 'exit "$stage_code"' ERR
           expected_uids="$expected_uid $expected_uid $expected_uid $expected_uid"
@@ -543,6 +919,23 @@ jobs:
             printf '%s\n' "$validator_mount_options" | \
               tr ',' '\n' | grep -Fx "$required_option"
           done
+          report_runtime_mount_options=$(findmnt -n -o OPTIONS --target "$report_runtime")
+          for required_option in ro nosuid nodev; do
+            printf '%s\n' "$report_runtime_mount_options" | \
+              tr ',' '\n' | grep -Fx "$required_option"
+          done
+          ! printf '%s\n' "$report_runtime_mount_options" | \
+            tr ',' '\n' | grep -Fx noexec
+          report_cache="$HOME/.cache/tectonic"
+          report_cache_mount_options=$(findmnt -n -o OPTIONS --target "$report_cache")
+          for required_option in ro noexec nosuid nodev; do
+            printf '%s\n' "$report_cache_mount_options" | \
+              tr ',' '\n' | grep -Fx "$required_option"
+          done
+          test ! -w "$report_runtime" && test ! -w "$report_cache"
+          test "$(command -v tectonic)" = "$report_runtime/tectonic"
+          test "$(sha256sum "$report_runtime/tectonic" | awk '{print $1}')" = \
+            93898e5680acc5ae857b96a3ac1447d84f3bb2eb8dd39398c9859e284afb5443
           stage_code=88
           private_mount_options=$(findmnt -n -o OPTIONS --target "$private_root")
           printf '%s\n' "$private_mount_options" | tr ',' '\n' | grep -Fx rw
@@ -550,15 +943,16 @@ jobs:
           printf '%s\n' "$private_mount_options" | tr ',' '\n' | grep -Fx nodev
           ! printf '%s\n' "$private_mount_options" | tr ',' '\n' | grep -Fx noexec
           stage_code=89
-          test "$TMPDIR" = /tmp
-          tmp_mount_options=$(findmnt -n -o OPTIONS --target /tmp)
+          test "$TMPDIR" = /run/owner-research/tmp
+          tmp_mount_options=$(findmnt -n -o OPTIONS --target "$TMPDIR")
           for required_option in rw nosuid nodev; do
             printf '%s\n' "$tmp_mount_options" | tr ',' '\n' | grep -Fx "$required_option"
           done
           for forbidden_option in ro noexec; do
             ! printf '%s\n' "$tmp_mount_options" | tr ',' '\n' | grep -Fx "$forbidden_option"
           done
-          test "$(stat -c '%u:%g:%a' /tmp)" = 0:0:1777
+          test "$(stat -c '%u:%g:%a' "$TMPDIR")" = \
+            "$expected_uid:$expected_gid:700"
           stage_code=90
           cd "$workspace"
           stage_code=91
@@ -583,20 +977,85 @@ jobs:
             --requirement "$supply_lock"
           stage_code=96
           trap - ERR
-          "$venv_python" -I -m build \
+          SOURCE_DATE_EPOCH=1580601600 \
+            "$venv_python" -I -m build \
             --wheel \
             --no-isolation \
             --skip-dependency-check \
             --outdir "$private_root/research-wheel" \
             "$workspace"
-          research_wheel="$private_root/research-wheel/owner_equity_research-0.6.0.dev2-py3-none-any.whl"
-          "$venv_python" -I "$workspace/scripts/verify_wheel.py" "$research_wheel"
+          research_wheel="$private_root/research-wheel/owner_equity_research-1.0.0.dev0-py3-none-any.whl"
+          candidate_commit=$(git -C "$workspace" rev-parse HEAD)
+          "$venv_python" -I "$workspace/scripts/verify_wheel.py" \
+            --source-root "$workspace" \
+            --expected-commit "$candidate_commit" \
+            "$research_wheel"
           "$venv_python" -I -m pip install \
             --only-binary=:all: \
             --no-deps \
             --no-index \
             --no-cache-dir \
             "$research_wheel"
+          sidecar_venv="$private_root/sidecar-venv"
+          sidecar_python="$sidecar_venv/bin/python"
+          "$runner_python" -m venv "$sidecar_venv"
+          "$sidecar_python" -I -m pip install \
+            --require-hashes \
+            --only-binary=:all: \
+            --no-compile \
+            --no-deps \
+            --no-index \
+            --no-cache-dir \
+            --find-links "$wheelhouse" \
+            --requirement "$wheelhouse/sidecar.lock"
+          SOURCE_DATE_EPOCH=1580601600 \
+            "$sidecar_python" -I -m pip wheel \
+              --disable-pip-version-check \
+              --no-build-isolation \
+              --no-deps \
+              --no-index \
+              --wheel-dir "$private_root/futu-wheel" \
+              "$wheelhouse/futu_api-10.10.7008.tar.gz"
+          futu_wheel="$private_root/futu-wheel/futu_api-10.10.7008-py3-none-any.whl"
+          test "$(sha256sum "$futu_wheel" | awk '{print $1}')" = \
+            5aa0c0cfae77213d5d16bf67426c28f53a76c1dc1273f8627fb87cd40d78168e
+          "$runner_python" -I "$workspace/scripts/phase5_v1_dependency_lock.py" \
+            verify-artifacts \
+            --repository "$workspace" \
+            --wheelhouse "$wheelhouse" \
+            --python-target "$python_minor" \
+            --ci-supply-lock "$supply_lock" \
+            --ci-supply-lock "$wheelhouse/sidecar.lock" \
+            --ci-supply-lock "$wheelhouse/futu-source.lock" \
+            --derived-futu-wheel "$futu_wheel" \
+            --expected-git-commit "$candidate_commit"
+          "$sidecar_python" -I -m pip install \
+            --only-binary=:all: \
+            --no-compile \
+            --no-deps \
+            --no-index \
+            --no-cache-dir \
+            "$futu_wheel"
+          SOURCE_DATE_EPOCH=1580601600 \
+            "$sidecar_python" -I -m pip wheel \
+              --disable-pip-version-check \
+              --no-build-isolation \
+              --no-deps \
+              --no-index \
+              --wheel-dir "$private_root/sidecar-wheel" \
+              "$workspace/sidecars/futu-opend"
+          sidecar_wheel="$private_root/sidecar-wheel/owner_research_futu_sidecar-1.0.0.dev0-py3-none-any.whl"
+          "$sidecar_python" -I "$workspace/scripts/verify_sidecar_distribution.py" wheel \
+            --source-root "$workspace" \
+            --expected-commit "$candidate_commit" \
+            "$sidecar_wheel"
+          "$sidecar_python" -I -m pip install \
+            --only-binary=:all: \
+            --no-compile \
+            --no-deps \
+            --no-index \
+            --no-cache-dir \
+            "$sidecar_wheel"
           if [[ "$python_minor" == 3.11 ]]; then
             "$venv_python" -I - \
               "$kernel_checkout" \
@@ -629,6 +1088,8 @@ jobs:
           )
           PY
           else
+            PHASE5_V1_SIDECAR_PYTHON="$sidecar_python" \
+              PYTHONDONTWRITEBYTECODE=1 \
             PHASE5_V1_KERNEL_EXECUTION_REQUIRED=0 \
               OWNER_VALUATION_REPO="$kernel_checkout" \
               "$venv_python" -I "$workspace/scripts/verify_phase5_v1.py" \
@@ -639,10 +1100,22 @@ jobs:
           ROOT_BASH
           stage_status=$?
           set -e
-          if [[ "$stage_status" -ne 0 || '${{ matrix.python-version }}' != 3.11 ]]; then
-            exit "$stage_status"
-          fi
+          exit "$stage_status"
 
+      - name: Run the exact candidate in the authorized 3.11 container
+        if: matrix.python-version == '3.11'
+        shell: bash
+        run: |
+          set -euo pipefail
+          private_root="$RUNNER_TEMP/phase5-v1-private-${{ matrix.python-version }}"
+          wheelhouse="$RUNNER_TEMP/phase5-v1-wheelhouse-${{ matrix.python-version }}"
+          supply_lock="$RUNNER_TEMP/phase5-v1-supply-${{ matrix.python-version }}.lock"
+          private_kernel="$RUNNER_TEMP/phase5-v1-kernel-source"
+          report_runtime="$RUNNER_TEMP/phase5-v1-report-runtime-${{ matrix.python-version }}"
+          host_uid=$(id -u)
+          host_gid=$(id -g)
+          candidate_uid=65534
+          candidate_gid=65534
           # Everything below is fixed workflow code. It never imports the candidate package.
           test -z "$(find "$private_root/output" -mindepth 1 -print -quit)"
           mapfile -t manifests < <(/usr/bin/sudo -n /usr/bin/find \
@@ -655,7 +1128,7 @@ jobs:
             /usr/bin/sudo -n /usr/bin/sha256sum "$runtime_manifest" | awk '{print $1}'
           )
           test "$(basename "$runtime_manifest")" = "$runtime_manifest_sha.json"
-          research_wheel="$private_root/research-wheel/owner_equity_research-0.6.0.dev2-py3-none-any.whl"
+          research_wheel="$private_root/research-wheel/owner_equity_research-1.0.0.dev0-py3-none-any.whl"
           /usr/bin/sudo -n /usr/bin/test -f "$research_wheel"
           /usr/bin/sudo -n /usr/bin/test ! -L "$research_wheel"
           mapfile -t research_entries < <(/usr/bin/sudo -n /usr/bin/find \
@@ -782,12 +1255,13 @@ jobs:
             --mount="type=bind,src=$private_root/research-wheel,dst=/research-wheel,readonly" \
             --mount="type=bind,src=$private_root/kernel-cas,dst=/runtime-cas,readonly" \
             --mount="type=bind,src=$private_kernel,dst=/private-kernel,readonly" \
+            --mount="type=bind,src=$report_runtime,dst=/report-toolchain,readonly" \
             --mount="type=bind,src=$attestation_directory,dst=/run/owner-research,readonly" \
             --mount="type=bind,src=$private_root/output,dst=/output" \
             --entrypoint=/usr/bin/env \
             "$KERNEL_RUNTIME_IMAGE" \
               -i \
-              HOME=/tmp/home \
+              HOME=/report-toolchain/home \
               GIT_CONFIG_COUNT=2 \
               GIT_CONFIG_GLOBAL=/dev/null \
               GIT_CONFIG_KEY_0=safe.directory \
@@ -798,7 +1272,7 @@ jobs:
               GIT_OPTIONAL_LOCKS=0 \
               LANG=C.UTF-8 \
               LC_ALL=C.UTF-8 \
-              PATH=/usr/local/bin:/usr/bin:/bin \
+              PATH=/report-toolchain:/usr/local/bin:/usr/bin:/bin \
               PIP_CONFIG_FILE=/dev/null \
               PIP_DISABLE_PIP_VERSION_CHECK=1 \
               PIP_FIND_LINKS=/supply \
@@ -807,8 +1281,8 @@ jobs:
               PYTHONHASHSEED=0 \
               PYTHONDONTWRITEBYTECODE=1 \
               PYTHONNOUSERSITE=1 \
-              SOURCE_DATE_EPOCH=1784088771 \
-              TMPDIR=/tmp \
+              SOURCE_DATE_EPOCH=1580601600 \
+              TMPDIR=/output/tmp \
               TZ=UTC \
               PHASE5_V1_KERNEL_EXECUTION_REQUIRED=1 \
               OWNER_VALUATION_REPO=/private-kernel \
@@ -820,7 +1294,7 @@ jobs:
                 /workspace \
                 /supply \
                 /supply.lock \
-                /research-wheel/owner_equity_research-0.6.0.dev2-py3-none-any.whl \
+                /research-wheel/owner_equity_research-1.0.0.dev0-py3-none-any.whl \
                 /output/raw-summary.json \
               >"$private_root/container.stdout" \
               2>"$private_root/container.stderr" <<'BASH'
@@ -836,9 +1310,17 @@ jobs:
           test "$(git -C "$workspace" rev-parse --show-toplevel)" = "$workspace"
           test "$(git -C /private-kernel rev-parse --show-toplevel)" = /private-kernel
           test "$(python3 -c 'import platform; print(platform.python_version())')" = 3.11.15
-          mkdir -m 0700 "$HOME" /tmp/venv
-          python3 -m venv /tmp/venv
-          venv_python=/tmp/venv/bin/python
+          test -d "$HOME/.cache/tectonic" && test ! -w "$HOME/.cache/tectonic"
+          test "$(command -v tectonic)" = /report-toolchain/tectonic
+          test "$(sha256sum /report-toolchain/tectonic | awk '{print $1}')" = \
+            93898e5680acc5ae857b96a3ac1447d84f3bb2eb8dd39398c9859e284afb5443
+          test "$TMPDIR" = /output/tmp
+          mkdir -m 0700 "$TMPDIR"
+          test "$(stat -c '%u:%g:%a' "$TMPDIR")" = \
+            "$(id -u):$(id -g):700"
+          mkdir -m 0700 "$TMPDIR/venv"
+          python3 -m venv "$TMPDIR/venv"
+          venv_python="$TMPDIR/venv/bin/python"
           "$venv_python" -I -m pip install \
             --require-hashes \
             --only-binary=:all: \
@@ -854,7 +1336,61 @@ jobs:
             --no-cache-dir \
             "$research_wheel"
           cd "$workspace"
-          "$venv_python" -I scripts/verify_phase5_v1.py \
+          sidecar_venv=/output/sidecar-venv
+          sidecar_python="$sidecar_venv/bin/python"
+          python3 -m venv "$sidecar_venv"
+          "$sidecar_python" -I -m pip install \
+            --require-hashes \
+            --only-binary=:all: \
+            --no-compile \
+            --no-deps \
+            --no-index \
+            --no-cache-dir \
+            --find-links "$wheelhouse" \
+            --requirement "$wheelhouse/sidecar.lock"
+          mkdir -m 0700 /output/futu-wheel /output/sidecar-wheel
+          SOURCE_DATE_EPOCH=1580601600 \
+            "$sidecar_python" -I -m pip wheel \
+              --disable-pip-version-check \
+              --no-build-isolation \
+              --no-deps \
+              --no-index \
+              --wheel-dir /output/futu-wheel \
+              "$wheelhouse/futu_api-10.10.7008.tar.gz"
+          futu_wheel=/output/futu-wheel/futu_api-10.10.7008-py3-none-any.whl
+          test "$(sha256sum "$futu_wheel" | awk '{print $1}')" = \
+            5aa0c0cfae77213d5d16bf67426c28f53a76c1dc1273f8627fb87cd40d78168e
+          "$sidecar_python" -I -m pip install \
+            --only-binary=:all: \
+            --no-compile \
+            --no-deps \
+            --no-index \
+            --no-cache-dir \
+            "$futu_wheel"
+          SOURCE_DATE_EPOCH=1580601600 \
+            "$sidecar_python" -I -m pip wheel \
+              --disable-pip-version-check \
+              --no-build-isolation \
+              --no-deps \
+              --no-index \
+              --wheel-dir /output/sidecar-wheel \
+              "$workspace/sidecars/futu-opend"
+          sidecar_wheel=/output/sidecar-wheel/owner_research_futu_sidecar-1.0.0.dev0-py3-none-any.whl
+          reviewed_commit=$(git -C "$workspace" rev-parse HEAD)
+          "$sidecar_python" -I scripts/verify_sidecar_distribution.py wheel \
+            --source-root "$workspace" \
+            --expected-commit "$reviewed_commit" \
+            "$sidecar_wheel"
+          "$sidecar_python" -I -m pip install \
+            --only-binary=:all: \
+            --no-compile \
+            --no-deps \
+            --no-index \
+            --no-cache-dir \
+            "$sidecar_wheel"
+          PHASE5_V1_SIDECAR_PYTHON="$sidecar_python" \
+            PYTHONDONTWRITEBYTECODE=1 \
+            "$venv_python" -I scripts/verify_phase5_v1.py \
             --mode verify \
             --output "$raw_summary"
           BASH
@@ -877,6 +1413,8 @@ jobs:
             "$RUNNER_TEMP/phase5-v1-supply-${{ matrix.python-version }}.lock" \
             "$RUNNER_TEMP/phase5-v1-runtime-supply.lock" \
             "$RUNNER_TEMP/phase5-v1-supply-validator-${{ matrix.python-version }}.py" \
+            "$RUNNER_TEMP/phase5-v1-report-bootstrap-${{ matrix.python-version }}" \
+            "$RUNNER_TEMP/phase5-v1-report-runtime-${{ matrix.python-version }}" \
             "$RUNNER_TEMP/phase5-v1-upload-${{ matrix.python-version }}" \
             '${{ github.event.pull_request.head.sha || github.sha }}' \
             '${{ steps.supply.outputs.candidate-tree }}' <<'PY'
@@ -1133,9 +1671,11 @@ jobs:
               supply_lock = Path(sys.argv[7])
               runtime_lock = Path(sys.argv[8])
               validator = Path(sys.argv[9])
-              upload_directory = Path(sys.argv[10])
-              expected_commit = sys.argv[11]
-              expected_tree = sys.argv[12]
+              report_bootstrap = Path(sys.argv[10])
+              report_runtime = Path(sys.argv[11])
+              upload_directory = Path(sys.argv[12])
+              expected_commit = sys.argv[13]
+              expected_tree = sys.argv[14]
               try:
                   raw = read_raw(raw_root, raw_name)
               except Exception:
@@ -1148,6 +1688,8 @@ jobs:
                   supply_lock,
                   runtime_lock,
                   validator,
+                  report_bootstrap,
+                  report_runtime,
               ]
               cleanup = subprocess.run(
                   ["/usr/bin/sudo", "/bin/rm", "-rf", "--", *map(str, cleanup_paths)],
@@ -1201,8 +1743,16 @@ jobs:
   semantic-audit:
     name: phase5/semantic-audit
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 90
     steps:
+      - name: Fail closed until external release control is deployed
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' \
+            '::error title=Release control unavailable::release_control_root_not_deployed' >&2
+          exit 1
       - name: Check out the exact reviewed commit
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -1216,16 +1766,304 @@ jobs:
         with:
           python-version: "3.11"
           check-latest: false
-          cache: pip
-      - name: Install current project and verification dependencies
-        run: python -m pip install --disable-pip-version-check -e '.[dev]'
+      - name: Validate the machine-readable semantic supply authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -I scripts/phase5_v1_dependency_lock.py validate \
+            --repository "$GITHUB_WORKSPACE" \
+            --expected-git-commit "$(git rev-parse HEAD)"
+      - name: Prefetch and seal the exact semantic supply before netless replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          wheelhouse="$RUNNER_TEMP/phase5-v1-semantic-supply"
+          supply_lock="$RUNNER_TEMP/phase5-v1-semantic-supply.lock"
+          sidecar_lock="$wheelhouse/sidecar.lock"
+          futu_source_lock="$wheelhouse/futu-source.lock"
+          validator="$RUNNER_TEMP/phase5-v1-semantic-supply-validator.py"
+          semantic_venv="$RUNNER_TEMP/phase5-v1-semantic-venv"
+          sidecar_venv="$RUNNER_TEMP/phase5-v1-semantic-sidecar-venv"
+          semantic_output="$RUNNER_TEMP/phase5-v1-semantic-output"
+          report_bootstrap="$RUNNER_TEMP/phase5-v1-semantic-report-bootstrap"
+          report_runtime="$RUNNER_TEMP/phase5-v1-semantic-report-runtime"
+          report_bootstrap_script="scripts/bootstrap_linux_x64_report_toolchain.py"
+          report_font="plugins/owner-equity-research/skills/owner-equity-research/assets/NotoSansCJKsc-Regular.otf"
+          report_registry="src/owner_research/resources/report/report-toolchain-authority-v1.json"
+          report_candidate="docs/report-toolchain-evidence/linux-x64/linux-x64-report-toolchain-authority-candidate.json"
+          mkdir -m 0700 "$wheelhouse"
+          python -I - \
+            .github/workflows/ci.yml \
+            "$supply_lock" \
+            "$sidecar_lock" \
+            "$futu_source_lock" \
+            "$validator" <<'PY'
+          import os
+          import stat
+          import sys
+          from pathlib import Path
+
+          MAXIMUM_WORKFLOW_BYTES = 4 * 1024 * 1024
+
+          def read_regular(path):
+              descriptor = os.open(
+                  path,
+                  os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW,
+              )
+              try:
+                  before = os.fstat(descriptor)
+                  if (
+                      not stat.S_ISREG(before.st_mode)
+                      or before.st_nlink != 1
+                      or before.st_size > MAXIMUM_WORKFLOW_BYTES
+                  ):
+                      raise SystemExit("semantic supply workflow is unsafe")
+                  chunks = []
+                  consumed = 0
+                  while chunk := os.read(descriptor, 64 * 1024):
+                      consumed += len(chunk)
+                      if consumed > MAXIMUM_WORKFLOW_BYTES:
+                          raise SystemExit("semantic supply workflow is oversized")
+                      chunks.append(chunk)
+                  after = os.fstat(descriptor)
+                  if (
+                      consumed != before.st_size
+                      or (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
+                      != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
+                  ):
+                      raise SystemExit("semantic supply workflow changed while read")
+                  return b"".join(chunks).decode("utf-8")
+              finally:
+                  os.close(descriptor)
+
+          def exact_embedded(source, variable, delimiter):
+              indentation = " " * 10
+              start = indentation + f'cat > "${variable}" <<\'{delimiter}\'\n'
+              end = "\n" + indentation + delimiter
+              if source.count(start) != 1:
+                  raise SystemExit("semantic supply source marker is not unique")
+              raw = source.split(start, 1)[1].split(end, 1)[0]
+              lines = raw.splitlines()
+              if not lines or any(
+                  line and not line.startswith(indentation) for line in lines
+              ):
+                  raise SystemExit("semantic supply source indentation drifted")
+              return "\n".join(
+                  line[len(indentation):] if line else "" for line in lines
+              ) + "\n"
+
+          def write_exclusive(path, content):
+              descriptor = os.open(
+                  path,
+                  os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW,
+                  0o600,
+              )
+              try:
+                  payload = content.encode("utf-8")
+                  view = memoryview(payload)
+                  while view:
+                      written = os.write(descriptor, view)
+                      if written <= 0:
+                          raise SystemExit("semantic supply extraction was incomplete")
+                      view = view[written:]
+                  os.fsync(descriptor)
+              finally:
+                  os.close(descriptor)
+
+          workflow_path, supply_path, sidecar_path, futu_path, validator_path = map(
+              Path, sys.argv[1:]
+          )
+          source = read_regular(workflow_path)
+          for variable, delimiter, destination in (
+              ("supply_lock", "LOCK", supply_path),
+              ("sidecar_lock", "LOCK", sidecar_path),
+              ("futu_source_lock", "LOCK", futu_path),
+              ("validator", "PY", validator_path),
+          ):
+              write_exclusive(destination, exact_embedded(source, variable, delimiter))
+          PY
+          test "$(sha256sum "$supply_lock" | awk '{print $1}')" = \
+            2301b798cfeea3ae4ff99cf07879222804549a09ddc5407d32f12be88236e2f3
+          test "$(sha256sum "$sidecar_lock" | awk '{print $1}')" = \
+            444b04fda92f93a67c434e74584b5f6d072e2c79ed57c4a07f96dcdb842d36a4
+          test "$(sha256sum "$futu_source_lock" | awk '{print $1}')" = \
+            6da209692c78e9a5b09c6567177684876df7348dacdb7db29afaf15cdb87b048
+          test "$(sha256sum "$validator" | awk '{print $1}')" = \
+            be7237e9a0c0eb669e9186f97b1c9ec6d7a10540ad859fbf2b1ff53135bc8df7
+          chmod 0444 "$supply_lock" "$sidecar_lock" "$futu_source_lock" "$validator"
+          PIP_CONFIG_FILE=/dev/null PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_NO_CACHE_DIR=1 \
+            python -I -m pip download \
+              --require-hashes \
+              --only-binary=:all: \
+              --no-deps \
+              --no-cache-dir \
+              --platform manylinux2014_x86_64 \
+              --platform manylinux_2_28_x86_64 \
+              --implementation cp \
+              --python-version 3.11 \
+              --abi cp311 \
+              --dest "$wheelhouse" \
+              --requirement "$supply_lock"
+          PIP_CONFIG_FILE=/dev/null PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_NO_CACHE_DIR=1 \
+            python -I -m pip download \
+              --require-hashes \
+              --only-binary=:all: \
+              --no-deps \
+              --no-cache-dir \
+              --platform manylinux2014_x86_64 \
+              --platform manylinux_2_28_x86_64 \
+              --implementation cp \
+              --python-version 3.11 \
+              --abi cp311 \
+              --dest "$wheelhouse" \
+              --requirement "$sidecar_lock"
+          PIP_CONFIG_FILE=/dev/null PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_NO_CACHE_DIR=1 \
+            python -I -m pip download \
+              --require-hashes \
+              --no-binary=:all: \
+              --no-deps \
+              --no-cache-dir \
+              --dest "$wheelhouse" \
+              --requirement "$futu_source_lock"
+          python -I "$validator" "$wheelhouse" 3.11
+          python -I "$GITHUB_WORKSPACE/scripts/phase5_v1_dependency_lock.py" \
+            verify-artifacts \
+            --repository "$GITHUB_WORKSPACE" \
+            --wheelhouse "$wheelhouse" \
+            --python-target 3.11 \
+            --downloaded-only \
+            --ci-supply-lock "$supply_lock" \
+            --ci-supply-lock "$sidecar_lock" \
+            --ci-supply-lock "$futu_source_lock" \
+            --expected-git-commit "$(git -C "$GITHUB_WORKSPACE" rev-parse HEAD)"
+          sudo chown root:root "$supply_lock" "$validator"
+          sudo chmod 0444 "$supply_lock" "$validator"
+          sudo chown -R root:root "$wheelhouse"
+          sudo find "$wheelhouse" -type d -exec chmod 0555 {} +
+          sudo find "$wheelhouse" -type f -exec chmod 0444 {} +
+          python -m venv "$semantic_venv"
+          "$semantic_venv/bin/python" -I -m pip install \
+            --require-hashes \
+            --only-binary=:all: \
+            --no-compile \
+            --no-deps \
+            --no-index \
+            --no-cache-dir \
+            --find-links "$wheelhouse" \
+            --requirement "$supply_lock"
+          python -m venv "$sidecar_venv"
+          "$sidecar_venv/bin/python" -I -m pip install \
+            --require-hashes \
+            --only-binary=:all: \
+            --no-compile \
+            --no-deps \
+            --no-index \
+            --no-cache-dir \
+            --find-links "$wheelhouse" \
+            --requirement "$sidecar_lock"
+          test "$(sha256sum "$report_bootstrap_script" | awk '{print $1}')" = \
+            2f80b744f1e397a8b9b7570b3464c313fa14629bf358e69aa2c7b4089b3c8790
+          test "$(sha256sum "$report_font" | awk '{print $1}')" = \
+            2c76254f6fc379fddfce0a7e84fb5385bb135d3e399294f6eeb6680d0365b74b
+          test "$(stat -c '%s' "$report_font")" = 16437364
+          test "$(sha256sum "$report_registry" | awk '{print $1}')" = \
+            f4b3aa468ddfbc8214410f611e7014f6d311a9d5922ac8e5e41ef25dbaa0775c
+          "$semantic_venv/bin/python" -I "$report_bootstrap_script" \
+            --output "$report_bootstrap" \
+            --font "$report_font"
+          "$semantic_venv/bin/python" -I - \
+            "$report_registry" \
+            "$report_candidate" \
+            "$report_bootstrap/linux-x64-report-toolchain-authority-candidate.json" <<'PY'
+          import hashlib
+          import json
+          import os
+          import stat
+          import sys
+
+          def read_regular(path):
+              descriptor = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+              try:
+                  before = os.fstat(descriptor)
+                  if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or before.st_size > 16 * 1024 * 1024:
+                      raise SystemExit("report authority is unsafe")
+                  content = b""
+                  while chunk := os.read(descriptor, 1024 * 1024):
+                      content += chunk
+                      if len(content) > 16 * 1024 * 1024:
+                          raise SystemExit("report authority is oversized")
+                  after = os.fstat(descriptor)
+                  if (
+                      len(content) != before.st_size
+                      or (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
+                      != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
+                  ):
+                      raise SystemExit("report authority changed while read")
+                  return content
+              finally:
+                  os.close(descriptor)
+
+          registry_content = read_regular(sys.argv[1])
+          committed_candidate_content = read_regular(sys.argv[2])
+          candidate_content = read_regular(sys.argv[3])
+          if hashlib.sha256(registry_content).hexdigest() != "f4b3aa468ddfbc8214410f611e7014f6d311a9d5922ac8e5e41ef25dbaa0775c":
+              raise SystemExit("report registry identity differs")
+          registry = json.loads(registry_content)
+          committed_candidate = json.loads(committed_candidate_content)
+          candidate = json.loads(candidate_content)
+          linux = [item for item in registry["authorities"] if item.get("platform_target") == "linux-x64"]
+          if (
+              len(linux) != 1
+              or candidate_content != committed_candidate_content
+              or committed_candidate != linux[0]
+              or candidate.get("renderer") != linux[0].get("renderer")
+              or candidate.get("offline_bundle") != linux[0].get("offline_bundle")
+              or candidate.get("pdf_text_backend", {}).get("distribution") != "pypdf"
+              or candidate.get("pdf_text_backend", {}).get("version") != "6.16.1"
+              or candidate.get("pdf_render_backend", {}).get("distribution")
+              != "pypdfium2"
+              or candidate.get("pdf_render_backend", {}).get("version") != "5.13.0"
+              or registry.get("registry_fingerprint")
+              != "81a40c76ba93c36365e3ed965949685d4e1042dfb4cc5b285ef2a3f9c51a4b42"
+              or linux[0].get("authority_fingerprint")
+              != "feb6abd5dea694c23d4e94151ef09719f1a47e124a8d98a24d1f331a9c352f41"
+              or candidate.get("offline_bundle")
+              != {
+                  "tree_sha256": "1d224c0e9a26652d51c531f78e15de5a361d7f6f9c3029486846cce90d272f11",
+                  "member_count": 327,
+                  "total_bytes": 45096797,
+              }
+          ):
+              raise SystemExit("bootstrapped Linux report authority differs from the registry")
+          PY
+          mkdir -m 0700 "$report_runtime"
+          install -m 0500 "$report_bootstrap/tectonic" "$report_runtime/tectonic"
+          install -d -m 0700 "$report_runtime/home/.cache/tectonic"
+          cp -a "$report_bootstrap/tectonic-cache/." \
+            "$report_runtime/home/.cache/tectonic/"
+          sudo chown -R root:root "$report_runtime"
+          sudo find "$report_runtime" -type d -exec chmod 0555 {} +
+          sudo find "$report_runtime" -type f -exec chmod 0444 {} +
+          sudo chmod 0555 "$report_runtime/tectonic"
+          test "$(sha256sum "$report_candidate" | awk '{print $1}')" = \
+            4a2ac210d3aafabdfc2c6f887552632ec6f0dc78c6b232261445074312b1378c
+          test "$(sha256sum "$report_runtime/tectonic" | awk '{print $1}')" = \
+            93898e5680acc5ae857b96a3ac1447d84f3bb2eb8dd39398c9859e284afb5443
+          test -d "$report_runtime/home/.cache/tectonic"
+          test ! -w "$report_runtime/home/.cache/tectonic"
+          mkdir -m 0700 "$semantic_output"
+          sudo chown -R 65534:65534 \
+            "$semantic_venv" \
+            "$sidecar_venv"
+          sudo chown root:root "$semantic_output"
+          sudo chmod 0733 "$semantic_output"
       - name: Select the audit mode and severity gate
         id: policy
         shell: bash
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
             mode=semantic-audit
-            require_zero=P0,P1
+            require_zero=P0,P1,P2,P3
           elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
             mode=semantic-audit
             require_zero=P0,P1,P2,P3
@@ -1245,14 +2083,278 @@ jobs:
           REQUIRED_ZERO: ${{ steps.policy.outputs.require_zero }}
           REVIEWED_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          runner_python=$(command -v python)
-          sudo unshare --net -- \
-            env PYTHONHASHSEED=0 PYTHONDONTWRITEBYTECODE=1 \
-              "$runner_python" -I scripts/verify_phase5_v1.py \
-              --mode "$AUDIT_MODE" \
-              --require-zero "$REQUIRED_ZERO" \
-              --expected-commit "$REVIEWED_COMMIT" \
-              --output "$RUNNER_TEMP/phase5-v1-semantic-candidate.json"
+          set -euo pipefail
+          candidate_uid=65534
+          candidate_gid=65534
+          test -x /usr/bin/setpriv
+          sudo unshare --mount --net -- \
+            /bin/bash -s -- \
+              "$candidate_uid" \
+              "$candidate_gid" \
+              "$GITHUB_WORKSPACE" \
+              "$RUNNER_TEMP/phase5-v1-semantic-supply" \
+              "$RUNNER_TEMP/phase5-v1-semantic-supply.lock" \
+              "$RUNNER_TEMP/phase5-v1-semantic-supply-validator.py" \
+              "$RUNNER_TEMP/phase5-v1-semantic-venv" \
+              "$RUNNER_TEMP/phase5-v1-semantic-sidecar-venv" \
+              "$RUNNER_TEMP/phase5-v1-semantic-report-runtime" \
+              "$RUNNER_TEMP/phase5-v1-semantic-output" \
+              "$AUDIT_MODE" \
+              "$REQUIRED_ZERO" \
+              "$REVIEWED_COMMIT" <<'ROOT_BASH'
+          set -euo pipefail
+          candidate_uid=$1
+          candidate_gid=$2
+          workspace_source=$3
+          wheelhouse_source=$4
+          supply_lock_source=$5
+          validator_source=$6
+          semantic_venv_source=$7
+          sidecar_venv_source=$8
+          report_runtime_source=$9
+          output_source=${10}
+          audit_mode=${11}
+          required_zero=${12}
+          reviewed_commit=${13}
+          test "$(id -u)" -eq 0
+          mount --make-rprivate /
+          test "$(readlink -f /var/run)" = /run
+          mount -t tmpfs -o mode=0755,nosuid,nodev,noexec tmpfs /run
+          test -x /usr/sbin/ip
+          /usr/sbin/ip link set dev lo up
+          /usr/sbin/ip link show dev lo | grep -F '<LOOPBACK,UP,'
+          test -d /tmp && test ! -L /tmp
+          mount -t tmpfs -o rw,exec,nosuid,nodev,size=1073741824,mode=1777 tmpfs /tmp
+          boundary=/run/owner-research-semantic
+          mkdir -m 0755 "$boundary"
+          mkdir -m 0755 \
+            "$boundary/workspace" \
+            "$boundary/supply" \
+            "$boundary/semantic-venv" \
+            "$boundary/sidecar-venv" \
+            "$boundary/report-toolchain" \
+            "$boundary/output" \
+            "$boundary/home" \
+            "$boundary/home/.cache" \
+            "$boundary/home/.cache/tectonic"
+          mkdir -m 0700 "$boundary/tmp"
+          mount -t tmpfs \
+            -o rw,exec,nosuid,nodev,size=1073741824,mode=0700 \
+            tmpfs "$boundary/tmp"
+          : > "$boundary/supply.lock"
+          : > "$boundary/validator.py"
+          workspace="$boundary/workspace"
+          wheelhouse="$boundary/supply"
+          supply_lock="$boundary/supply.lock"
+          validator="$boundary/validator.py"
+          semantic_venv="$boundary/semantic-venv"
+          sidecar_venv="$boundary/sidecar-venv"
+          report_runtime="$boundary/report-toolchain"
+          output_root="$boundary/output"
+          home="$boundary/home"
+          tmp_root="$boundary/tmp"
+          mount --bind "$workspace_source" "$workspace"
+          mount -o remount,bind,ro "$workspace"
+          mount --bind "$wheelhouse_source" "$wheelhouse"
+          mount -o remount,bind,ro,noexec,nosuid,nodev "$wheelhouse"
+          mount --bind "$supply_lock_source" "$supply_lock"
+          mount -o remount,bind,ro,noexec,nosuid,nodev "$supply_lock"
+          mount --bind "$validator_source" "$validator"
+          mount -o remount,bind,ro,noexec,nosuid,nodev "$validator"
+          mount --bind "$semantic_venv_source" "$semantic_venv"
+          mount -o remount,bind,rw,exec,nosuid,nodev "$semantic_venv"
+          mount --bind "$sidecar_venv_source" "$sidecar_venv"
+          mount -o remount,bind,rw,exec,nosuid,nodev "$sidecar_venv"
+          mount --bind "$report_runtime_source" "$report_runtime"
+          mount -o remount,bind,ro,exec,nosuid,nodev "$report_runtime"
+          mount --bind "$output_source" "$output_root"
+          mount -o remount,bind,rw,noexec,nosuid,nodev "$output_root"
+          chown "$candidate_uid:$candidate_gid" "$home" "$tmp_root"
+          chown root:root "$home/.cache"
+          chmod 0555 "$home/.cache"
+          mount --bind \
+            "$report_runtime/home/.cache/tectonic" \
+            "$home/.cache/tectonic"
+          mount -o remount,bind,ro,noexec,nosuid,nodev "$home/.cache/tectonic"
+          for privileged_channel in /usr/bin/docker /usr/bin/sudo; do
+            test -e "$privileged_channel"
+            mount --bind /dev/null "$privileged_channel"
+            mount -o remount,bind,ro,noexec,nosuid,nodev "$privileged_channel"
+          done
+          mapfile -t network_interfaces < <(
+            awk -F: 'NR > 2 {
+              gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1); print $1
+            }' /proc/net/dev | sort
+          )
+          test "${network_interfaces[*]}" = lo
+          test -z "$(awk 'NR > 1 {print; exit}' /proc/net/route)"
+          exec /usr/bin/setpriv \
+            --reuid="$candidate_uid" \
+            --regid="$candidate_gid" \
+            --clear-groups \
+            --inh-caps=-all \
+            --ambient-caps=-all \
+            --bounding-set=-all \
+            --no-new-privs \
+            /usr/bin/env -i \
+              GIT_CONFIG_COUNT=1 \
+              GIT_CONFIG_GLOBAL=/dev/null \
+              GIT_CONFIG_KEY_0=safe.directory \
+              GIT_CONFIG_NOSYSTEM=1 \
+              GIT_CONFIG_VALUE_0="$workspace" \
+              GIT_OPTIONAL_LOCKS=0 \
+              HOME="$home" \
+              LANG=C.UTF-8 \
+              LC_ALL=C.UTF-8 \
+              PATH="$report_runtime:/usr/local/bin:/usr/bin:/bin" \
+              PIP_CONFIG_FILE=/dev/null \
+              PIP_DISABLE_PIP_VERSION_CHECK=1 \
+              PIP_FIND_LINKS="$wheelhouse" \
+              PIP_NO_CACHE_DIR=1 \
+              PIP_NO_INDEX=1 \
+              PYTHONHASHSEED=0 \
+              PYTHONDONTWRITEBYTECODE=1 \
+              SOURCE_DATE_EPOCH=1580601600 \
+              TMPDIR="$tmp_root" \
+              TZ=UTC \
+              /bin/bash -s -- \
+                "$workspace" \
+                "$wheelhouse" \
+                "$supply_lock" \
+                "$validator" \
+                "$semantic_venv" \
+                "$sidecar_venv" \
+                "$report_runtime" \
+                "$output_root" \
+                "$audit_mode" \
+                "$required_zero" \
+                "$reviewed_commit" <<'CANDIDATE_BASH'
+          set -euo pipefail
+          workspace=$1
+          wheelhouse=$2
+          supply_lock=$3
+          validator=$4
+          semantic_venv=$5
+          sidecar_venv=$6
+          report_runtime=$7
+          output_root=$8
+          audit_mode=$9
+          required_zero=${10}
+          reviewed_commit=${11}
+          semantic_python="$semantic_venv/bin/python"
+          sidecar_python="$sidecar_venv/bin/python"
+          output="$output_root/phase5-v1-semantic-candidate.json"
+          test "$(id -u):$(id -g)" = 65534:65534
+          test "$TMPDIR" = /run/owner-research-semantic/tmp
+          test "$(stat -c '%u:%g:%a' "$TMPDIR")" = 65534:65534:700
+          tmp_mount_options=$(findmnt -n -o OPTIONS --target "$TMPDIR")
+          for required_option in rw nosuid nodev; do
+            printf '%s\n' "$tmp_mount_options" | tr ',' '\n' | grep -Fx "$required_option"
+          done
+          ! printf '%s\n' "$tmp_mount_options" | tr ',' '\n' | grep -Fx noexec
+          test "$(awk '/^NoNewPrivs:/ {print $2}' /proc/self/status)" = 1
+          for capability_set in CapInh CapPrm CapEff CapBnd CapAmb; do
+            test "$(awk -v key="$capability_set:" '$1 == key {print $2}' \
+              /proc/self/status)" = 0000000000000000
+          done
+          mapfile -t network_interfaces < <(
+            awk -F: 'NR > 2 {
+              gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1); print $1
+            }' /proc/net/dev | sort
+          )
+          test "${network_interfaces[*]}" = lo
+          test -z "$(awk 'NR > 1 {print; exit}' /proc/net/route)"
+          for target in "$workspace" "$wheelhouse" "$supply_lock" "$validator"; do
+            findmnt -n -o OPTIONS --target "$target" | tr ',' '\n' | grep -Fx ro
+          done
+          for target in "$semantic_venv" "$sidecar_venv" "$output_root"; do
+            findmnt -n -o OPTIONS --target "$target" | tr ',' '\n' | grep -Fx rw
+          done
+          test "$(command -v tectonic)" = "$report_runtime/tectonic"
+          test "$(sha256sum "$report_runtime/tectonic" | awk '{print $1}')" = \
+            93898e5680acc5ae857b96a3ac1447d84f3bb2eb8dd39398c9859e284afb5443
+          test -d "$HOME/.cache/tectonic" && test ! -w "$HOME/.cache/tectonic"
+          "$semantic_python" -I "$validator" "$wheelhouse" 3.11
+          research_output="$TMPDIR/research-wheel"
+          futu_output="$TMPDIR/futu-wheel"
+          sidecar_output="$TMPDIR/sidecar-wheel"
+          mkdir -m 0700 "$research_output" "$futu_output" "$sidecar_output"
+          SOURCE_DATE_EPOCH=1580601600 \
+            "$semantic_python" -I -m build \
+            --wheel \
+            --no-isolation \
+            --skip-dependency-check \
+            --outdir "$research_output" \
+            "$workspace"
+          research_wheel="$research_output/owner_equity_research-1.0.0.dev0-py3-none-any.whl"
+          "$semantic_python" -I "$workspace/scripts/verify_wheel.py" \
+            --source-root "$workspace" \
+            --expected-commit "$reviewed_commit" \
+            "$research_wheel"
+          "$semantic_python" -I -m pip install \
+            --only-binary=:all: \
+            --no-compile \
+            --no-deps \
+            --no-index \
+            --no-cache-dir \
+            "$research_wheel"
+          SOURCE_DATE_EPOCH=1580601600 \
+            "$sidecar_python" -I -m pip wheel \
+              --disable-pip-version-check \
+              --no-build-isolation \
+              --no-deps \
+              --no-index \
+              --wheel-dir "$futu_output" \
+              "$wheelhouse/futu_api-10.10.7008.tar.gz"
+          futu_wheel="$futu_output/futu_api-10.10.7008-py3-none-any.whl"
+          test "$(sha256sum "$futu_wheel" | awk '{print $1}')" = \
+            5aa0c0cfae77213d5d16bf67426c28f53a76c1dc1273f8627fb87cd40d78168e
+          "$semantic_python" -I "$workspace/scripts/phase5_v1_dependency_lock.py" \
+            verify-artifacts \
+            --repository "$workspace" \
+            --wheelhouse "$wheelhouse" \
+            --python-target 3.11 \
+            --ci-supply-lock "$supply_lock" \
+            --ci-supply-lock "$wheelhouse/sidecar.lock" \
+            --ci-supply-lock "$wheelhouse/futu-source.lock" \
+            --derived-futu-wheel "$futu_wheel" \
+            --expected-git-commit "$reviewed_commit"
+          "$sidecar_python" -I -m pip install \
+            --only-binary=:all: \
+            --no-compile \
+            --no-deps \
+            --no-index \
+            --no-cache-dir \
+            "$futu_wheel"
+          SOURCE_DATE_EPOCH=1580601600 \
+            "$sidecar_python" -I -m pip wheel \
+              --disable-pip-version-check \
+              --no-build-isolation \
+              --no-deps \
+              --no-index \
+              --wheel-dir "$sidecar_output" \
+              "$workspace/sidecars/futu-opend"
+          sidecar_wheel="$sidecar_output/owner_research_futu_sidecar-1.0.0.dev0-py3-none-any.whl"
+          "$sidecar_python" -I "$workspace/scripts/verify_sidecar_distribution.py" wheel \
+            --source-root "$workspace" \
+            --expected-commit "$reviewed_commit" \
+            "$sidecar_wheel"
+          "$sidecar_python" -I -m pip install \
+            --only-binary=:all: \
+            --no-compile \
+            --no-deps \
+            --no-index \
+            --no-cache-dir \
+            "$sidecar_wheel"
+          cd "$workspace"
+          PHASE5_V1_SIDECAR_PYTHON="$sidecar_python" \
+            "$semantic_python" -I scripts/verify_phase5_v1.py \
+              --mode "$audit_mode" \
+              --require-zero "$required_zero" \
+              --expected-commit "$reviewed_commit" \
+              --output "$output"
+          CANDIDATE_BASH
+          ROOT_BASH
       - name: Upload the deterministic candidate-replay summary
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -1260,6 +2362,7 @@ jobs:
           name: >-
             phase5-v1-semantic-candidate-${{
             github.event.pull_request.head.sha || github.sha }}
-          path: ${{ runner.temp }}/phase5-v1-semantic-candidate.json
+          path: >-
+            ${{ runner.temp }}/phase5-v1-semantic-output/phase5-v1-semantic-candidate.json
           retention-days: 90
           if-no-files-found: error

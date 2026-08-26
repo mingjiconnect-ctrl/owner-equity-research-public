@@ -8,16 +8,23 @@ object and coordinated ``dataclasses.replace`` attacks are replayed in ``__post_
 
 from __future__ import annotations
 
+import asyncio
 import copy
+import hashlib
 import json
 import os
 import stat
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field, fields
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass, field, fields, is_dataclass
 from datetime import UTC, date, datetime
-from functools import cache
+from decimal import Decimal
+from functools import cache, wraps
 from pathlib import Path
-from typing import Any, ClassVar
+from threading import get_ident
+from types import MappingProxyType, MemberDescriptorType
+from typing import Any, ClassVar, ParamSpec, TypeVar
 
 from jsonschema import Draft202012Validator, FormatChecker
 from referencing import Registry, Resource
@@ -44,6 +51,19 @@ EXTENSION_SCHEMA_NAMES = (
 )
 EXTENSION_SCHEMA_MAX_BYTES = 16 * 1024 * 1024
 EXTENSION_SCHEMA_TOTAL_MAX_BYTES = 64 * 1024 * 1024
+EXTENSION_DECIMAL_DOMAIN_LIMIT = 1000
+
+
+def extension_decimal_in_domain(value: Decimal) -> bool:
+    """Return whether a finite Decimal fits the shared extension arithmetic domain."""
+
+    exponent = value.as_tuple().exponent
+    return (
+        value.is_finite()
+        and isinstance(exponent, int)
+        and exponent >= -EXTENSION_DECIMAL_DOMAIN_LIMIT
+        and abs(value.adjusted()) <= EXTENSION_DECIMAL_DOMAIN_LIMIT
+    )
 
 _REVIEW_SCOPES = frozenset(
     {
@@ -102,6 +122,639 @@ _GRAPH_ID_ATTRIBUTES = {
 
 class ExtensionAuthorityError(ValueError):
     """A retained synthesis/scoring authority does not replay."""
+
+
+@dataclass(frozen=True, slots=True)
+class _ExactAuthorityWitness:
+    references: tuple[object, ...]
+    exact_types: tuple[type[object], ...]
+    typed_fingerprints: tuple[str, ...]
+    authority_identity_required: tuple[bool, ...]
+
+    def matches(self, other: _ExactAuthorityWitness) -> bool:
+        return (
+            len(self.references) == len(other.references)
+            and all(
+                retained is observed
+                for retained, observed in zip(
+                    self.references,
+                    other.references,
+                    strict=True,
+                )
+            )
+            and self.exact_types == other.exact_types
+            and self.typed_fingerprints == other.typed_fingerprints
+            and self.authority_identity_required
+            == other.authority_identity_required
+        )
+
+    def stable_after_replay(self, other: _ExactAuthorityWitness) -> bool:
+        return (
+            len(self.references) == len(other.references)
+            and self.exact_types == other.exact_types
+            and self.typed_fingerprints == other.typed_fingerprints
+            and self.authority_identity_required
+            == other.authority_identity_required
+            and all(
+                not required or retained is observed
+                for retained, observed, required in zip(
+                    self.references,
+                    other.references,
+                    self.authority_identity_required,
+                    strict=True,
+                )
+            )
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class _ExtensionReplayCacheEntry:
+    authority: object
+    public_sha256: str
+    public_typed_sha256: str
+    private_witness: _ExactAuthorityWitness
+
+
+@dataclass(frozen=True, slots=True)
+class _CompletedRunReplayCacheEntry:
+    run_result: object
+    binding_witness: _ExactAuthorityWitness
+    archive: object
+    request_bytes: bytes
+    result_bytes: bytes
+
+
+def _current_task_id() -> int | None:
+    try:
+        task = asyncio.current_task()
+    except RuntimeError:
+        return None
+    return id(task) if task is not None else None
+
+
+@dataclass(slots=True)
+class _RetainedReplaySession:
+    extensions: dict[int, _ExtensionReplayCacheEntry] = field(default_factory=dict)
+    completed_runs: dict[int, _CompletedRunReplayCacheEntry] = field(default_factory=dict)
+    visiting: set[tuple[str, int]] = field(default_factory=set)
+    active: bool = True
+    owner_thread_id: int = field(default_factory=get_ident)
+    owner_task_id: int | None = field(default_factory=_current_task_id)
+
+
+_RETAINED_REPLAY_SESSION: ContextVar[_RetainedReplaySession | None] = ContextVar(
+    "owner_research_retained_replay_session",
+    default=None,
+)
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
+
+
+@contextmanager
+def retained_authority_replay_session() -> Iterator[None]:
+    """Share replay work only inside one synchronous top-level operation."""
+
+    current = _RETAINED_REPLAY_SESSION.get()
+    if (
+        current is not None
+        and current.active
+        and current.owner_thread_id == get_ident()
+        and current.owner_task_id == _current_task_id()
+    ):
+        yield
+        return
+    session = _RetainedReplaySession()
+    token = _RETAINED_REPLAY_SESSION.set(session)
+    try:
+        yield
+    finally:
+        session.active = False
+        session.extensions.clear()
+        session.completed_runs.clear()
+        session.visiting.clear()
+        _RETAINED_REPLAY_SESSION.reset(token)
+
+
+def retained_authority_replay_scope(
+    function: Callable[_P, _R],
+) -> Callable[_P, _R]:
+    """Decorate a synchronous public operation with one retained replay session."""
+
+    @wraps(function)
+    def scoped(*args: _P.args, **kwargs: _P.kwargs) -> _R:
+        with retained_authority_replay_session():
+            return function(*args, **kwargs)
+
+    return scoped
+
+
+def _component_lock_path_live_payload(value: Path) -> dict[str, str]:
+    from .component_lock import file_sha256
+
+    absolute = Path(value).expanduser().absolute()
+    try:
+        digest = file_sha256(absolute)
+    except (OSError, TypeError, ValueError) as exc:
+        raise ExtensionAuthorityError(
+            "retained ContractGraph component lock is unavailable"
+        ) from exc
+    return {
+        "path": str(absolute),
+        "file_sha256": digest,
+    }
+
+
+def _validate_frozen_map_storage(value: FrozenMap) -> None:
+    items = value._items
+    index = value._index
+    index_items = (
+        tuple(sorted(index.items()))
+        if type(index) is MappingProxyType
+        else ()
+    )
+    if (
+        type(items) is not tuple
+        or type(index) is not MappingProxyType
+        or any(type(key) is not str for key in index)
+        or items != index_items
+        or any(
+            item_key is not index_key or item_value is not index_value
+            for (item_key, item_value), (index_key, index_value) in zip(
+                items,
+                index_items,
+                strict=True,
+            )
+        )
+    ):
+        raise ExtensionAuthorityError("retained FrozenMap storage does not replay")
+
+
+def _live_json_value(value: object, *, visiting: set[int]) -> object:
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, (bytes, bytearray)):
+        return {"bytes_sha256": hashlib.sha256(bytes(value)).hexdigest()}
+    if isinstance(value, (date, datetime)):
+        return {"iso8601": value.isoformat()}
+    if type(value) is FrozenMap:
+        _validate_frozen_map_storage(value)
+    tracked = is_dataclass(value) or isinstance(value, (Mapping, Sequence, set, frozenset))
+    identity = id(value)
+    if tracked:
+        if identity in visiting:
+            raise ExtensionAuthorityError("retained-authority live digest cycle detected")
+        visiting.add(identity)
+    try:
+        if isinstance(value, Mapping):
+            entries = [
+                (
+                    {
+                        "exact_type": (
+                            f"{type(key).__module__}.{type(key).__qualname__}"
+                        ),
+                        "value": _live_json_value(key, visiting=visiting),
+                    },
+                    _live_json_value(item, visiting=visiting),
+                )
+                for key, item in value.items()
+            ]
+            return {
+                "exact_type": f"{type(value).__module__}.{type(value).__qualname__}",
+                "mapping_entries": tuple(
+                    sorted(entries, key=lambda pair: canonical_json(pair[0]))
+                )
+            }
+        if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+            return {
+                "exact_type": f"{type(value).__module__}.{type(value).__qualname__}",
+                "sequence_items": tuple(
+                    _live_json_value(item, visiting=visiting) for item in value
+                ),
+            }
+        if isinstance(value, (set, frozenset)):
+            normalized = tuple(_live_json_value(item, visiting=visiting) for item in value)
+            return {
+                "exact_type": f"{type(value).__module__}.{type(value).__qualname__}",
+                "set_items": tuple(sorted(normalized, key=canonical_json)),
+            }
+        if is_dataclass(value):
+            return {
+                "exact_type": f"{type(value).__module__}.{type(value).__qualname__}",
+                "dataclass_fields": {
+                    item.name: _live_json_value(
+                        getattr(value, item.name),
+                        visiting=visiting,
+                    )
+                    for item in fields(value)
+                },
+            }
+        return {
+            "opaque_type": f"{type(value).__module__}.{type(value).__qualname__}"
+        }
+    finally:
+        if tracked:
+            visiting.remove(identity)
+
+
+def _extension_public_live_sha256(value: ExtensionContract) -> str:
+    return canonical_sha256(
+        tuple(
+            (
+                item.name,
+                f"{type(field_value).__module__}.{type(field_value).__qualname__}",
+                _live_json_value(field_value, visiting=set()),
+            )
+            for item in fields(value)
+            if item.metadata.get("serialize", True)
+            for field_value in (getattr(value, item.name),)
+        )
+    )
+
+
+def _witness_sha256(value: object) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            value,
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def _is_completed_run_result(value: object) -> bool:
+    return (
+        type(value).__module__ == "owner_research.valuation_run"
+        and type(value).__qualname__ == "ValuationRunResult"
+    )
+
+
+def _is_contract_graph(value: object) -> bool:
+    return (
+        type(value).__module__ == "owner_research.validation"
+        and type(value).__qualname__ == "ContractGraph"
+    )
+
+
+def _authority_witness(values: Sequence[object]) -> _ExactAuthorityWitness:
+    references: list[object] = []
+    exact_types: list[type[object]] = []
+    typed_fingerprints: list[str] = []
+    authority_identity_required: list[bool] = []
+    visiting: set[int] = set()
+    memo: dict[tuple[int, bool], str] = {}
+
+    def typed_live_sort_key(value: object) -> str:
+        return canonical_json(
+            {
+                "exact_type": f"{type(value).__module__}.{type(value).__qualname__}",
+                "value": _live_json_value(value, visiting=set()),
+            }
+        )
+
+    def capture_object_state(value: object) -> tuple[object, ...]:
+        state: list[object] = []
+        attributes = getattr(value, "__dict__", None)
+        if isinstance(attributes, Mapping):
+            state.append(
+                (
+                    "__dict__",
+                    tuple(
+                        (capture(key), capture(item))
+                        for key, item in sorted(
+                            attributes.items(),
+                            key=lambda pair: (
+                                typed_live_sort_key(pair[0]),
+                                id(pair[0]),
+                            ),
+                        )
+                    ),
+                )
+            )
+        for owner in type(value).__mro__:
+            slots = getattr(owner, "__slots__", ())
+            if isinstance(slots, str):
+                slots = (slots,)
+            for declared_name in slots:
+                if declared_name in {"__dict__", "__weakref__"}:
+                    continue
+                storage_name = declared_name
+                if declared_name.startswith("__") and not declared_name.endswith("__"):
+                    owner_name = owner.__name__.lstrip("_")
+                    if owner_name:
+                        storage_name = f"_{owner_name}{declared_name}"
+                descriptor = vars(owner).get(storage_name)
+                if type(descriptor) is not MemberDescriptorType:
+                    continue
+                try:
+                    slot_value = descriptor.__get__(value, type(value))
+                except AttributeError:
+                    continue
+                state.append(
+                    (
+                        "__slot__",
+                        f"{owner.__module__}.{owner.__qualname__}",
+                        declared_name,
+                        capture(slot_value),
+                    )
+                )
+        return tuple(state)
+
+    def capture(value: object, *, component_lock_path: bool = False) -> str:
+        identity = id(value)
+        canonical_value = type(value) in {
+            type(None),
+            bool,
+            int,
+            float,
+            str,
+            bytes,
+            bytearray,
+            date,
+            datetime,
+            dict,
+            list,
+            tuple,
+            set,
+            frozenset,
+            FrozenMap,
+            MappingProxyType,
+        } or isinstance(value, Path)
+        if type(value) is FrozenMap:
+            _validate_frozen_map_storage(value)
+        identity_required = not canonical_value
+        tracked = (
+            isinstance(value, (Mapping, Sequence, set, frozenset))
+            or is_dataclass(value)
+            or hasattr(value, "__dict__")
+            or hasattr(type(value), "__slots__")
+            or component_lock_path
+        ) and not isinstance(value, (str, bytes, bytearray, Path))
+        if component_lock_path and isinstance(value, Path):
+            tracked = True
+        if tracked and identity in visiting:
+            raise ExtensionAuthorityError("retained-authority live witness cycle detected")
+        references.append(value)
+        exact_types.append(type(value))
+        authority_identity_required.append(identity_required)
+        position = len(typed_fingerprints)
+        typed_fingerprints.append("")
+        memo_key = (identity, component_lock_path)
+        cached_digest = memo.get(memo_key) if identity_required else None
+        if cached_digest is not None:
+            typed_fingerprints[position] = cached_digest
+            return cached_digest
+        if tracked:
+            visiting.add(identity)
+        type_name = f"{type(value).__module__}.{type(value).__qualname__}"
+        try:
+            if _is_completed_run_result(value):
+                completed = _completed_run_witness(value)
+                for reference, exact_type, fingerprint in zip(
+                    completed.references[1:],
+                    completed.exact_types[1:],
+                    completed.typed_fingerprints[1:],
+                    strict=True,
+                ):
+                    references.append(reference)
+                    exact_types.append(exact_type)
+                    typed_fingerprints.append(fingerprint)
+                authority_identity_required.extend(
+                    completed.authority_identity_required[1:]
+                )
+                payload: object = {
+                    "completed_run_binding": completed.typed_fingerprints[0]
+                }
+            elif isinstance(value, ExtensionContract):
+                public_fields = tuple(
+                    item
+                    for item in fields(value)
+                    if item.metadata.get("serialize", True)
+                )
+                private_fields = tuple(
+                    item
+                    for item in fields(value)
+                    if not item.metadata.get("serialize", True)
+                )
+                payload = {
+                    "public_live": tuple(
+                        (item.name, capture(getattr(value, item.name)))
+                        for item in public_fields
+                    ),
+                    "private": tuple(
+                        (item.name, capture(getattr(value, item.name)))
+                        for item in private_fields
+                    ),
+                }
+            elif isinstance(value, Mapping):
+                payload = {
+                    "items": tuple(
+                        (capture(key), capture(item))
+                        for key, item in sorted(
+                            value.items(),
+                            key=lambda pair: (
+                                typed_live_sort_key(pair[0]),
+                                id(pair[0]),
+                            ),
+                        )
+                    ),
+                    "authority_state": (
+                        capture_object_state(value)
+                        if identity_required
+                        else None
+                    ),
+                }
+            elif isinstance(value, Sequence) and not isinstance(
+                value,
+                (str, bytes, bytearray),
+            ):
+                payload = {
+                    "items": tuple(capture(item) for item in value),
+                    "authority_state": (
+                        capture_object_state(value)
+                        if identity_required
+                        else None
+                    ),
+                }
+            elif isinstance(value, (set, frozenset)):
+                payload = {
+                    "items": tuple(
+                        capture(item)
+                        for item in sorted(
+                            value,
+                            key=lambda item: (typed_live_sort_key(item), id(item)),
+                        )
+                    ),
+                    "authority_state": (
+                        capture_object_state(value)
+                        if identity_required
+                        else None
+                    ),
+                }
+            elif is_dataclass(value):
+                payload = tuple(
+                    (
+                        item.name,
+                        capture(
+                            getattr(value, item.name),
+                            component_lock_path=(
+                                _is_contract_graph(value)
+                                and item.name == "component_lock_path"
+                            ),
+                        ),
+                    )
+                    for item in fields(value)
+                )
+            elif isinstance(value, Path):
+                payload = (
+                    _component_lock_path_live_payload(value)
+                    if component_lock_path
+                    else str(value)
+                )
+            elif type(value) in {date, datetime}:
+                payload = value.isoformat()
+            elif isinstance(value, (bytes, bytearray)):
+                payload = hashlib.sha256(bytes(value)).hexdigest()
+            elif value is None or isinstance(value, (bool, int, float, str)):
+                payload = value
+            else:
+                payload = capture_object_state(value)
+            digest = _witness_sha256({"exact_type": type_name, "live": payload})
+            typed_fingerprints[position] = digest
+            if identity_required:
+                memo[memo_key] = digest
+            return digest
+        finally:
+            if tracked:
+                visiting.remove(identity)
+
+    for value in values:
+        capture(value)
+    return _ExactAuthorityWitness(
+        references=tuple(references),
+        exact_types=tuple(exact_types),
+        typed_fingerprints=tuple(typed_fingerprints),
+        authority_identity_required=tuple(authority_identity_required),
+    )
+
+
+def _completed_run_witness(run_result: object) -> _ExactAuthorityWitness:
+    from .valuation_run import (
+        _archive_integrity_binding,
+        _execution_integrity_binding,
+        _preparation_integrity_binding,
+    )
+
+    try:
+        receipt = run_result.input_receipt  # type: ignore[attr-defined]
+        preparation = run_result.preparation  # type: ignore[attr-defined]
+        execution = run_result.execution  # type: ignore[attr-defined]
+        archive = run_result.archive  # type: ignore[attr-defined]
+        final_request = execution.final_request_result
+        request_receipt = execution.final_request_receipt
+        kernel_receipt = execution.kernel_execution_receipt
+        execution_handoffs = execution.execution_handoffs
+        result_bytes = execution.result_bytes
+        child_witness = _authority_witness(
+            (receipt, preparation, execution, archive)
+        )
+        binding_projection = {
+            "run_fingerprint": run_result.fingerprint,
+            "run_status": run_result.status,
+            "run_issuer_id": run_result.issuer_id,
+            "run_data_cutoff_date": run_result.data_cutoff_date,
+            "run_issue_codes": run_result.issue_codes,
+            "input_receipt_id": receipt.receipt_id,
+            "input_component_lock_sha256": receipt.component_lock_sha256,
+            "preparation_binding": _preparation_integrity_binding(preparation),
+            "execution_binding": _execution_integrity_binding(execution),
+            "archive_binding": _archive_integrity_binding(archive),
+            "execution_status": execution.status,
+            "execution_preparation_fingerprint": execution.preparation_fingerprint,
+            "execution_expected_freeze_fingerprint": (
+                execution.expected_freeze_fingerprint
+            ),
+            "final_request_sha256": final_request.request_sha256,
+            "final_request_receipt_fingerprint": request_receipt.fingerprint,
+            "kernel_execution_receipt_fingerprint": kernel_receipt.fingerprint,
+            "execution_handoff_fingerprints": tuple(
+                item.fingerprint for item in execution_handoffs
+            ),
+            "execution_result_sha256": hashlib.sha256(result_bytes).hexdigest(),
+            "archive_fingerprint": archive.fingerprint,
+            "archive_file_sha256": to_json_value(archive.file_sha256),
+            "archive_request_sha256": archive.manifest["valuation_request_sha256"],
+            "archive_result_sha256": archive.manifest["valuation_result_sha256"],
+            "child_root_live_sha256": canonical_sha256(
+                child_witness.typed_fingerprints
+            ),
+        }
+    except (AttributeError, KeyError, TypeError, ValueError) as exc:
+        raise ExtensionAuthorityError(
+            "completed valuation run lacks one exact typed binding"
+        ) from exc
+    binding_fingerprint = canonical_sha256(binding_projection)
+    return _ExactAuthorityWitness(
+        references=(run_result, *child_witness.references),
+        exact_types=(type(run_result), *child_witness.exact_types),
+        typed_fingerprints=(binding_fingerprint, *child_witness.typed_fingerprints),
+        authority_identity_required=(
+            True,
+            *child_witness.authority_identity_required,
+        ),
+    )
+
+
+def replay_retained_completed_run_once(
+    run_result: object,
+    replay: Callable[[object], tuple[object, dict[str, Any], dict[str, Any]]],
+) -> tuple[object, dict[str, Any], dict[str, Any]]:
+    """Replay one completed run once per session and rematerialize cached JSON bytes."""
+
+    with retained_authority_replay_session():
+        session = _RETAINED_REPLAY_SESSION.get()
+        assert session is not None
+        key = ("completed_run", id(run_result))
+        if key in session.visiting:
+            raise ExtensionAuthorityError("retained-authority replay cycle detected")
+        witness = _completed_run_witness(run_result)
+        cached = session.completed_runs.get(id(run_result))
+        if cached is not None:
+            if (
+                cached.run_result is run_result
+                and cached.binding_witness.stable_after_replay(witness)
+            ):
+                return (
+                    cached.archive,
+                    json.loads(cached.request_bytes),
+                    json.loads(cached.result_bytes),
+                )
+            raise ExtensionAuthorityError(
+                "cached completed valuation run authority changed"
+            )
+        session.visiting.add(key)
+        try:
+            archive, request, result = replay(run_result)
+            request_bytes = canonical_json(request).encode("utf-8")
+            result_bytes = canonical_json(result).encode("utf-8")
+            after = _completed_run_witness(run_result)
+            if not witness.stable_after_replay(after):
+                raise ExtensionAuthorityError(
+                    "completed valuation run changed during retained replay"
+                )
+            session.completed_runs[id(run_result)] = _CompletedRunReplayCacheEntry(
+                run_result=run_result,
+                binding_witness=after,
+                archive=archive,
+                request_bytes=request_bytes,
+                result_bytes=result_bytes,
+            )
+            return archive, request, result
+        finally:
+            session.visiting.remove(key)
 
 
 def extension_schema_directory() -> Path:
@@ -529,6 +1182,65 @@ def _serialized_value(value: object) -> Any:
     return to_json_value(value)
 
 
+def _replay_retained_extension_authority(
+    contract: ExtensionContract,
+    replay: Callable[[ExtensionContract], None],
+) -> None:
+    session = _RETAINED_REPLAY_SESSION.get()
+    if session is None:
+        raise ExtensionAuthorityError("retained replay session is unavailable")
+    key = ("extension", id(contract))
+    if key in session.visiting:
+        raise ExtensionAuthorityError("retained-authority replay cycle detected")
+    public_projection = contract.to_dict()
+    public_sha256 = canonical_sha256(public_projection)
+    public_typed_sha256 = _extension_public_live_sha256(contract)
+    private_names = tuple(
+        item.name
+        for item in fields(contract)
+        if not item.metadata.get("serialize", True)
+    )
+    private_values = tuple(getattr(contract, name) for name in private_names)
+    private_witness = _authority_witness(private_values)
+    cached = session.extensions.get(id(contract))
+    if cached is not None:
+        if (
+            cached.authority is contract
+            and cached.public_sha256 == public_sha256
+            and cached.public_typed_sha256 == public_typed_sha256
+            and cached.private_witness.stable_after_replay(private_witness)
+        ):
+            return
+        raise ExtensionAuthorityError(
+            "cached retained extension authority changed"
+        )
+    session.visiting.add(key)
+    try:
+        replay(contract)
+        after_public_projection = contract.to_dict()
+        after_public_sha256 = canonical_sha256(after_public_projection)
+        after_public_typed_sha256 = _extension_public_live_sha256(contract)
+        after_private_witness = _authority_witness(
+            tuple(getattr(contract, name) for name in private_names)
+        )
+        if (
+            after_public_sha256 != public_sha256
+            or after_public_typed_sha256 != public_typed_sha256
+            or not private_witness.stable_after_replay(after_private_witness)
+        ):
+            raise ExtensionAuthorityError(
+                "retained extension authority changed during replay"
+            )
+        session.extensions[id(contract)] = _ExtensionReplayCacheEntry(
+            authority=contract,
+            public_sha256=after_public_sha256,
+            public_typed_sha256=after_public_typed_sha256,
+            private_witness=after_private_witness,
+        )
+    finally:
+        session.visiting.remove(key)
+
+
 @dataclass(frozen=True, slots=True)
 class ExtensionContract:
     """Frozen projection plus exact private authorities replayed on construction."""
@@ -536,32 +1248,33 @@ class ExtensionContract:
     SCHEMA_NAME: ClassVar[str]
 
     def __post_init__(self) -> None:
-        payload = {
-            item.name: _serialized_value(getattr(self, item.name))
-            for item in _serialized_fields(self)
-        }
-        validate_extension_payload(self.SCHEMA_NAME, payload)
-        for item in _serialized_fields(self):
-            object.__setattr__(self, item.name, freeze(getattr(self, item.name)))
-        identity_fields = tuple(
-            name
-            for name in ("receipt_id", "result_id", "score_id", "scorecard_id")
-            if name in payload
-        )
-        if len(identity_fields) != 1:
-            raise ValueError("extension contract requires one deterministic object ID")
-        identity_field = identity_fields[0]
-        supplied_id = payload.pop(identity_field)
-        if type(supplied_id) is not str or not supplied_id.endswith(
-            f":{canonical_sha256(payload)[:24]}"
-        ):
-            raise ValueError("extension contract object ID is not deterministic")
-        if self.SCHEMA_NAME in {"score-v2", "owner-scorecard"}:
-            from .owner_scorecard import _replay_extension_contract
-        else:
-            from .valuation_synthesis import _replay_extension_contract
+        with retained_authority_replay_session():
+            payload = {
+                item.name: _serialized_value(getattr(self, item.name))
+                for item in _serialized_fields(self)
+            }
+            validate_extension_payload(self.SCHEMA_NAME, payload)
+            for item in _serialized_fields(self):
+                object.__setattr__(self, item.name, freeze(getattr(self, item.name)))
+            identity_fields = tuple(
+                name
+                for name in ("receipt_id", "result_id", "score_id", "scorecard_id")
+                if name in payload
+            )
+            if len(identity_fields) != 1:
+                raise ValueError("extension contract requires one deterministic object ID")
+            identity_field = identity_fields[0]
+            supplied_id = payload.pop(identity_field)
+            if type(supplied_id) is not str or not supplied_id.endswith(
+                f":{canonical_sha256(payload)[:24]}"
+            ):
+                raise ValueError("extension contract object ID is not deterministic")
+            if self.SCHEMA_NAME in {"score-v2", "owner-scorecard"}:
+                from .owner_scorecard import _replay_extension_contract
+            else:
+                from .valuation_synthesis import _replay_extension_contract
 
-        _replay_extension_contract(self)
+            _replay_retained_extension_authority(self, _replay_extension_contract)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -789,6 +1502,8 @@ class OwnerScorecard(ExtensionContract):
     overall_score: str | None
     confidence_percent: str | None
     recommendation: str
+    current_intrinsic_value: str | None
+    market_price: str
     margin_of_safety: str | None
     twelve_month_upside: str | None
     critical_red_flags: tuple[FrozenMap, ...]

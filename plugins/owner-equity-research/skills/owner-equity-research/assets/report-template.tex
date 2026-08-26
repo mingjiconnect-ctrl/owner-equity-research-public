@@ -1,0 +1,37 @@
+% Clean-room Owner Equity Research report template.
+% The build is intentionally network-free and shell escape must remain disabled.
+\documentclass[11pt,a4paper,UTF8,fontset=none]{ctexart}
+\setCJKmainfont[Path=./,AutoFakeBold=2.2,AutoFakeSlant=0.18]{NotoSansCJKsc-Regular.otf}
+\setCJKsansfont[Path=./,AutoFakeBold=2.2,AutoFakeSlant=0.18]{NotoSansCJKsc-Regular.otf}
+\setCJKmonofont[Path=./,AutoFakeBold=2.2,AutoFakeSlant=0.18]{NotoSansCJKsc-Regular.otf}
+\usepackage[a4paper,top=22mm,bottom=22mm,left=21mm,right=21mm]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{microtype}
+\definecolor{OwnerNavy}{HTML}{17324D}
+\definecolor{OwnerBlue}{HTML}{2F6690}
+\definecolor{OwnerRed}{HTML}{B0443E}
+\definecolor{OwnerGreen}{HTML}{2F7D62}
+\definecolor{OwnerGray}{HTML}{5B6573}
+\hypersetup{hidelinks,pdfcreator={owner-equity-research}}
+\setlength{\parindent}{2em}
+\setlength{\parskip}{0.45em}
+\setlength{\emergencystretch}{3em}
+\renewcommand{\arraystretch}{1.24}
+\clubpenalty=10000
+\widowpenalty=10000
+\displaywidowpenalty=10000
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{OwnerGray}所有者视角研究}
+\fancyhead[R]{\small\color{OwnerGray}\ReportIssuer}
+\fancyfoot[C]{\small\color{OwnerGray}第 \thepage/\pageref*{LastPage} 页}
+\setcounter{secnumdepth}{2}
+\begin{document}
+\input{report-data.tex}
+\end{document}

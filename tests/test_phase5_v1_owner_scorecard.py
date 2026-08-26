@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import ROUND_UP, Decimal, Subnormal, localcontext
 from types import SimpleNamespace
 from typing import Any
 
@@ -142,6 +142,75 @@ def test_four_complete_graph_bound_lenses_average_without_mutating_valuation(
     )
 
 
+def test_score_builders_ignore_the_ambient_decimal_context(
+    sample_payloads: dict[str, dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    run_result, *_, composite, _scores, _scorecard = _complete_synthesis(
+        sample_payloads, monkeypatch, tmp_path
+    )
+    score = "10.123456789012345678901234567890123456789"
+    confidence = "80.123456789012345678901234567890123456789"
+    binding = _bundle_fact_binding(run_result)
+    reviews = tuple(
+        _review(
+            run_result,
+            scope=f"score:{lens}",
+            reviewed_at="2026-08-15T01:07:00Z",
+            reviewed_payload={
+                "composite_valuation_fingerprint": composite.fingerprint,
+                "components": _components(
+                    lens,
+                    binding,
+                    score=score,
+                    confidence=confidence,
+                ),
+            },
+        )
+        for lens in LENS_COMPONENTS
+    )
+
+    with localcontext() as context:
+        context.prec = 2
+        context.rounding = ROUND_UP
+        context.Emax = 0
+        context.Emin = -1
+        context.traps[Subnormal] = True
+        scores = tuple(
+            build_score_v2(
+                composite_valuation=composite,
+                review_authority=resolve_score_review_authority(
+                    composite_valuation=composite,
+                    planned_review=review,
+                ),
+            )
+            for review in reviews
+        )
+        scorecard = build_owner_scorecard(
+            composite_valuation=composite,
+            lens_scores=scores,
+        )
+
+    assert all(
+        item.total_score == "50.617283945061728394506172839450617283945"
+        for item in scores
+    )
+    assert scorecard.overall_score == "50.617283945061728394506172839450617283945"
+
+
+def test_score_builder_decimal_domain_is_closed() -> None:
+    import owner_research.owner_scorecard as scorecard_module
+
+    in_domain = "10." + "0" * 999 + "1"
+    assert scorecard_module._decimal(in_domain, "component score") == Decimal(in_domain)
+    with pytest.raises(OwnerScorecardError, match="bounded decimal domain"):
+        scorecard_module._decimal(
+            "10." + "0" * 1199 + "1",
+            "component score",
+        )
+
+
 def test_unknown_is_partial_never_zero_and_mixed_string_types_fail_closed(
     sample_payloads: dict[str, dict[str, Any]],
     monkeypatch: pytest.MonkeyPatch,
@@ -203,6 +272,26 @@ def test_fixed_recommendation_order_and_permanent_loss_override(
             ),
             overall=Decimal(component_score) * 5,
             confidence=Decimal("90"),
+            critical_flags=(),
+        ) == recommendation
+
+    for intrinsic, recommendation in (
+        ("1." + "0" * 89 + "1", "观察"),
+        ("1", "回避"),
+    ):
+        assert scorecard_module._recommendation(
+            status="complete",
+            composite=SimpleNamespace(
+                status="complete",
+                recommendation_eligible=True,
+                contested=False,
+                current_intrinsic_value=intrinsic,
+                market_price="1.15",
+                margin_of_safety="-0.15",
+                twelve_month_upside="0.05",
+            ),
+            overall=Decimal("60"),
+            confidence=Decimal("80"),
             critical_flags=(),
         ) == recommendation
 

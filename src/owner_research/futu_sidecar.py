@@ -10,6 +10,8 @@ import struct
 import sys
 import unicodedata
 from collections.abc import Mapping, Sequence
+from contextlib import contextmanager
+from contextvars import ContextVar
 from ctypes import CDLL, POINTER, byref, c_int, c_uint
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -105,6 +107,9 @@ _FORBIDDEN_EXACT_KEYS = frozenset(
 )
 _HEX_64 = re.compile(r"[a-f0-9]{64}\Z")
 _KEY_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}\Z")
+_ADMITTED_FINANCIAL_FIELD_REGISTRY: ContextVar[Mapping[str, FrozenMap] | None] = (
+    ContextVar("admitted_financial_field_registry", default=None)
+)
 
 _PARAMETER_KEYS: dict[int, frozenset[str]] = {
     3103: frozenset(
@@ -2224,9 +2229,205 @@ def _normalize_financial_display_name(value: str) -> str:
 
 
 @cache
+def _load_packaged_financial_field_registry_payload() -> dict[str, Any]:
+    return json.loads(
+        canonical_json(_read_resource_json("financial-field-registry-v1.json"))
+    )
+
+
+@cache
+def _load_packaged_financial_field_registry() -> Mapping[str, FrozenMap]:
+    return _validate_financial_field_registry_payload(
+        _load_packaged_financial_field_registry_payload()
+    )
+
+
 def load_financial_field_registry() -> Mapping[str, FrozenMap]:
-    payload = _read_resource_json("financial-field-registry-v1.json")
-    return _validate_financial_field_registry_payload(payload)
+    admitted = _ADMITTED_FINANCIAL_FIELD_REGISTRY.get()
+    if admitted is not None:
+        return admitted
+    return _load_packaged_financial_field_registry()
+
+
+@contextmanager
+def reviewed_financial_field_registry_scope(
+    registry: Mapping[str, FrozenMap],
+):
+    token = _ADMITTED_FINANCIAL_FIELD_REGISTRY.set(registry)
+    try:
+        yield
+    finally:
+        _ADMITTED_FINANCIAL_FIELD_REGISTRY.reset(token)
+
+
+def load_reviewed_financial_field_registry(
+    *,
+    execution: FutuSidecarExecution,
+    admission_payload: Mapping[str, Any] | None,
+) -> Mapping[str, FrozenMap]:
+    if admission_payload is None:
+        return _load_packaged_financial_field_registry()
+    payload = _exact_members(
+        admission_payload,
+        {
+            "futu_api_version",
+            "market",
+            "mappings",
+            "registry_id",
+            "registry_version",
+        },
+        "reviewed financial field admission",
+    )
+    if (
+        payload["registry_id"] != "futu-reviewed-financial-field-admission"
+        or payload["registry_version"] != "1.0.0"
+        or payload["futu_api_version"] != PINNED_FUTU_API_VERSION
+        or not isinstance(payload["market"], str)
+        or not payload["market"].isascii()
+        or not payload["market"].isupper()
+        or not payload["market"]
+    ):
+        raise FutuSidecarError("reviewed financial field admission identity is invalid")
+    raw_mappings = payload["mappings"]
+    if not isinstance(raw_mappings, list) or not raw_mappings:
+        raise FutuSidecarError("reviewed financial field admission mappings are invalid")
+    request_by_id = {item.request_id: item for item in execution.requests}
+    market_values = {
+        item.value
+        for item in execution.observations
+        if item.field_id == "vendor_security_market" and isinstance(item.value, str)
+    }
+    if market_values != {payload["market"]}:
+        raise FutuSidecarError("reviewed financial field admission identity is invalid")
+    observations_by_response: dict[str, tuple[FutuObservation, ...]] = {}
+    for response in execution.responses:
+        observations_by_response[response.fingerprint] = tuple(
+            item
+            for item in execution.observations
+            if item.response_fingerprint == response.fingerprint
+        )
+    admitted_mappings: list[dict[str, Any]] = []
+    for raw_item in raw_mappings:
+        item = _exact_members(
+            raw_item,
+            {
+                "accounting_standard_scope",
+                "canonical_concept",
+                "display_name",
+                "field_id",
+                "source_raw_plaintext_sha256",
+                "statement_type",
+            },
+            "reviewed financial field admission mapping",
+        )
+        field_id = item["field_id"]
+        statement_type = item["statement_type"]
+        display_name = item["display_name"]
+        accounting_standard = item["accounting_standard_scope"]
+        concept = item["canonical_concept"]
+        source_hash = item["source_raw_plaintext_sha256"]
+        if (
+            not isinstance(field_id, str)
+            or not field_id.isascii()
+            or not field_id.isdecimal()
+            or str(int(field_id)) != field_id
+            or not isinstance(statement_type, str)
+            or statement_type not in {"income", "balance_sheet", "cash_flow"}
+            or not isinstance(accounting_standard, str)
+            or not accounting_standard
+            or accounting_standard != accounting_standard.strip()
+            or not isinstance(concept, str)
+            or concept not in _CRITICAL_FINANCIAL_CONCEPTS.get(statement_type, ())
+            or not isinstance(display_name, str)
+            or display_name != display_name.strip()
+            or not display_name
+            or not isinstance(source_hash, str)
+            or _HEX_64.fullmatch(source_hash) is None
+        ):
+            raise FutuSidecarError("reviewed financial field admission mapping is invalid")
+        normalized_display_name = _normalize_financial_display_name(display_name)
+        expected_period_kind = "stock" if statement_type == "balance_sheet" else "flow"
+        source_matches = [
+            (request, response)
+            for response in execution.responses
+            if response.status == "completed"
+            and not response.trd_logined
+            and response.qot_logined
+            and response.raw_plaintext_sha256 == source_hash
+            for request in (request_by_id.get(response.request_id),)
+            if request is not None
+            and request.protocol_id == 3227
+            and request.parameters.get("statement_type")
+            == {
+                "income": 1,
+                "balance_sheet": 2,
+                "cash_flow": 3,
+            }[statement_type]
+        ]
+        if len(source_matches) != 1:
+            raise FutuSidecarError(
+                "reviewed financial field admission source response does not replay"
+            )
+        request, response = source_matches[0]
+        source_observations = observations_by_response.get(response.fingerprint, ())
+        descriptors = [
+            item
+            for item in source_observations
+            if item.field_id == f"{_FINANCIAL_STRUCTURE_PREFIX}{field_id}"
+        ]
+        values = [item for item in source_observations if item.field_id == field_id]
+        if len(descriptors) != 1 or not values:
+            raise FutuSidecarError(
+                "reviewed financial field admission does not match captured structureList evidence"
+            )
+        descriptor = descriptors[0]
+        if (
+            descriptor.data_family != "financial_statements"
+            or descriptor.value != display_name
+            or descriptor.qualifiers.get("financial_field_id") != field_id
+            or descriptor.qualifiers.get("futu_api_version") != payload["futu_api_version"]
+            or descriptor.qualifiers.get("normalized_display_name")
+            != normalized_display_name
+            or descriptor.qualifiers.get("statement_type") != statement_type
+        ):
+            raise FutuSidecarError(
+                "reviewed financial field admission does not match captured structureList evidence"
+            )
+        if any(
+            item.data_family != "financial_statements"
+            or item.unit != "currency_units"
+            or item.qualifiers.get("accounting_standard") != accounting_standard
+            or item.qualifiers.get("futu_api_version") != payload["futu_api_version"]
+            or item.qualifiers.get("normalized_financial_field_display_name")
+            != normalized_display_name
+            or item.qualifiers.get("statement_type") != statement_type
+            or item.qualifiers.get("period_kind") != expected_period_kind
+            for item in values
+        ):
+            raise FutuSidecarError(
+                "reviewed financial field admission does not match captured structureList evidence"
+            )
+        admitted_mappings.append(
+            {
+                "accounting_standard_scope": accounting_standard,
+                "canonical_concept": concept,
+                "data_family": "financial_statements",
+                "field_id": field_id,
+                "futu_api_version": payload["futu_api_version"],
+                "materiality_tier": "kernel_required",
+                "normalized_display_name": normalized_display_name,
+                "period_kind": expected_period_kind,
+                "sign_convention": "reported_signed",
+                "statement_type": statement_type,
+                "unit": "currency_units",
+            }
+        )
+    merged_payload = dict(_load_packaged_financial_field_registry_payload())
+    merged_payload["mappings"] = [
+        *merged_payload["mappings"],
+        *admitted_mappings,
+    ]
+    return _validate_financial_field_registry_payload(merged_payload)
 
 
 def _validate_financial_field_registry_payload(
@@ -3654,6 +3855,54 @@ def _wire_observation_projection(observation: FutuObservation) -> dict[str, Any]
         "binary64_hex": observation.binary64_hex,
         "exact_binary64_decimal": observation.exact_binary64_decimal,
     }
+
+
+def reproject_execution_with_financial_field_registry(
+    execution: FutuSidecarExecution,
+    *,
+    registry: Mapping[str, FrozenMap],
+) -> FutuSidecarExecution:
+    request_by_id = {item.request_id: item for item in execution.requests}
+    response_by_fingerprint = {item.fingerprint: item for item in execution.responses}
+    with reviewed_financial_field_registry_scope(registry):
+        observations = tuple(
+            _materialize_observation(
+                _wire_observation_projection(item),
+                request=request_by_id[response_by_fingerprint[item.response_fingerprint].request_id],
+                response=response_by_fingerprint[item.response_fingerprint],
+            )
+            if item.data_family == "financial_statements"
+            else item
+            for item in execution.observations
+        )
+    if tuple(item.to_dict() for item in observations) == tuple(
+        item.to_dict() for item in execution.observations
+    ):
+        return execution
+    bundle_values = execution.bundle.to_dict()
+    bundle_values["observations"] = [
+        _reference(item.observation_id, item.fingerprint) for item in observations
+    ]
+    bundle_values.pop("bundle_id")
+    bundle_values.pop("bundle_fingerprint")
+    bundle_id, bundle_fingerprint = content_identity(
+        "futu-bundle:",
+        bundle_values,
+        object_id_field="bundle_id",
+        fingerprint_field="bundle_fingerprint",
+    )
+    bundle = FutuEvidenceBundle(
+        bundle_id=bundle_id,
+        bundle_fingerprint=bundle_fingerprint,
+        **bundle_values,
+    )
+    return FutuSidecarExecution(
+        bundle=bundle,
+        requests=execution.requests,
+        responses=execution.responses,
+        observations=observations,
+        history_quota=execution.history_quota,
+    )
 
 
 def _wire_decimal(item: Mapping[str, Any], label: str) -> Decimal:

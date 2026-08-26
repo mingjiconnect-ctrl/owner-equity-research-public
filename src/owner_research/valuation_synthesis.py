@@ -2,11 +2,20 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
-from decimal import Decimal, InvalidOperation, localcontext
-from typing import Any
+from decimal import (
+    ROUND_HALF_EVEN,
+    Context,
+    Decimal,
+    DivisionByZero,
+    InvalidOperation,
+    Overflow,
+    localcontext,
+)
+from functools import wraps
+from typing import Any, ParamSpec, TypeVar
 
 from .contracts import Contract, MarketReferenceSnapshot
 from .fingerprints import FrozenMap, canonical_sha256, freeze, to_json_value
@@ -27,6 +36,9 @@ from .valuation_synthesis_types import (
     _graph_fingerprint,
     _graph_object_id,
     _object_fingerprint,
+    extension_decimal_in_domain,
+    replay_retained_completed_run_once,
+    retained_authority_replay_scope,
     validate_extension_payload,
 )
 
@@ -43,7 +55,16 @@ _SUPPORTED_UNIT_PAIRS = frozenset(
 _DISPERSION_LIMIT = Decimal("0.50")
 _BINARY64_REPLAY_TOLERANCE = Decimal("1e-12")
 _CALCULATION_PRECISION = 60
-_MAX_DECIMAL_PLACES_OR_MAGNITUDE = 1000
+_VALUATION_DECIMAL_CONTEXT = Context(
+    prec=_CALCULATION_PRECISION,
+    rounding=ROUND_HALF_EVEN,
+    Emin=-999_999,
+    Emax=999_999,
+    capitals=1,
+    clamp=0,
+    flags=[],
+    traps=[InvalidOperation, DivisionByZero, Overflow],
+)
 _CURRENT_COMPARABLE_MAX_AGE_DAYS = 456
 _CURRENT_COMPARABLE_DURATION_DAYS = frozenset({364, 365, 366, 371})
 _PEER_SELECTION_FIELDS = frozenset(
@@ -59,10 +80,23 @@ _PEER_SELECTION_FIELDS = frozenset(
     }
 )
 _BINDING_FIELDS = frozenset({"object_type", "object_id", "fingerprint"})
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
 
 
 class ValuationSynthesisError(ValueError):
     """A downstream panel lacks closed, mutually consistent authority."""
+
+
+def _valuation_decimal_scope(function: Callable[_P, _R]) -> Callable[_P, _R]:
+    """Run one valuation entry or replay under the complete fixed context."""
+
+    @wraps(function)
+    def scoped(*args: _P.args, **kwargs: _P.kwargs) -> _R:
+        with localcontext(_VALUATION_DECIMAL_CONTEXT):
+            return function(*args, **kwargs)
+
+    return scoped
 
 
 def _decimal(value: object, label: str) -> Decimal:
@@ -74,12 +108,7 @@ def _decimal(value: object, label: str) -> Decimal:
         raise ValuationSynthesisError(f"{label} must be a finite decimal") from exc
     if not parsed.is_finite():
         raise ValuationSynthesisError(f"{label} must be a finite decimal")
-    exponent = parsed.as_tuple().exponent
-    if (
-        not isinstance(exponent, int)
-        or exponent < -_MAX_DECIMAL_PLACES_OR_MAGNITUDE
-        or abs(parsed.adjusted()) > _MAX_DECIMAL_PLACES_OR_MAGNITUDE
-    ):
+    if not extension_decimal_in_domain(parsed):
         raise ValuationSynthesisError(f"{label} exceeds the bounded decimal domain")
     return parsed
 
@@ -108,8 +137,7 @@ def _decimal_text(value: Decimal) -> str:
 
 
 def _same_decimal(left: Decimal, right: Decimal) -> bool:
-    with localcontext() as context:
-        context.prec = _CALCULATION_PRECISION
+    with localcontext(_VALUATION_DECIMAL_CONTEXT):
         return abs(left - right) <= max(abs(left), abs(right), Decimal(1)) * (
             _BINARY64_REPLAY_TOLERANCE
         )
@@ -122,8 +150,7 @@ def _median(values: Sequence[Decimal]) -> Decimal:
     middle = len(ordered) // 2
     if len(ordered) % 2:
         return ordered[middle]
-    with localcontext() as context:
-        context.prec = _CALCULATION_PRECISION
+    with localcontext(_VALUATION_DECIMAL_CONTEXT):
         return (ordered[middle - 1] + ordered[middle]) / Decimal(2)
 
 
@@ -160,11 +187,22 @@ def _completed_run(
             "synthesis requires an exact completed ValuationRunResult"
         )
     try:
-        archive, request, result = _replay_retained_completed_run(run_result)
+        archive, request, result = replay_retained_completed_run_once(
+            run_result,
+            _replay_retained_completed_run,
+        )
     except (OSError, TypeError, ValueError) as exc:
         raise ValuationSynthesisError(
             "completed valuation run retained authority no longer replays"
         ) from exc
+    if (
+        type(archive) is not ValuationRunArchive
+        or not isinstance(request, dict)
+        or not isinstance(result, dict)
+    ):
+        raise ValuationSynthesisError(
+            "completed valuation run retained replay returned invalid typed outputs"
+        )
     return run_result, archive, request, result
 
 
@@ -224,8 +262,7 @@ def _snapshot_shares_in_model_unit(shares: Decimal, share_unit: str) -> Decimal:
     if share_unit == "shares":
         return shares
     if share_unit == "millions shares":
-        with localcontext() as context:
-            context.prec = _CALCULATION_PRECISION
+        with localcontext(_VALUATION_DECIMAL_CONTEXT):
             return shares / Decimal("1000000")
     raise ValuationSynthesisError("kernel share unit is outside v1 support")
 
@@ -353,6 +390,8 @@ def _basis_payload(
     return _seal("valuation-basis-receipt", snapshot.issuer_id, payload, "receipt_id")
 
 
+@retained_authority_replay_scope
+@_valuation_decimal_scope
 def build_valuation_basis_receipt(
     run_result: ValuationRunResult,
     *,
@@ -528,8 +567,7 @@ def _forward_result_payload(
     future_shares = _positive(basis.twelve_month_shares, "twelve-month shares")
     future_nfo = _decimal(basis.twelve_month_net_financial_obligations, "twelve-month NFO")
     scenario_results: list[dict[str, Any]] = []
-    with localcontext() as context:
-        context.prec = _CALCULATION_PRECISION
+    with localcontext(_VALUATION_DECIMAL_CONTEXT):
         for scenario in input_receipt.scenarios:
             hurdle = _positive(scenario["hurdle_rate"], "forward ReOI hurdle")
             growth = _decimal(scenario["terminal_growth"], "forward ReOI growth")
@@ -598,6 +636,8 @@ def _forward_result_payload(
     return _seal("forward-reoi-result", basis.issuer_id, payload, "result_id")
 
 
+@retained_authority_replay_scope
+@_valuation_decimal_scope
 def build_forward_reoi_valuation(
     run_result: ValuationRunResult,
     *,
@@ -1115,8 +1155,7 @@ def _normalize_peer_authority(
                 share_fact=share_fact,
                 valuation_date=run_result.data_cutoff_date,
             )
-            with localcontext() as context:
-                context.prec = _CALCULATION_PRECISION
+            with localcontext(_VALUATION_DECIMAL_CONTEXT):
                 current_measure_per_share = _positive(
                     measure_fact.value, "peer current measure"
                 ) / _positive(share_fact.value, "peer current shares")
@@ -1237,6 +1276,7 @@ class ReviewedPeerSetAuthority:
     metric_inputs: tuple[FrozenMap, ...]
     authority_fingerprint: str
 
+    @_valuation_decimal_scope
     def __post_init__(self) -> None:
         object.__setattr__(self, "peer_graphs", tuple(self.peer_graphs))
         frozen_at, peers, metrics = _normalize_peer_authority(
@@ -1309,6 +1349,8 @@ class ReviewedPeerSetAuthority:
         return self.authority_fingerprint
 
 
+@retained_authority_replay_scope
+@_valuation_decimal_scope
 def build_reviewed_peer_set_authority(
     *,
     run_result: ValuationRunResult,
@@ -1479,8 +1521,7 @@ def _comparable_result_payload(
             )
             if current_debt != 0 or future_debt != 0:
                 raise ValuationSynthesisError("equity multiples cannot apply an EV bridge")
-            with localcontext() as context:
-                context.prec = _CALCULATION_PRECISION
+            with localcontext(_VALUATION_DECIMAL_CONTEXT):
                 current_implied = current_median * current_measure
                 future_implied = future_median * future_measure
             if current_implied <= 0 or future_implied <= 0:
@@ -1545,6 +1586,8 @@ def _comparable_result_payload(
     return _seal("comparable-result", basis.issuer_id, payload, "result_id")
 
 
+@retained_authority_replay_scope
+@_valuation_decimal_scope
 def build_comparable_valuation(
     run_result: ValuationRunResult,
     *,
@@ -1610,8 +1653,7 @@ def _mckinsey_extension_scenarios(
         if not isinstance(cash_flows, list) or not cash_flows:
             raise ValuationSynthesisError("McKinsey scenario lacks its first frozen FCF")
         first_fcf = _decimal(cash_flows[0], "first-year FCF")
-        with localcontext() as context:
-            context.prec = _CALCULATION_PRECISION
+        with localcontext(_VALUATION_DECIMAL_CONTEXT):
             future_operating = operating * (Decimal(1) + wacc) - first_fcf
             future_equity = future_operating + future_assets - future_claims
             future_per_share = future_equity / future_shares
@@ -1748,8 +1790,7 @@ def _composite_payload(
         _positive(item["twelve_month_value_per_share"], "base +12m panel value")
         for item in base_rows
     ]
-    with localcontext() as context:
-        context.prec = _CALCULATION_PRECISION
+    with localcontext(_VALUATION_DECIMAL_CONTEXT):
         current_median = _median(current_values)
         future_median = _median(future_values)
         current_dispersion = (max(current_values) - min(current_values)) / abs(
@@ -1759,8 +1800,22 @@ def _composite_payload(
         market_price = _positive(archive.market_reference.quote_price_decimal, "market price")
         margin_of_safety = (current_median - market_price) / current_median
         future_upside = (future_median - market_price) / market_price
-    contested = (
-        current_dispersion > _DISPERSION_LIMIT or future_dispersion > _DISPERSION_LIMIT
+    current_contested = current_dispersion > _DISPERSION_LIMIT
+    twelve_month_contested = future_dispersion > _DISPERSION_LIMIT
+    contested = current_contested or twelve_month_contested
+    issue_codes = tuple(
+        issue_code
+        for is_contested, issue_code in (
+            (
+                current_contested,
+                "current_panel_dispersion_exceeds_50_percent",
+            ),
+            (
+                twelve_month_contested,
+                "twelve_month_panel_dispersion_exceeds_50_percent",
+            ),
+        )
+        if is_contested
     )
     payload = {
         **common,
@@ -1770,22 +1825,30 @@ def _composite_payload(
             "forward_reoi": forward_scenarios,
             "comparables": comparable_scenarios,
         },
-        "current_intrinsic_value": _decimal_text(current_median),
-        "twelve_month_target": _decimal_text(future_median),
+        "current_intrinsic_value": (
+            None if current_contested else _decimal_text(current_median)
+        ),
+        "twelve_month_target": (
+            None if twelve_month_contested else _decimal_text(future_median)
+        ),
         "current_relative_dispersion": _decimal_text(current_dispersion),
         "twelve_month_relative_dispersion": _decimal_text(future_dispersion),
         "market_price": _decimal_text(market_price),
-        "margin_of_safety": _decimal_text(margin_of_safety),
-        "twelve_month_upside": _decimal_text(future_upside),
+        "margin_of_safety": (
+            None if current_contested else _decimal_text(margin_of_safety)
+        ),
+        "twelve_month_upside": (
+            None if twelve_month_contested else _decimal_text(future_upside)
+        ),
         "contested": contested,
         "recommendation_eligible": not contested,
-        "issue_codes": (
-            ("panel_dispersion_exceeds_50_percent",) if contested else ()
-        ),
+        "issue_codes": issue_codes,
     }
     return _seal("composite-valuation-result", basis.issuer_id, payload, "result_id")
 
 
+@retained_authority_replay_scope
+@_valuation_decimal_scope
 def build_composite_valuation(
     run_result: ValuationRunResult,
     *,
@@ -1802,6 +1865,7 @@ def build_composite_valuation(
     )
 
 
+@_valuation_decimal_scope
 def _replay_extension_contract(contract: ExtensionContract) -> None:
     if type(contract) is ValuationBasisReceipt:
         expected = _basis_payload(contract._run_result, contract._review_authority)

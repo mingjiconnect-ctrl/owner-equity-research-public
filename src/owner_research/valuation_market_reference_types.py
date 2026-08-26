@@ -390,7 +390,7 @@ class MarketReferenceValidationContext:
             )
         ):
             raise ValueError(
-                "non-reviewed market context cannot carry replay authority"
+                "non-reviewed market context cannot carry reviewed-file or vendor replay authority"
             )
         authority = Phase5CDilutionClaimAuthority.from_price_blind_artifact(
             self.price_blind_artifact

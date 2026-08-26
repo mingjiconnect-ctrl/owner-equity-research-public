@@ -47,6 +47,7 @@ from .valuation_price_blind_freeze import PriceBlindFreezeCompilationResult
 from .valuation_run_archive import (
     VALUATION_RUN_ARCHIVE_FILENAMES,
     ValuationRunArchive,
+    _project_verified_runtime_manifest_authority,
     load_valuation_run_archive,
     write_valuation_run_archive,
 )
@@ -458,6 +459,9 @@ class ValuationRunResult:
             reloaded = load_valuation_run_archive(
                 self.archive.output_directory,
                 expected_execution=self.execution,
+                expected_runtime_manifest_authority=(
+                    self.input_receipt.runtime_manifest_authority
+                ),
             )
             if reloaded != self.archive:
                 raise ValueError(
@@ -487,7 +491,10 @@ class ValuationRunResult:
                 or self.execution.issuer_id != self.issuer_id
                 or self.execution.data_cutoff_date != self.data_cutoff_date
                 or self.execution.issue_codes != issues
-                or self.preparation != self.execution.preparation
+                or not _stopped_execution_preparation_matches(
+                    self.preparation,
+                    self.execution,
+                )
                 or self.input_receipt.clock.execution != self.execution.clock
             ):
                 raise ValueError("stopped valuation execution binding changed")
@@ -579,18 +586,49 @@ def _replay_assumption_inputs(
     return candidate_result
 
 
-def _read_regular_file(path: Path, label: str, *, maximum: int) -> bytes:
+def _open_regular_without_symlink_components(path: Path, label: str) -> int:
     absolute = Path(path).expanduser().absolute()
-    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    parts = absolute.parts
+    if len(parts) < 2 or not absolute.name:
+        raise ValuationRunError(f"{label} path is invalid")
+    directory_flags = (
+        os.O_RDONLY
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    descriptor: int | None = None
     try:
-        descriptor = os.open(absolute, flags)
+        descriptor = os.open(parts[0], directory_flags)
+        for part in parts[1:-1]:
+            next_descriptor = os.open(part, directory_flags, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = next_descriptor
+        file_descriptor = os.open(
+            parts[-1],
+            os.O_RDONLY
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0),
+            dir_fd=descriptor,
+        )
     except OSError as exc:
-        raise ValuationRunError(f"{label} is unavailable") from exc
+        raise ValuationRunError(
+            f"{label} path contains an unavailable or symlinked component"
+        ) from exc
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+    return file_descriptor
+
+
+def _read_regular_file(path: Path, label: str, *, maximum: int) -> bytes:
+    descriptor = _open_regular_without_symlink_components(path, label)
     try:
         before = os.fstat(descriptor)
         if (
             not stat.S_ISREG(before.st_mode)
             or before.st_nlink != 1
+            or before.st_mode & 0o022
             or before.st_size > maximum
         ):
             raise ValuationRunError(f"{label} must be one bounded regular non-symlink file")
@@ -782,6 +820,7 @@ def _validate_preparation_input_receipt(
     if prepared is None:
         raise ValueError("valuation preparation lacks replayable market evidence")
     final_graph = prepared.graph
+    final_graph.validate()
     if receipt.graph.component_lock_path != final_graph.component_lock_path:
         raise ValueError("valuation preparation changed component-lock authority")
     additions = _allowed_preparation_additions(preparation)
@@ -831,9 +870,36 @@ def _preparation_integrity_binding(
             "prepared_market_reference_fingerprint": (
                 prepared.fingerprint if prepared is not None else None
             ),
+            "prepared_graph_fingerprint": (
+                _graph_fingerprint(prepared.graph) if prepared is not None else None
+            ),
             "issue_codes": preparation.issue_codes,
         }
     )
+
+
+def _stopped_execution_preparation_matches(
+    preparation: OwnerValuationPreparationResult | None,
+    execution: OwnerValuationExecutionResult,
+) -> bool:
+    if preparation == execution.preparation:
+        return True
+    request = execution.final_request_result
+    if (
+        type(preparation) is not OwnerValuationPreparationResult
+        or preparation.status != "prepared"
+        or request.status == "compiled"
+    ):
+        return False
+    expected = OwnerValuationPreparationResult(
+        status=execution.status,
+        issuer_id=preparation.issuer_id,
+        data_cutoff_date=preparation.data_cutoff_date,
+        price_blind_input_fingerprint=preparation.price_blind_input_fingerprint,
+        prepared_market_reference=None,
+        issue_codes=execution.issue_codes,
+    )
+    return execution.preparation == expected
 
 
 def _execution_integrity_binding(
@@ -1022,6 +1088,28 @@ def _replay_retained_completed_run(
         archive=archive,
         issue_codes=run_result.issue_codes,
     )
+    archived_kernel_projection = manifest.get("kernel_execution_projection")
+    archived_final_projection = manifest.get("final_request_projection")
+    expected_final_projection = (
+        {
+            name: request_receipt.to_dict()[name]
+            for name in archived_final_projection
+        }
+        if isinstance(archived_final_projection, dict)
+        else None
+    )
+    expected_kernel_projection = (
+        {
+            name: kernel_receipt.to_dict()[name]
+            for name in archived_kernel_projection
+        }
+        if isinstance(archived_kernel_projection, dict)
+        else None
+    )
+    expected_runtime_authority = _project_verified_runtime_manifest_authority(
+        receipt.runtime_manifest_authority,
+        runner_sha256=kernel_receipt.runner_sha256,
+    )
     if (
         run_result.fingerprint != expected_integrity
         or dict(archive.file_sha256) != hashes
@@ -1041,8 +1129,9 @@ def _replay_retained_completed_run(
         or manifest.get("valuation_result_sha256") != hashlib.sha256(result_bytes).hexdigest()
         or manifest.get("valuation_result_sha256") != kernel_receipt.result_sha256
         or manifest.get("valuation_result_fingerprint") != canonical_sha256(result)
-        or manifest.get("final_request_receipt") != request_receipt.to_dict()
-        or manifest.get("kernel_execution_receipt") != kernel_receipt.to_dict()
+        or archived_final_projection != expected_final_projection
+        or manifest.get("kernel_runtime_authority") != expected_runtime_authority
+        or archived_kernel_projection != expected_kernel_projection
     ):
         raise ValueError("completed valuation retained archive does not replay")
     return archive, request, result
@@ -1268,6 +1357,7 @@ def run_owner_valuation(
     archive = write_valuation_run_archive(
         execution,
         output_directory=output_directory,
+        runtime_manifest_authority=input_receipt.runtime_manifest_authority,
     )
     return _valuation_run_result(
         status="completed",

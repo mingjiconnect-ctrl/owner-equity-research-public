@@ -139,6 +139,18 @@ from .mechanism_diagnostics import (
     diagnostic_policy,
     run_diagnostic,
 )
+from .owner_equity_research import (
+    OwnerEquityResearchDependencies,
+    OwnerEquityResearchError,
+    OwnerEquityResearchRequest,
+    OwnerEquityResearchResult,
+    PhaseStatus,
+    PublicationProfile,
+    ResearchIntent,
+    SecurityScope,
+    run_owner_equity_research,
+)
+from .owner_equity_runtime import build_runtime_dependencies, load_owner_equity_runtime
 from .research_bundle_artifacts import (
     ResearchBundleArtifactError,
     ResearchBundleArtifactResult,
@@ -150,10 +162,36 @@ from .research_bundle_builder import (
     ResearchBundleBuildResult,
     build_research_bundle,
 )
+from .research_publisher import (
+    PublishedResearchPackage,
+    load_owner_research_package,
+    publish_owner_research,
+)
 from .source_search_receipts import (
     SourceSearchReceiptError,
     build_source_search_receipt,
     source_search_request_fingerprint,
+)
+from .valuation_run import (
+    ValuationRunAuthority,
+    ValuationRunClock,
+    ValuationRunError,
+    ValuationRunResult,
+    run_owner_valuation,
+)
+from .valuation_run_archive import (
+    VALUATION_RUN_ARCHIVE_FILENAMES,
+    ValuationRunArchive,
+    ValuationRunArchiveError,
+    load_valuation_run_archive,
+    write_valuation_run_archive,
+)
+from .valuation_run_context import (
+    VALUATION_RUN_INPUT_FILENAME,
+    ValuationRunContextError,
+    ValuationRunInputContext,
+    load_valuation_run_input_context,
+    write_valuation_run_input_context,
 )
 
 __all__ = [
@@ -247,6 +285,20 @@ __all__ = [
     "MechanismDiagnosticError",
     "diagnostic_policy",
     "run_diagnostic",
+    "OwnerEquityResearchDependencies",
+    "OwnerEquityResearchError",
+    "OwnerEquityResearchRequest",
+    "OwnerEquityResearchResult",
+    "PhaseStatus",
+    "PublicationProfile",
+    "ResearchIntent",
+    "SecurityScope",
+    "build_runtime_dependencies",
+    "load_owner_equity_runtime",
+    "run_owner_equity_research",
+    "PublishedResearchPackage",
+    "load_owner_research_package",
+    "publish_owner_research",
     "review_analytical_claim_candidate",
     "resolve_competitive_advantage_hypothesis",
     "build_competitive_context_snapshot",
@@ -283,6 +335,21 @@ __all__ = [
     "build_research_bundle",
     "load_research_bundle_artifacts",
     "write_research_bundle_artifacts",
+    "ValuationRunAuthority",
+    "ValuationRunClock",
+    "ValuationRunError",
+    "ValuationRunResult",
+    "run_owner_valuation",
+    "VALUATION_RUN_ARCHIVE_FILENAMES",
+    "ValuationRunArchive",
+    "ValuationRunArchiveError",
+    "load_valuation_run_archive",
+    "write_valuation_run_archive",
+    "VALUATION_RUN_INPUT_FILENAME",
+    "ValuationRunContextError",
+    "ValuationRunInputContext",
+    "load_valuation_run_input_context",
+    "write_valuation_run_input_context",
 ]
 
-__version__ = "0.6.0.dev2"
+__version__ = "1.0.0.dev0"

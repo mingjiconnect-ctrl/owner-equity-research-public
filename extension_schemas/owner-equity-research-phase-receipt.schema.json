@@ -1,0 +1,65 @@
+{
+  "$id": "https://owner-research.local/schemas/owner-equity-research-phase-receipt.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "authority_fingerprints": {
+      "items": {
+        "pattern": "^[0-9a-f]{64}$",
+        "type": "string"
+      },
+      "maxItems": 8,
+      "minItems": 1,
+      "type": "array"
+    },
+    "input_receipt_fingerprint": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "input_receipt_id": {
+      "maxLength": 512,
+      "minLength": 1,
+      "type": "string"
+    },
+    "phase": {
+      "enum": [
+        "official_research_freeze",
+        "quarterly",
+        "futu_nonprice_verification",
+        "price_blind_refreeze",
+        "futu_market_reference",
+        "owner_valuation_kernel",
+        "three_panel_synthesis",
+        "owner_scorecard",
+        "futu_market_expectations",
+        "report",
+        "publication",
+        "audit"
+      ]
+    },
+    "receipt_id": {
+      "maxLength": 512,
+      "minLength": 1,
+      "type": "string"
+    },
+    "upstream_receipt_ids": {
+      "items": {
+        "maxLength": 512,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 8,
+      "type": "array",
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "receipt_id",
+    "phase",
+    "input_receipt_id",
+    "input_receipt_fingerprint",
+    "upstream_receipt_ids",
+    "authority_fingerprints"
+  ],
+  "type": "object"
+}

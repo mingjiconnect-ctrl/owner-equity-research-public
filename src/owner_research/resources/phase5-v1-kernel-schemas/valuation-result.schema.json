@@ -1,0 +1,342 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.owner-valuation/schemas/valuation-result.schema.json",
+  "title": "Separate Valuation Panels Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "company", "fact_ledger_fingerprint", "assumption_ledger_fingerprint",
+    "model_input_fingerprint", "accounting_validation", "equity_bridge_validation", "routing", "panels", "decision_protocol"
+  ],
+  "properties": {
+    "schema_version": {"const": "2.0.0"},
+    "company": {
+      "type": "object", "additionalProperties": false, "required": ["name", "type"],
+      "properties": {"name": {"type": "string", "minLength": 1}, "type": {"type": "string", "minLength": 1}}
+    },
+    "fact_ledger_fingerprint": {"$ref": "#/$defs/fingerprint"},
+    "assumption_ledger_fingerprint": {"$ref": "#/$defs/fingerprint"},
+    "model_input_fingerprint": {"$ref": "#/$defs/fingerprint"},
+    "accounting_validation": {"$ref": "#/$defs/accountingValidation"},
+    "equity_bridge_validation": {"$ref": "#/$defs/equityBridgeValidation"},
+    "routing": {"$ref": "#/$defs/routing"},
+    "panels": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "mckinsey": {"$ref": "#/$defs/mckinseyPanel"},
+        "penman": {"$ref": "#/$defs/penmanPanel"}
+      }
+    },
+    "decision_protocol": {
+      "type": "object", "additionalProperties": false,
+      "required": ["keep_panels_separate", "book_core_and_project_extensions_are_labeled", "owner_judgment_required", "method_label"],
+      "properties": {
+        "keep_panels_separate": {"const": true},
+        "book_core_and_project_extensions_are_labeled": {"const": true},
+        "owner_judgment_required": {"const": true},
+        "method_label": {"const": "PROJECT_EXTENSION_OWNER_DECISION_PROTOCOL"}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"routing": {"properties": {"status": {"const": "core_supported"}}}}},
+      "then": {"properties": {"panels": {"required": ["mckinsey", "penman"]}}}
+    }
+  ],
+  "$defs": {
+    "fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "inputRefs": {
+      "type": "object", "additionalProperties": false, "required": ["fact_ids", "assumption_ids", "method_adjustment_ids"],
+      "properties": {
+        "fact_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "assumption_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "method_adjustment_ids": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "accountingValidation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["balance_sheet_status", "clean_surplus_status", "quality_gate", "method_label"],
+      "properties": {
+        "balance_sheet_status": {"enum": ["reconciles_independently", "reconciles_by_construction"]},
+        "clean_surplus_status": {"enum": ["reconciles_independently", "reconciles_by_construction"]},
+        "quality_gate": {
+          "type": "object", "additionalProperties": false,
+          "required": ["status", "unresolved_material_issues"],
+          "properties": {
+            "status": {"enum": ["pass", "blocked"]},
+            "unresolved_material_issues": {"type": "array", "items": {"type": "string"}}
+          }
+        },
+        "method_label": {"const": "IMPLEMENTATION_CONTROL_ACCOUNTING_VALIDATION"}
+      }
+    },
+    "equityBridgeValidation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "modeled_roles", "included_but_unresolved_roles", "explicitly_absent_roles", "not_applicable_roles", "unresolved_roles", "method_label"],
+      "properties": {
+        "status": {"enum": ["complete", "partial_unresolved", "not_evaluated"]},
+        "modeled_roles": {"type": "array", "items": {"type": "string"}},
+        "included_but_unresolved_roles": {"type": "array", "items": {"type": "string"}},
+        "explicitly_absent_roles": {"type": "array", "items": {"type": "string"}},
+        "not_applicable_roles": {"type": "array", "items": {"type": "string"}},
+        "unresolved_roles": {"type": "array", "items": {"type": "string"}},
+        "method_label": {"const": "IMPLEMENTATION_CONTROL_EQUITY_BRIDGE_COMPLETENESS"}
+      }
+    },
+    "routing": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "supported_methods", "blocked_methods", "required_extension", "reasons"],
+      "properties": {
+        "status": {"enum": ["core_supported", "core_partially_supported", "specialist_method_required", "blocked_missing_required_source"]},
+        "supported_methods": {"type": "array", "items": {"type": "string"}},
+        "blocked_methods": {"type": "array", "items": {"type": "string"}},
+        "required_extension": {"type": ["string", "null"]},
+        "reasons": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "enterpriseDcf": {
+      "type": "object", "additionalProperties": false,
+      "required": ["explicit_free_cash_flows", "explicit_present_value", "terminal_nopat_next", "terminal_reinvestment_rate", "terminal_reinvestment", "terminal_free_cash_flow", "terminal_value_at_horizon", "terminal_present_value", "operating_value", "terminal_value_share", "method_label"],
+      "properties": {
+        "explicit_free_cash_flows": {"type": "array", "minItems": 1, "items": {"type": "number"}},
+        "explicit_present_value": {"type": "number"},
+        "terminal_nopat_next": {"type": "number"},
+        "terminal_reinvestment_rate": {"type": "number"},
+        "terminal_reinvestment": {"type": "number"},
+        "terminal_free_cash_flow": {"type": "number"},
+        "terminal_value_at_horizon": {"type": "number"},
+        "terminal_present_value": {"type": "number"},
+        "operating_value": {"type": "number"},
+        "terminal_value_share": {"type": "number"},
+        "method_label": {"const": "BOOK_CORE_MCKINSEY_ENTERPRISE_DCF"}
+      }
+    },
+    "economicProfit": {
+      "type": "object", "additionalProperties": false,
+      "required": ["explicit_economic_profits", "explicit_present_value", "economic_profit_next", "continuing_value_capital_in_place", "continuing_value_new_investment", "continuing_value_at_horizon", "continuing_value_identity_at_horizon", "continuing_present_value", "initial_invested_capital", "operating_value", "method_label"],
+      "properties": {
+        "explicit_economic_profits": {"type": "array", "minItems": 1, "items": {"type": "number"}},
+        "explicit_present_value": {"type": "number"},
+        "economic_profit_next": {"type": "number"},
+        "continuing_value_capital_in_place": {"type": "number"},
+        "continuing_value_new_investment": {"type": "number"},
+        "continuing_value_at_horizon": {"type": "number"},
+        "continuing_value_identity_at_horizon": {"type": "number"},
+        "continuing_present_value": {"type": "number"},
+        "initial_invested_capital": {"type": "number"},
+        "operating_value": {"type": "number"},
+        "method_label": {"const": "BOOK_CORE_MCKINSEY_ECONOMIC_PROFIT"}
+      }
+    },
+    "equityBridge": {
+      "type": "object", "additionalProperties": false,
+      "required": ["operating_value", "nonoperating_assets", "nonequity_claims", "equity_value", "share_denominator", "share_denominator_kind", "share_denominator_evidence_kind", "value_per_share", "method_label"],
+      "properties": {
+        "operating_value": {"type": "number"}, "nonoperating_assets": {"type": "number"},
+        "nonequity_claims": {"type": "number"}, "equity_value": {"type": "number"},
+        "share_denominator": {"type": "number", "exclusiveMinimum": 0},
+        "share_denominator_kind": {
+          "enum": [
+            "current_common_shares_outstanding",
+            "conversion_value_diluted_shares"
+          ]
+        },
+        "share_denominator_evidence_kind": {
+          "enum": [
+            "direct_point_in_time",
+            "issued_less_treasury",
+            "completed_event_rollforward",
+            null
+          ]
+        },
+        "value_per_share": {"type": "number"},
+        "method_label": {"const": "BOOK_CORE_MCKINSEY_EQUITY_BRIDGE"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"share_denominator_kind": {"const": "current_common_shares_outstanding"}}},
+          "then": {"properties": {"share_denominator_evidence_kind": {"enum": ["direct_point_in_time", "issued_less_treasury", "completed_event_rollforward"]}}}
+        },
+        {
+          "if": {"properties": {"share_denominator_kind": {"const": "conversion_value_diluted_shares"}}},
+          "then": {"properties": {"share_denominator_evidence_kind": {"type": "null"}}}
+        }
+      ]
+    },
+    "steadyStateEvidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["last_revenue_growth", "terminal_revenue_growth", "last_nopat_growth", "terminal_nopat_growth", "last_nopat_margin", "terminal_nopat_margin", "last_roic", "terminal_roic", "last_incremental_roic", "terminal_ronic", "last_reinvestment_rate", "terminal_reinvestment_rate", "tolerance"],
+      "properties": {
+        "last_revenue_growth": {"type": "number"}, "terminal_revenue_growth": {"type": "number"},
+        "last_nopat_growth": {"type": "number"}, "terminal_nopat_growth": {"type": "number"},
+        "last_nopat_margin": {"type": "number"}, "terminal_nopat_margin": {"type": "number"},
+        "last_roic": {"type": "number"}, "terminal_roic": {"type": "number"},
+        "last_incremental_roic": {"type": "number"}, "terminal_ronic": {"type": "number"},
+        "last_reinvestment_rate": {"type": "number"}, "terminal_reinvestment_rate": {"type": "number"},
+        "tolerance": {"type": "number", "exclusiveMinimum": 0, "maximum": 0.05}
+      }
+    },
+    "scenarioResult": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "scenario_label", "input_refs", "derived_terminal_nopat_next", "steady_state_evidence", "enterprise_dcf", "economic_profit", "dcf_ep_reconciliation_difference", "equity_bridge"],
+      "properties": {
+        "name": {"enum": ["black_swan", "bear", "base", "bull"]},
+        "scenario_label": {"const": "PROJECT_EXTENSION_LINKED_SCENARIO"},
+        "input_refs": {"$ref": "#/$defs/inputRefs"},
+        "derived_terminal_nopat_next": {"type": "number"},
+        "steady_state_evidence": {"$ref": "#/$defs/steadyStateEvidence"},
+        "enterprise_dcf": {"$ref": "#/$defs/enterpriseDcf"},
+        "economic_profit": {"$ref": "#/$defs/economicProfit"},
+        "dcf_ep_reconciliation_difference": {"type": "number"},
+        "equity_bridge": {"$ref": "#/$defs/equityBridge"}
+      }
+    },
+    "mckinseyPanel": {
+      "type": "object", "additionalProperties": false,
+      "required": ["method_label", "scenarios", "scenario_value_per_share_range"],
+      "properties": {
+        "method_label": {"const": "BOOK_CORE_MCKINSEY_PANEL"},
+        "scenarios": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"$ref": "#/$defs/scenarioResult"}},
+        "scenario_value_per_share_range": {
+          "type": "object", "additionalProperties": false, "required": ["low", "high"],
+          "properties": {"low": {"type": "number"}, "high": {"type": "number"}}
+        }
+      }
+    },
+    "accountingAnchor": {
+      "type": "object", "additionalProperties": false,
+      "required": ["noa", "residual_operating_incomes", "hurdle_rate", "operating_anchor", "net_financial_obligations", "equity_anchor", "method_label"],
+      "properties": {
+        "noa": {"type": "number"}, "residual_operating_incomes": {"type": "array", "minItems": 1, "items": {"type": "number"}},
+        "hurdle_rate": {"type": "number"}, "operating_anchor": {"type": "number"},
+        "net_financial_obligations": {"type": "number"}, "equity_anchor": {"type": "number"},
+        "method_label": {"const": "BOOK_CORE_PENMAN_ACCOUNTING_ANCHOR"}
+      }
+    },
+    "reversePrice": {
+      "type": "object", "additionalProperties": false,
+      "required": ["market_equity_value", "market_operating_value", "implied_growth", "reconstructed_market_equity_value", "round_trip_error", "method_label"],
+      "properties": {
+        "market_equity_value": {"type": "number"}, "market_operating_value": {"type": "number"},
+        "implied_growth": {"type": "number"}, "reconstructed_market_equity_value": {"type": "number"},
+        "round_trip_error": {"type": "number"}, "method_label": {"const": "BOOK_CORE_PENMAN_REVERSE_PRICE"}
+      }
+    },
+    "fadePathPoint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["year_index", "growth_rate", "residual_operating_income"],
+      "properties": {
+        "year_index": {"type": "integer", "minimum": 1},
+        "growth_rate": {"type": "number"},
+        "residual_operating_income": {"type": "number"}
+      }
+    },
+    "reverseFade": {
+      "type": "object", "additionalProperties": false,
+      "required": ["market_equity_value", "long_run_growth", "last_observed_growth", "implied_fade_weight", "reconstructed_market_equity_value", "round_trip_error", "path", "method_label"],
+      "properties": {
+        "market_equity_value": {"type": "number"},
+        "long_run_growth": {"type": "number"},
+        "last_observed_growth": {"type": "number"},
+        "implied_fade_weight": {"type": "number", "minimum": 0, "exclusiveMaximum": 1},
+        "reconstructed_market_equity_value": {"type": "number"},
+        "round_trip_error": {"type": "number"},
+        "path": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/fadePathPoint"}},
+        "method_label": {"const": "BOOK_CORE_PENMAN_DECLINING_GROWTH_PATH"}
+      }
+    },
+    "hurdleComparison": {
+      "type": "object", "additionalProperties": false,
+      "required": ["hurdle_rate", "equity_anchor", "speculative_value", "speculative_share_of_price", "implied_growth", "method_label"],
+      "properties": {
+        "hurdle_rate": {"type": "number"}, "equity_anchor": {"type": "number"},
+        "speculative_value": {"type": "number"}, "speculative_share_of_price": {"type": "number"},
+        "implied_growth": {"type": ["number", "null"]},
+        "method_label": {"const": "PROJECT_EXTENSION_USER_SUPPLIED_HURDLE_COMPARISON"}
+      }
+    },
+    "growthReturnPoint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["growth_rate", "expected_return", "method_label"],
+      "properties": {
+        "growth_rate": {"type": "number"}, "expected_return": {"type": "number"},
+        "method_label": {"const": "BOOK_CORE_PENMAN_GROWTH_RETURN_PROFILE"}
+      }
+    },
+    "driverTree": {
+      "type": "object", "additionalProperties": false,
+      "required": ["profit_margin", "asset_turnover", "rnoa", "residual_operating_income", "method_label"],
+      "properties": {
+        "profit_margin": {"type": "number"}, "asset_turnover": {"type": ["number", "null"]},
+        "rnoa": {"type": ["number", "null"]}, "residual_operating_income": {"type": "number"},
+        "method_label": {"const": "BOOK_CORE_PENMAN_DRIVER_TREE"}
+      }
+    },
+    "driverRow": {
+      "type": "object", "additionalProperties": false, "required": ["period_end", "drivers", "limitation"],
+      "properties": {
+        "period_end": {"type": "string", "format": "date"},
+        "drivers": {"anyOf": [{"$ref": "#/$defs/driverTree"}, {"type": "null"}]},
+        "limitation": {"type": ["string", "null"]}
+      },
+      "allOf": [
+        {"if": {"properties": {"drivers": {"type": "null"}}}, "then": {"properties": {"limitation": {"type": "string", "minLength": 1}}}, "else": {"properties": {"limitation": {"type": "null"}}}}
+      ]
+    },
+    "marketChallengeRow": {
+      "type": "object", "additionalProperties": false,
+      "required": ["period_end", "reoi_growth", "required_reoi", "required_operating_income_after_tax", "ending_noa", "drivers", "limitation", "method_label"],
+      "properties": {
+        "period_end": {"type": "string", "format": "date"},
+        "reoi_growth": {"type": "number"},
+        "required_reoi": {"type": "number"},
+        "required_operating_income_after_tax": {"type": "number"},
+        "ending_noa": {"type": "number"},
+        "drivers": {"anyOf": [{"$ref": "#/$defs/driverTree"}, {"type": "null"}]},
+        "limitation": {"type": ["string", "null"]},
+        "method_label": {"const": "BOOK_CORE_PENMAN_MARKET_DRIVER_CHALLENGE"}
+      },
+      "allOf": [
+        {"if": {"properties": {"drivers": {"type": "null"}}}, "then": {"properties": {"limitation": {"type": "string", "minLength": 1}}}, "else": {"properties": {"limitation": {"type": "null"}}}}
+      ]
+    },
+    "capDiagnostic": {
+      "type": "object", "additionalProperties": false,
+      "required": ["market_equity_value", "implied_competitive_advantage_years", "reconstructed_market_equity_value", "round_trip_error", "method_label"],
+      "properties": {
+        "market_equity_value": {"type": "number"}, "implied_competitive_advantage_years": {"type": "number"},
+        "reconstructed_market_equity_value": {"type": "number"}, "round_trip_error": {"type": "number"},
+        "method_label": {"const": "PROJECT_EXTENSION_CAP_DIAGNOSTIC"}
+      }
+    },
+    "penmanPanel": {
+      "type": "object", "additionalProperties": false,
+      "required": ["method_label", "input_refs", "accounting_anchor", "speculative_value", "speculative_share_of_market_price", "reverse_price", "reverse_price_limitation", "reverse_fade", "reverse_fade_limitation", "hurdle_comparisons", "growth_return_profile", "growth_return_profile_limitation", "predictive_driver_path", "market_implied_driver_path", "market_implied_driver_path_limitation", "cap_diagnostic", "cap_diagnostic_limitation"],
+      "properties": {
+        "method_label": {"const": "BOOK_CORE_PENMAN_PRICE_CHALLENGE"},
+        "input_refs": {"$ref": "#/$defs/inputRefs"},
+        "accounting_anchor": {"$ref": "#/$defs/accountingAnchor"},
+        "speculative_value": {"type": "number"}, "speculative_share_of_market_price": {"type": "number"},
+        "reverse_price": {"anyOf": [{"$ref": "#/$defs/reversePrice"}, {"type": "null"}]},
+        "reverse_price_limitation": {"type": ["string", "null"]},
+        "reverse_fade": {"anyOf": [{"$ref": "#/$defs/reverseFade"}, {"type": "null"}]},
+        "reverse_fade_limitation": {"type": ["string", "null"]},
+        "hurdle_comparisons": {"type": "array", "items": {"$ref": "#/$defs/hurdleComparison"}},
+        "growth_return_profile": {"type": ["array", "null"], "items": {"$ref": "#/$defs/growthReturnPoint"}},
+        "growth_return_profile_limitation": {"type": ["string", "null"]},
+        "predictive_driver_path": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/driverRow"}},
+        "market_implied_driver_path": {"type": ["array", "null"], "items": {"$ref": "#/$defs/marketChallengeRow"}},
+        "market_implied_driver_path_limitation": {"type": ["string", "null"]},
+        "cap_diagnostic": {"anyOf": [{"$ref": "#/$defs/capDiagnostic"}, {"type": "null"}]},
+        "cap_diagnostic_limitation": {"type": ["string", "null"]}
+      },
+      "allOf": [
+        {"if": {"properties": {"reverse_price": {"type": "null"}}}, "then": {"properties": {"reverse_price_limitation": {"type": "string", "minLength": 1}}}, "else": {"properties": {"reverse_price_limitation": {"type": "null"}}}},
+        {"if": {"properties": {"reverse_fade": {"type": "null"}}}, "then": {"properties": {"reverse_fade_limitation": {"type": "string", "minLength": 1}}}, "else": {"properties": {"reverse_fade_limitation": {"type": "null"}}}},
+        {"if": {"properties": {"growth_return_profile": {"type": "null"}}}, "then": {"properties": {"growth_return_profile_limitation": {"type": "string", "minLength": 1}}}, "else": {"properties": {"growth_return_profile_limitation": {"type": "null"}}}},
+        {"if": {"properties": {"market_implied_driver_path": {"type": "null"}}}, "then": {"properties": {"market_implied_driver_path_limitation": {"type": "string", "minLength": 1}}}, "else": {"properties": {"market_implied_driver_path_limitation": {"type": "null"}}}}
+      ]
+    }
+  }
+}

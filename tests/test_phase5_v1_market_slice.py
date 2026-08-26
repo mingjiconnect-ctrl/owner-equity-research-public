@@ -137,11 +137,13 @@ def _unacquired_inputs(
     tmp_path: Path,
     *,
     current_share_value: int | float = 100_000_000,
+    kernel_example: dict | None = None,
 ):
     graph, freeze, directory, security = _security_context(
         sample_payloads,
         monkeypatch,
         tmp_path,
+        kernel_example=kernel_example,
     )
     graph, freeze = _rebind_freeze_to_phase5c_authority(graph, freeze)
     security = compile_security_identity(
@@ -189,7 +191,8 @@ def _unacquired_inputs(
         valuation_handoffs=freeze.handoffs,
         component_lock_path=ROOT / "component-lock.json",
     )
-    write_price_blind_input_artifact(graph, freeze, output_directory=directory, overwrite=True)
+    directory = tmp_path / "price-blind-phase5c"
+    write_price_blind_input_artifact(graph, freeze, output_directory=directory)
     review, raw = _reviewed_market_files(tmp_path, security, freeze)
     return graph, freeze, directory, security, review, raw
 
@@ -1748,7 +1751,8 @@ def test_prepare_owner_valuation_replays_price_blind_freeze_before_market(
         valuation_handoffs=freeze.handoffs,
         component_lock_path=ROOT / "component-lock.json",
     )
-    write_price_blind_input_artifact(graph, freeze, output_directory=directory, overwrite=True)
+    directory = tmp_path / "price-blind-phase5c"
+    write_price_blind_input_artifact(graph, freeze, output_directory=directory)
     review, raw = _reviewed_market_files(tmp_path, security, freeze)
     result = prepare_owner_valuation(
         graph=graph,

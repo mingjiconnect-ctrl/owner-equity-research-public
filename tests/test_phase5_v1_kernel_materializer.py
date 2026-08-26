@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+import owner_research.valuation_kernel_materializer as materializer_module
 from owner_research.component_lock import verify_kernel_runtime_lock
 from owner_research.valuation_kernel_materializer import (
     AUTHORITY_RESOURCE,
@@ -148,10 +149,11 @@ def test_timestamp_normalizer_changes_only_registered_dist_info(tmp_path: Path) 
 def test_private_cas_inside_repository_is_rejected(tmp_path: Path) -> None:
     fake_backend = tmp_path / "setuptools-80.9.0-py3-none-any.whl"
     fake_backend.write_bytes(b"not a wheel")
+    installed_research_root = Path(materializer_module.__file__).resolve().parents[2]
     with pytest.raises(KernelMaterializationError, match="private CAS"):
         materialize_pinned_kernel_runtime(
             kernel_checkout=KERNEL,
-            cas_root=ROOT / ".forbidden-private-cas",
+            cas_root=installed_research_root / ".forbidden-private-cas",
             setuptools_wheel=fake_backend,
             dependency_wheels=(),
             target_python_minor="3.11",

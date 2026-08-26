@@ -2386,45 +2386,259 @@ def test_protocol_registry_is_closed_and_excludes_account_ownership_and_short_da
     assert "financial_type" not in sdk[3246]["sdk_parameter_names"]
 
 
-def test_reviewed_balance_and_cash_registry_can_load_without_code_id_changes() -> None:
-    import owner_research.futu_sidecar as sidecar_module
-
-    payload = json.loads(
-        (
-            Path(sidecar_module.__file__).parent
-            / "resources/futu/financial-field-registry-v1.json"
-        ).read_text(encoding="utf-8")
+def _statement_response(
+    execution: FutuSidecarExecution,
+    statement_type: str,
+):
+    selector = {"income": 1, "balance_sheet": 2, "cash_flow": 3}[statement_type]
+    request = next(
+        item
+        for item in execution.requests
+        if item.protocol_id == 3227 and item.parameters["statement_type"] == selector
     )
-    next_id = 910000
-    for statement_type, concepts in payload["critical_concepts"].items():
-        for concept in concepts:
-            payload["mappings"].append(
+    return next(item for item in execution.responses if item.request_id == request.request_id)
+
+
+def _reviewed_financial_field_admission(
+    execution: FutuSidecarExecution,
+    *,
+    mappings: tuple[dict[str, str], ...],
+) -> dict[str, Any]:
+    return {
+        "registry_id": "futu-reviewed-financial-field-admission",
+        "registry_version": "1.0.0",
+        "futu_api_version": "10.10.7008",
+        "market": "US",
+        "mappings": [
+            {
+                **item,
+                "source_raw_plaintext_sha256": (
+                    item.get("source_raw_plaintext_sha256")
+                    or _statement_response(execution, item["statement_type"]).raw_plaintext_sha256
+                ),
+            }
+            for item in mappings
+        ],
+    }
+
+
+def test_reviewed_financial_field_admission_reprojects_exact_structurelist_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import owner_research.futu_sidecar as sidecar_module
+    import owner_research.owner_equity_runtime as runtime_module
+
+    execution = _execute_pre_price(
+        FakeTransport(
+            evidence_seed="reviewed-admission",
+            financial_value="100",
+        )
+    )
+    registry = sidecar_module.load_reviewed_financial_field_registry(
+        execution=execution,
+        admission_payload=_reviewed_financial_field_admission(
+            execution,
+            mappings=(
                 {
                     "accounting_standard_scope": "US_GAAP",
-                    "canonical_concept": concept,
-                    "data_family": "financial_statements",
-                    "field_id": str(next_id),
-                    "futu_api_version": "10.10.7008",
-                    "materiality_tier": "kernel_required",
-                    "normalized_display_name": concept.replace("_", " "),
-                    "period_kind": (
-                        "stock" if statement_type == "balance_sheet" else "flow"
-                    ),
-                    "sign_convention": "reported_signed",
-                    "statement_type": statement_type,
-                    "unit": "currency_units",
-                }
-            )
-            next_id += 1
+                    "canonical_concept": "cash_and_cash_equivalents",
+                    "display_name": "Synthetic Balance Item",
+                    "field_id": "900001",
+                    "statement_type": "balance_sheet",
+                },
+                {
+                    "accounting_standard_scope": "US_GAAP",
+                    "canonical_concept": "operating_cash_flow",
+                    "display_name": "Synthetic Cash Flow Item",
+                    "field_id": "900002",
+                    "statement_type": "cash_flow",
+                },
+            ),
+        ),
+    )
+    admitted = sidecar_module.reproject_execution_with_financial_field_registry(
+        execution,
+        registry=registry,
+    )
+    current_balance = next(
+        item
+        for item in admitted.observations
+        if item.field_id == "900001" and item.period["end"] == "2026-09-26"
+    )
+    current_shares = next(
+        item
+        for item in admitted.observations
+        if item.field_id == "current_common_shares"
+    )
+    assert current_balance.canonical_concept == "cash_and_cash_equivalents"
+    assert current_balance.comparison_eligible is True
+    graph, fact = _official_critical_financial_graph(
+        "cash_and_cash_equivalents",
+        flow=False,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "load_critical_financial_concepts",
+        lambda: {"balance_sheet": ("cash_and_cash_equivalents",)},
+    )
+    with sidecar_module.reviewed_financial_field_registry_scope(registry):
+        operands, receipts = runtime_module._official_crosschecks(
+            graph=graph,
+            execution=SimpleNamespace(
+                observations=(current_balance, current_shares),
+                bundle=SimpleNamespace(issuer_id=ISSUER_ID),
+            ),
+            created_at="2026-08-15T01:00:00Z",
+        )
+    assert operands[0].canonical_concept == "cash_and_cash_equivalents"
+    assert receipts[0].canonical_concept == "cash_and_cash_equivalents"
+    assert current_balance.period == fact.period
 
-    mappings = sidecar_module._validate_financial_field_registry_payload(payload)
-    mapped = {str(item["canonical_concept"]) for item in mappings.values()}
-    required = {
-        concept
-        for concepts in payload["critical_concepts"].values()
-        for concept in concepts
-    }
-    assert required.issubset(mapped)
+
+def test_reviewed_financial_field_admission_rejects_unknown_structurelist_field() -> None:
+    import owner_research.futu_sidecar as sidecar_module
+
+    execution = _execute_pre_price(FakeTransport(evidence_seed="reviewed-admission-unknown"))
+    with pytest.raises(
+        FutuSidecarError,
+        match="does not match captured structureList evidence",
+    ):
+        sidecar_module.load_reviewed_financial_field_registry(
+            execution=execution,
+            admission_payload=_reviewed_financial_field_admission(
+                execution,
+                mappings=(
+                    {
+                        "accounting_standard_scope": "US_GAAP",
+                        "canonical_concept": "cash_and_cash_equivalents",
+                        "display_name": "Synthetic Cash Flow Item",
+                        "field_id": "900002",
+                        "statement_type": "balance_sheet",
+                    },
+                ),
+            ),
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    (
+        ("market", "HK", "reviewed financial field admission identity is invalid"),
+        (
+            "futu_api_version",
+            "10.10.7007",
+            "reviewed financial field admission identity is invalid",
+        ),
+        (
+            "accounting_standard_scope",
+            "IFRS",
+            "reviewed financial field admission does not match captured structureList evidence",
+        ),
+        (
+            "statement_type",
+            "cash_flow",
+            "reviewed financial field admission mapping is invalid",
+        ),
+        (
+            "display_name",
+            "Tampered Balance Item",
+            "reviewed financial field admission does not match captured structureList evidence",
+        ),
+        (
+            "field_id",
+            "900002",
+            "reviewed financial field admission does not match captured structureList evidence",
+        ),
+    ),
+)
+def test_reviewed_financial_field_admission_rejects_scope_identity_and_structure_tamper(
+    field: str,
+    value: str,
+    message: str,
+) -> None:
+    import owner_research.futu_sidecar as sidecar_module
+
+    execution = _execute_pre_price(FakeTransport(evidence_seed=f"reviewed-admission-{field}"))
+    payload = _reviewed_financial_field_admission(
+        execution,
+        mappings=(
+            {
+                "accounting_standard_scope": "US_GAAP",
+                "canonical_concept": "cash_and_cash_equivalents",
+                "display_name": "Synthetic Balance Item",
+                "field_id": "900001",
+                "statement_type": "balance_sheet",
+            },
+        ),
+    )
+    if field in {"market", "futu_api_version"}:
+        payload[field] = value
+    else:
+        payload["mappings"][0][field] = value
+    with pytest.raises(FutuSidecarError, match=message):
+        sidecar_module.load_reviewed_financial_field_registry(
+            execution=execution,
+            admission_payload=payload,
+        )
+
+
+def test_reviewed_financial_field_admission_rejects_conflicting_field_id() -> None:
+    import owner_research.futu_sidecar as sidecar_module
+
+    execution = _execute_pre_price(FakeTransport(evidence_seed="reviewed-admission-conflict"))
+    with pytest.raises(
+        FutuSidecarError,
+        match="financial field IDs and statement concepts must be unique",
+    ):
+        sidecar_module.load_reviewed_financial_field_registry(
+            execution=execution,
+            admission_payload=_reviewed_financial_field_admission(
+                execution,
+                mappings=(
+                    {
+                        "accounting_standard_scope": "US_GAAP",
+                        "canonical_concept": "cash_and_cash_equivalents",
+                        "display_name": "Synthetic Balance Item",
+                        "field_id": "900001",
+                        "statement_type": "balance_sheet",
+                    },
+                    {
+                        "accounting_standard_scope": "US_GAAP",
+                        "canonical_concept": "total_assets",
+                        "display_name": "Synthetic Balance Item",
+                        "field_id": "900001",
+                        "statement_type": "balance_sheet",
+                    },
+                ),
+            ),
+        )
+
+
+def test_reviewed_financial_field_admission_rejects_tampered_source_hash() -> None:
+    import owner_research.futu_sidecar as sidecar_module
+
+    execution = _execute_pre_price(FakeTransport(evidence_seed="reviewed-admission-tamper"))
+    payload = _reviewed_financial_field_admission(
+        execution,
+        mappings=(
+            {
+                "accounting_standard_scope": "US_GAAP",
+                "canonical_concept": "cash_and_cash_equivalents",
+                "display_name": "Synthetic Balance Item",
+                "field_id": "900001",
+                "statement_type": "balance_sheet",
+            },
+        ),
+    )
+    payload["mappings"][0]["source_raw_plaintext_sha256"] = HASH_F
+    with pytest.raises(
+        FutuSidecarError,
+        match="source response does not replay",
+    ):
+        sidecar_module.load_reviewed_financial_field_registry(
+            execution=execution,
+            admission_payload=payload,
+        )
 
 
 def test_completed_runtime_receipt_cannot_authorize_a_live_transport_call() -> None:
@@ -3099,6 +3313,291 @@ def test_balance_sheet_and_cash_flow_critical_conflicts_block_before_refreeze(
     )
 
 
+def test_secondary_duplicate_cannot_make_one_sec_fact_ambiguous(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import owner_research.owner_equity_runtime as runtime_module
+
+    concept = "total_assets"
+    monkeypatch.setattr(
+        runtime_module,
+        "load_critical_financial_concepts",
+        lambda: {"balance_sheet": (concept,)},
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "load_financial_field_registry",
+        lambda: {
+            "reviewed-field": FrozenMap({"canonical_concept": concept})
+        },
+    )
+    graph, fact = _official_critical_financial_graph(concept, flow=False)
+    primary_source = graph.documents[0]
+    secondary_source = replace(
+        primary_source,
+        document_id="document:secondary:total_assets",
+        source_url="https://example.com/research/total-assets",
+        authority_level="secondary",
+        content_sha256=HASH_C,
+    )
+    secondary_fact = replace(
+        fact,
+        fact_id="fact:secondary:total_assets",
+        source_document_id=secondary_source.document_id,
+        source_locator="secondary:table:total-assets",
+    )
+    graph = ContractGraph(
+        documents=(*graph.documents, secondary_source),
+        facts=(fact, secondary_fact),
+    )
+    graph.validate()
+    vendor_fingerprint = canonical_sha256({"vendor": "same-total-assets"})
+    vendor = SimpleNamespace(
+        source_role="vendor_secondary",
+        comparison_eligible=True,
+        issuer_id=ISSUER_ID,
+        canonical_concept=concept,
+        period=fact.period,
+        value_type="number",
+        value="100",
+        unit="currency_units",
+        currency="USD",
+        observation_id=f"futu-observation:{vendor_fingerprint}",
+        fingerprint=vendor_fingerprint,
+        data_family="financial_statements",
+        field_id="reviewed-field",
+        qualifiers=FrozenMap({"statement_type": "balance_sheet"}),
+    )
+    current_shares = SimpleNamespace(
+        source_role="vendor_secondary",
+        comparison_eligible=False,
+        canonical_concept=None,
+        data_family="corporate_actions",
+        field_id="current_common_shares",
+        value_type="null",
+        value=None,
+        qualifiers=FrozenMap(
+            {
+                "reason_code": "us_3236_shares_after_effect_not_supported",
+                "verification_status": "vendor_not_supported",
+            }
+        ),
+    )
+
+    operands, receipts = runtime_module._official_crosschecks(
+        graph=graph,
+        execution=SimpleNamespace(
+            observations=(vendor, current_shares),
+            bundle=SimpleNamespace(issuer_id=ISSUER_ID),
+        ),
+        created_at="2026-08-15T01:00:00Z",
+    )
+
+    assert len(operands) == len(receipts) == 1
+    assert operands[0].object_id == fact.fact_id
+    assert operands[0].authority == "primary_regulatory"
+    assert receipts[0].result == "consistent"
+
+
+def test_split_authority_priority_is_applied_per_semantic_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import owner_research.owner_equity_runtime as runtime_module
+
+    monkeypatch.setattr(runtime_module, "load_critical_financial_concepts", lambda: {})
+    monkeypatch.setattr(runtime_module, "load_financial_field_registry", lambda: {})
+    first_result = _execute_pre_price(
+        FakeTransport(
+            evidence_seed="split-authority-first",
+            split_observation=_wire_split_observation(),
+        )
+    )
+    second_result = _execute_pre_price(
+        FakeTransport(
+            evidence_seed="split-authority-second",
+            split_observation=_wire_split_observation(
+                announcement_date="2022-05-01",
+                rate_raw="1->2",
+                rate_numerator="2",
+            ),
+        )
+    )
+    first_split = next(
+        item for item in first_result.observations if item.field_id == "stock_split_event"
+    )
+    second_split = next(
+        item for item in second_result.observations if item.field_id == "stock_split_event"
+    )
+    current_shares = next(
+        item
+        for item in first_result.observations
+        if item.field_id == "current_common_shares"
+    )
+    graph, sec_fact = _official_split_graph(ratio=4)
+    sec_source = graph.documents[0]
+    duplicate_ir_source = replace(
+        sec_source,
+        document_id="document:ir-split:2020-08-31",
+        document_type="investor_release",
+        source_url="https://investor.example.com/split-2020",
+        authority_level="company_primary",
+        content_sha256=HASH_A,
+    )
+    duplicate_ir_fact = replace(
+        sec_fact,
+        fact_id="fact:ir-stock-split:2020-08-31",
+        source_document_id=duplicate_ir_source.document_id,
+        source_locator="ir:stock-split:2020",
+    )
+    second_ir_source = replace(
+        duplicate_ir_source,
+        document_id="document:ir-split:2022-06-01",
+        period=FrozenMap({"start": None, "end": "2022-06-01"}),
+        published_date="2022-06-01",
+        retrieved_at="2026-08-15T00:31:00Z",
+        source_url="https://investor.example.com/split-2022",
+        content_sha256=HASH_C,
+    )
+    second_ir_fact = replace(
+        duplicate_ir_fact,
+        fact_id="fact:ir-stock-split:2022-06-01",
+        value=2,
+        period=second_ir_source.period,
+        source_document_id=second_ir_source.document_id,
+        source_locator="ir:stock-split:2022",
+    )
+    mixed_graph = ContractGraph(
+        documents=(sec_source, duplicate_ir_source, second_ir_source),
+        facts=(sec_fact, duplicate_ir_fact, second_ir_fact),
+    )
+    mixed_graph.validate()
+
+    operands, receipts = runtime_module._official_crosschecks(
+        graph=mixed_graph,
+        execution=SimpleNamespace(
+            observations=(first_split, second_split, current_shares),
+            bundle=SimpleNamespace(issuer_id=ISSUER_ID),
+        ),
+        created_at="2026-08-15T01:00:00Z",
+    )
+
+    assert len(operands) == len(receipts) == 2
+    assert {item.object_id for item in operands} == {
+        sec_fact.fact_id,
+        second_ir_fact.fact_id,
+    }
+    assert {item.authority for item in operands} == {
+        "primary_regulatory",
+        "company_primary",
+    }
+    assert all(item.result == "consistent" for item in receipts)
+
+
+def test_overlapping_announcement_only_split_windows_require_unique_bijection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import owner_research.owner_equity_runtime as runtime_module
+
+    monkeypatch.setattr(runtime_module, "load_critical_financial_concepts", lambda: {})
+    monkeypatch.setattr(runtime_module, "load_financial_field_registry", lambda: {})
+    unique_first_result = _execute_pre_price(
+        FakeTransport(
+            evidence_seed="split-unique-first",
+            split_observation=_wire_split_observation(
+                announcement_date="2020-01-01",
+            ),
+        )
+    )
+    ambiguous_first_result = _execute_pre_price(
+        FakeTransport(
+            evidence_seed="split-ambiguous-first",
+            split_observation=_wire_split_observation(
+                announcement_date="2020-01-15",
+            ),
+        )
+    )
+    second_result = _execute_pre_price(
+        FakeTransport(
+            evidence_seed="split-shared-second",
+            split_observation=_wire_split_observation(
+                announcement_date="2020-07-01",
+            ),
+        )
+    )
+    unique_first_split = next(
+        item
+        for item in unique_first_result.observations
+        if item.field_id == "stock_split_event"
+    )
+    ambiguous_first_split = next(
+        item
+        for item in ambiguous_first_result.observations
+        if item.field_id == "stock_split_event"
+    )
+    second_split = next(
+        item for item in second_result.observations if item.field_id == "stock_split_event"
+    )
+    current_shares = next(
+        item
+        for item in unique_first_result.observations
+        if item.field_id == "current_common_shares"
+    )
+    graph, sec_fact = _official_split_graph(ratio=4)
+    sec_source = graph.documents[0]
+    later_ir_source = replace(
+        sec_source,
+        document_id="document:ir-split:2021-01-15",
+        document_type="investor_release",
+        period=FrozenMap({"start": None, "end": "2021-01-15"}),
+        published_date="2021-01-15",
+        source_url="https://investor.example.com/split-2021",
+        authority_level="company_primary",
+        content_sha256=HASH_C,
+    )
+    later_ir_fact = replace(
+        sec_fact,
+        fact_id="fact:ir-stock-split:2021-01-15",
+        period=later_ir_source.period,
+        source_document_id=later_ir_source.document_id,
+        source_locator="ir:stock-split:2021",
+    )
+    overlapping_graph = ContractGraph(
+        documents=(sec_source, later_ir_source),
+        facts=(sec_fact, later_ir_fact),
+    )
+    overlapping_graph.validate()
+
+    operands, receipts = runtime_module._official_crosschecks(
+        graph=overlapping_graph,
+        execution=SimpleNamespace(
+            observations=(unique_first_split, second_split, current_shares),
+            bundle=SimpleNamespace(issuer_id=ISSUER_ID),
+        ),
+        created_at="2026-08-15T01:00:00Z",
+    )
+
+    assert {item.object_id for item in operands} == {
+        sec_fact.fact_id,
+        later_ir_fact.fact_id,
+    }
+    assert len(receipts) == 2
+    assert all(item.result == "consistent" for item in receipts)
+
+    with pytest.raises(runtime_module._LiveBlocked) as blocked:
+        runtime_module._official_crosschecks(
+            graph=overlapping_graph,
+            execution=SimpleNamespace(
+                observations=(ambiguous_first_split, second_split, current_shares),
+                bundle=SimpleNamespace(issuer_id=ISSUER_ID),
+            ),
+            created_at="2026-08-15T01:00:00Z",
+        )
+
+    assert blocked.value.issue_codes == (
+        "futu_nonprice:sec_futu_split_event_set_conflict",
+    )
+
+
 def test_split_event_set_is_bidirectional_and_ratio_exact(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -3662,7 +4161,8 @@ def test_peer_quote_plan_is_exact_static_then_daily_close_and_uses_peer_scope() 
 
 def test_unix_socket_transport_sends_exactly_one_bounded_frame(tmp_path: Path) -> None:
     suffix = hashlib.sha256(os.fsencode(tmp_path)).hexdigest()[:12]
-    socket_directory = Path("/private/tmp") / f"futu-test-{suffix}"
+    temporary_anchor = Path("/private/tmp") if Path("/private/tmp").is_dir() else Path("/tmp")
+    socket_directory = temporary_anchor / f"futu-test-{suffix}"
     socket_directory.mkdir(mode=0o700)
     socket_path = socket_directory / "sidecar.sock"
     listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -3728,7 +4228,8 @@ def test_attested_uds_open_and_abort_are_signed_bound_and_exact_once(
     runtime_authorization = authorities.runtime_authorization
     assert runtime_authorization is not None
     suffix = hashlib.sha256(f"attested:{tmp_path}".encode()).hexdigest()[:12]
-    socket_directory = Path("/private/tmp") / f"futu-attested-{suffix}"
+    temporary_anchor = Path("/private/tmp") if Path("/private/tmp").is_dir() else Path("/tmp")
+    socket_directory = temporary_anchor / f"futu-attested-{suffix}"
     socket_directory.mkdir(mode=0o700)
     socket_path = socket_directory / "sidecar.sock"
     listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)

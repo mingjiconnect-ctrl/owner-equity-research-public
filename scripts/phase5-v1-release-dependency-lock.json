@@ -1,0 +1,999 @@
+{
+  "artifact_type": "owner-equity-release-dependency-lock",
+  "components": [
+    {
+      "artifacts": [
+        {
+          "filename": "cffi-2.1.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+          "sha256": "34e261f78cb6ceaaa36f42f2613f4380d94d9c759a9c73c769ee6e0247364632",
+          "target": {
+            "abi_tags": [
+              "cp311"
+            ],
+            "kind": "wheel",
+            "platform_tags": [
+              "manylinux2014_x86_64",
+              "manylinux_2_17_x86_64"
+            ],
+            "python_tags": [
+              "cp311"
+            ],
+            "python_targets": [
+              "3.11"
+            ]
+          }
+        },
+        {
+          "filename": "cffi-2.1.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+          "sha256": "c1453022f490d2459a11819d83ad1d586e9ff65a12ac3e705ffebd46d3685dcf",
+          "target": {
+            "abi_tags": [
+              "cp312"
+            ],
+            "kind": "wheel",
+            "platform_tags": [
+              "manylinux2014_x86_64",
+              "manylinux_2_17_x86_64"
+            ],
+            "python_tags": [
+              "cp312"
+            ],
+            "python_targets": [
+              "3.12"
+            ]
+          }
+        },
+        {
+          "filename": "cffi-2.1.1-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+          "sha256": "a931079504ecc49efed7744c476a5c343a92fabf66dec2db95edb1b2fdc770e2",
+          "target": {
+            "abi_tags": [
+              "cp313"
+            ],
+            "kind": "wheel",
+            "platform_tags": [
+              "manylinux2014_x86_64",
+              "manylinux_2_17_x86_64"
+            ],
+            "python_tags": [
+              "cp313"
+            ],
+            "python_targets": [
+              "3.13"
+            ]
+          }
+        }
+      ],
+      "license_evidence": {
+        "record_id": "cffi@2.1.1",
+        "record_sha256": "cefc2ac060b532edcfcf291ee196a6722e43d72b8a25cab60abe3adb3208f9b9",
+        "source": "reviewed-artifact-metadata"
+      },
+      "license_expression": "MIT-0",
+      "name": "cffi",
+      "requirements": [
+        {
+          "applicable_python_targets": [
+            "3.11",
+            "3.12",
+            "3.13"
+          ],
+          "declared_requirement": "cffi==2.1.1; platform_python_implementation != 'PyPy'",
+          "declared_specifier": "==2.1.1",
+          "marker": "platform_python_implementation != 'PyPy'",
+          "normalized_name": "cffi",
+          "project": "sidecar",
+          "resolved_version": "2.1.1"
+        }
+      ],
+      "version": "2.1.1"
+    },
+    {
+      "artifacts": [
+        {
+          "filename": "cryptography-50.0.0-cp311-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+          "sha256": "06a32a980526a6ab9a4b9bf8f7385800791e2bb960903cb6b530e4817509a3b7",
+          "target": {
+            "abi_tags": [
+              "abi3"
+            ],
+            "kind": "wheel",
+            "platform_tags": [
+              "manylinux2014_x86_64",
+              "manylinux_2_17_x86_64"
+            ],
+            "python_tags": [
+              "cp311"
+            ],
+            "python_targets": [
+              "3.11",
+              "3.12",
+              "3.13"
+            ]
+          }
+        }
+      ],
+      "license_evidence": {
+        "record_id": "cryptography@50.0.0",
+        "record_sha256": "8dc3360afa0d4694342f3dd504b747b0ad02fa98645475bf8f092c593d68000b",
+        "source": "reviewed-artifact-metadata"
+      },
+      "license_expression": "Apache-2.0 OR BSD-3-Clause",
+      "name": "cryptography",
+      "requirements": [
+        {
+          "applicable_python_targets": [
+            "3.11",
+            "3.12",
+            "3.13"
+          ],
+          "declared_requirement": "cryptography==50.0.0",
+          "declared_specifier": "==50.0.0",
+          "marker": "",
+          "normalized_name": "cryptography",
+          "project": "owner",
+          "resolved_version": "50.0.0"
+        },
+        {
+          "applicable_python_targets": [
+            "3.11",
+            "3.12",
+            "3.13"
+          ],
+          "declared_requirement": "cryptography==50.0.0",
+          "declared_specifier": "==50.0.0",
+          "marker": "",
+          "normalized_name": "cryptography",
+          "project": "sidecar",
+          "resolved_version": "50.0.0"
+        }
+      ],
+      "version": "50.0.0"
+    },
+    {
+      "artifacts": [
+        {
+          "filename": "futu_api-10.10.7008.tar.gz",
+          "sha256": "3c607c7dce02a3a2b308f3424420277a360d7b3a4ba4508b39eaa4ff11271f98",
+          "target": {
+            "implementation": "cpython",
+            "kind": "sdist",
+            "platform": "linux-x86_64",
+            "python_targets": [
+              "3.11",
+              "3.12",
+              "3.13"
+            ]
+          }
+        }
+      ],
+      "license_evidence": {
+        "record_id": "futu-api@10.10.7008",
+        "record_sha256": "9f929c702425af63e525f3d06e8e26f434ce38760c84a45dabde3a73ebea5f38",
+        "source": "reviewed-artifact-metadata"
+      },
+      "license_expression": "Apache-2.0",
+      "name": "futu-api",
+      "requirements": [
+        {
+          "applicable_python_targets": [
+            "3.11",
+            "3.12",
+            "3.13"
+          ],
+          "declared_requirement": "futu-api==10.10.7008",
+          "declared_specifier": "==10.10.7008",
+          "marker": "",
+          "normalized_name": "futu-api",
+          "project": "sidecar",
+          "resolved_version": "10.10.7008"
+        }
+      ],
+      "version": "10.10.7008"
+    },
+    {
+      "artifacts": [
+        {
+          "filename": "httpx-0.28.1-py3-none-any.whl",
+          "sha256": "d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad",
+          "target": {
+            "abi_tags": [
+              "none"
+            ],
+            "kind": "wheel",
+            "platform_tags": [
+              "any"
+            ],
+            "python_tags": [
+              "py3"
+            ],
+            "python_targets": [
+              "3.11",
+              "3.12",
+              "3.13"
+            ]
+          }
+        }
+      ],
+      "license_evidence": {
+        "record_id": "httpx@0.28.1",
+        "record_sha256": "af401c3a3abe3b3528b22142e0d66581b948d906419f42dfaa975109f1ce8c13",
+        "source": "reviewed-artifact-metadata"
+      },
+      "license_expression": "BSD-3-Clause",
+      "name": "httpx",
+      "requirements": [
+        {
+          "applicable_python_targets": [
+            "3.11",
+            "3.12",
+            "3.13"
+          ],
+          "declared_requirement": "httpx>=0.27,<1",
+          "declared_specifier": ">=0.27,<1",
+          "marker": "",
+          "normalized_name": "httpx",
+          "project": "owner",
+          "resolved_version": "0.28.1"
+        }
+      ],
+      "version": "0.28.1"
+    },
+    {
+      "artifacts": [
+        {
+          "filename": "jsonschema-4.26.0-py3-none-any.whl",
+          "sha256": "d489f15263b8d200f8387e64b4c3a75f06629559fb73deb8fdfb525f2dab50ce",
+          "target": {
+            "abi_tags": [
+              "none"
+            ],
+            "kind": "wheel",
+            "platform_tags": [
+              "any"
+            ],
+            "python_tags": [
+              "py3"
+            ],
+            "python_targets": [
+              "3.11",
+              "3.12",
+              "3.13"
+            ]
+          }
+        }
+      ],
+      "license_evidence": {
+        "record_id": "jsonschema@4.26.0",
+        "record_sha256": "a1006165e6e10c7b588cb9ad9cc9a5dff92e182875c10688ac2cc9ae4730bcf7",
+        "source": "reviewed-artifact-metadata"
+      },
+      "license_expression": "MIT",
+      "name": "jsonschema",
+      "requirements": [
+        {
+          "applicable_python_targets": [
+            "3.11",
+            "3.12",
+            "3.13"
+          ],
+          "declared_requirement": "jsonschema>=4.23,<5",
+          "declared_specifier": ">=4.23,<5",
+          "marker": "",
+          "normalized_name": "jsonschema",
+          "project": "owner",
+          "resolved_version": "4.26.0"
+        }
+      ],
+      "version": "4.26.0"
+    },
+    {
+      "artifacts": [
+        {
+          "filename": "lxml-6.0.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+          "sha256": "58ffd35bd5425c3c3b9692d078bf7ab851441434531a7e517c4984d5634cd65b",
+          "target": {
+            "abi_tags": [
+              "cp311"
+            ],
+            "kind": "wheel",
+            "platform_tags": [
+              "manylinux2014_x86_64",
+              "manylinux_2_17_x86_64"
+            ],
+            "python_tags": [
+              "cp311"
+            ],
+            "python_targets": [
+              "3.11"
+            ]
+          }
+        },
+        {
+          "filename": "lxml-6.0.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+          "sha256": "bd5913b4972681ffc9718bc2d4c53cde39ef81415e1671ff93e9aa30b46595e7",
+          "target": {
+            "abi_tags": [
+              "cp312"
+            ],
+            "kind": "wheel",
+            "platform_tags": [
+              "manylinux2014_x86_64",
+              "manylinux_2_17_x86_64"
+            ],
+            "python_tags": [
+              "cp312"
+            ],
+            "python_targets": [
+              "3.12"
+            ]
+          }
+        },
+        {
+          "filename": "lxml-6.0.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+          "sha256": "d4f0c66df4386b75d2ab1e20a489f30dc7fd9a06a896d64980541506086be1f1",
+          "target": {
+            "abi_tags": [
+              "cp313"
+            ],
+            "kind": "wheel",
+            "platform_tags": [
+              "manylinux2014_x86_64",
+              "manylinux_2_17_x86_64"
+            ],
+            "python_tags": [
+              "cp313"
+            ],
+            "python_targets": [
+              "3.13"
+            ]
+          }
+        }
+      ],
+      "license_evidence": {
+        "record_id": "lxml@6.0.0",
+        "record_sha256": "9e2ec596f615c7fb1b16f46081d9359fde7301bd112acccbaf0f8a6eef626e4f",
+        "source": "reviewed-artifact-metadata"
+      },
+      "license_expression": "BSD-3-Clause",
+      "name": "lxml",
+      "requirements": [
+        {
+          "applicable_python_targets": [
+            "3.11",
+            "3.12",
+            "3.13"
+          ],
+          "declared_requirement": "lxml>=5.3,<7",
+          "declared_specifier": ">=5.3,<7",
+          "marker": "",
+          "normalized_name": "lxml",
+          "project": "owner",
+          "resolved_version": "6.0.0"
+        }
+      ],
+      "version": "6.0.0"
+    },
+    {
+      "artifacts": [
+        {
+          "filename": "numpy-2.4.2-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+          "sha256": "c02ef4401a506fb60b411467ad501e1429a3487abca4664871d9ae0b46c8ba32",
+          "target": {
+            "abi_tags": [
+              "cp311"
+            ],
+            "kind": "wheel",
+            "platform_tags": [
+              "manylinux_2_27_x86_64",
+              "manylinux_2_28_x86_64"
+            ],
+            "python_tags": [
+              "cp311"
+            ],
+            "python_targets": [
+              "3.11"
+            ]
+          }
+        },
+        {
+          "filename": "numpy-2.4.2-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+          "sha256": "9e35d3e0144137d9fdae62912e869136164534d64a169f86438bc9561b6ad49f",
+          "target": {
+            "abi_tags": [
+              "cp312"
+            ],
+            "kind": "wheel",
+            "platform_tags": [
+              "manylinux_2_27_x86_64",
+              "manylinux_2_28_x86_64"
+            ],
+            "python_tags": [
+              "cp312"
+            ],
+            "python_targets": [
+              "3.12"
+            ]
+          }
+        },
+        {
+          "filename": "numpy-2.4.2-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+          "sha256": "d0d9b7c93578baafcbc5f0b83eaf17b79d345c6f36917ba0c67f45226911d499",
+          "target": {
+            "abi_tags": [
+              "cp313"
+            ],
+            "kind": "wheel",
+            "platform_tags": [
+              "manylinux_2_27_x86_64",
+              "manylinux_2_28_x86_64"
+            ],
+            "python_tags": [
+              "cp313"
+            ],
+            "python_targets": [
+              "3.13"
+            ]
+          }
+        }
+      ],
+      "license_evidence": {
+        "record_id": "numpy@2.4.2",
+        "record_sha256": "5c4cb62899167218c8b71ff1b8d3104753b2f83e660769de9a9da40c37fa12da",
+        "source": "reviewed-artifact-metadata"
+      },
+      "license_expression": "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0",
+      "name": "numpy",
+      "requirements": [
+        {
+          "applicable_python_targets": [
+            "3.11",
+            "3.12",
+            "3.13"
+          ],
+          "declared_requirement": "numpy==2.4.2; python_version < '3.14'",
+          "declared_specifier": "==2.4.2",
+          "marker": "python_version < '3.14'",
+          "normalized_name": "numpy",
+          "project": "sidecar",
+          "resolved_version": "2.4.2"
+        }
+      ],
+      "version": "2.4.2"
+    },
+    {
+      "artifacts": [
+        {
+          "filename": "pandas-3.0.5-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl",
+          "sha256": "2c0cf1dd9b55a22d105fc46c1b489af3bd42264fcba7c66297bf47a9a1d9c78a",
+          "target": {
+            "abi_tags": [
+              "cp311"
+            ],
+            "kind": "wheel",
+            "platform_tags": [
+              "manylinux_2_24_x86_64",
+              "manylinux_2_28_x86_64"
+            ],
+            "python_tags": [
+              "cp311"
+            ],
+            "python_targets": [
+              "3.11"
+            ]
+          }
+        },
+        {
+          "filename": "pandas-3.0.5-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl",
+          "sha256": "d373ce03ffd84010ed9839fa73672a9c8256990532e158440c0085db7d914b34",
+          "target": {
+            "abi_tags": [
+              "cp312"
+            ],
+            "kind": "wheel",
+            "platform_tags": [
+              "manylinux_2_24_x86_64",
+              "manylinux_2_28_x86_64"
+            ],
+            "python_tags": [
+              "cp312"
+            ],
+            "python_targets": [
+              "3.12"
+            ]
+          }
+        },
+        {
+          "filename": "pandas-3.0.5-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl",
+          "sha256": "4b11c36e218331d0387cbe3a0a5f75162357a1d92d57b2b08a336ff94b19b2be",
+          "target": {
+            "abi_tags": [
+              "cp313"
+            ],
+            "kind": "wheel",
+            "platform_tags": [
+              "manylinux_2_24_x86_64",
+              "manylinux_2_28_x86_64"
+            ],
+            "python_tags": [
+              "cp313"
+            ],
+            "python_targets": [
+              "3.13"
+            ]
+          }
+        }
+      ],
+      "license_evidence": {
+        "record_id": "pandas@3.0.5",
+        "record_sha256": "68b9b15fbca8d5fe7167e68fa3c42ffe6e22520b80f8ba3472c98e681533cba2",
+        "source": "reviewed-artifact-metadata"
+      },
+      "license_expression": "BSD-3-Clause",
+      "name": "pandas",
+      "requirements": [
+        {
+          "applicable_python_targets": [
+            "3.11",
+            "3.12",
+            "3.13"
+          ],
+          "declared_requirement": "pandas==3.0.5",
+          "declared_specifier": "==3.0.5",
+          "marker": "",
+          "normalized_name": "pandas",
+          "project": "sidecar",
+          "resolved_version": "3.0.5"
+        }
+      ],
+      "version": "3.0.5"
+    },
+    {
+      "artifacts": [
+        {
+          "filename": "protobuf-7.35.1-cp310-abi3-manylinux2014_x86_64.whl",
+          "sha256": "74758715c53d7158fb76caf4f0cfdacc5329a4b1bb994f865d6cf302d413a1c4",
+          "target": {
+            "abi_tags": [
+              "abi3"
+            ],
+            "kind": "wheel",
+            "platform_tags": [
+              "manylinux2014_x86_64"
+            ],
+            "python_tags": [
+              "cp310"
+            ],
+            "python_targets": [
+              "3.11",
+              "3.12",
+              "3.13"
+            ]
+          }
+        }
+      ],
+      "license_evidence": {
+        "record_id": "protobuf@7.35.1",
+        "record_sha256": "36e0e5a7ccb01f8604fe6f7b83d215f934132a305d29c9c973f8cadb9858df90",
+        "source": "reviewed-artifact-metadata"
+      },
+      "license_expression": "BSD-3-Clause",
+      "name": "protobuf",
+      "requirements": [
+        {
+          "applicable_python_targets": [
+            "3.11",
+            "3.12",
+            "3.13"
+          ],
+          "declared_requirement": "protobuf==7.35.1",
+          "declared_specifier": "==7.35.1",
+          "marker": "",
+          "normalized_name": "protobuf",
+          "project": "sidecar",
+          "resolved_version": "7.35.1"
+        }
+      ],
+      "version": "7.35.1"
+    },
+    {
+      "artifacts": [
+        {
+          "filename": "pycparser-3.0-py3-none-any.whl",
+          "sha256": "b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992",
+          "target": {
+            "abi_tags": [
+              "none"
+            ],
+            "kind": "wheel",
+            "platform_tags": [
+              "any"
+            ],
+            "python_tags": [
+              "py3"
+            ],
+            "python_targets": [
+              "3.11",
+              "3.12",
+              "3.13"
+            ]
+          }
+        }
+      ],
+      "license_evidence": {
+        "record_id": "pycparser@3.0",
+        "record_sha256": "3ba4eb6d77716276e6a0ad58ffd75014a2aa2aac7ade1c37fb660b7194c7b918",
+        "source": "reviewed-artifact-metadata"
+      },
+      "license_expression": "BSD-3-Clause",
+      "name": "pycparser",
+      "requirements": [
+        {
+          "applicable_python_targets": [
+            "3.11",
+            "3.12",
+            "3.13"
+          ],
+          "declared_requirement": "pycparser==3.0; platform_python_implementation != 'PyPy'",
+          "declared_specifier": "==3.0",
+          "marker": "platform_python_implementation != 'PyPy'",
+          "normalized_name": "pycparser",
+          "project": "sidecar",
+          "resolved_version": "3.0"
+        }
+      ],
+      "version": "3.0"
+    },
+    {
+      "artifacts": [
+        {
+          "filename": "pycryptodome-3.23.0-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+          "sha256": "c8987bd3307a39bc03df5c8e0e3d8be0c4c3518b7f044b0f4c15d1aa78f52575",
+          "target": {
+            "abi_tags": [
+              "abi3"
+            ],
+            "kind": "wheel",
+            "platform_tags": [
+              "manylinux2014_x86_64",
+              "manylinux_2_17_x86_64"
+            ],
+            "python_tags": [
+              "cp37"
+            ],
+            "python_targets": [
+              "3.11",
+              "3.12",
+              "3.13"
+            ]
+          }
+        }
+      ],
+      "license_evidence": {
+        "record_id": "pycryptodome@3.23.0",
+        "record_sha256": "d6d5db1c486ee99991a6749ba15d874e7901cc47cd3074c5232a76618afcc655",
+        "source": "reviewed-artifact-metadata"
+      },
+      "license_expression": "BSD-2-Clause AND Unlicense",
+      "name": "pycryptodome",
+      "requirements": [
+        {
+          "applicable_python_targets": [
+            "3.11",
+            "3.12",
+            "3.13"
+          ],
+          "declared_requirement": "pycryptodome==3.23.0",
+          "declared_specifier": "==3.23.0",
+          "marker": "",
+          "normalized_name": "pycryptodome",
+          "project": "sidecar",
+          "resolved_version": "3.23.0"
+        }
+      ],
+      "version": "3.23.0"
+    },
+    {
+      "artifacts": [
+        {
+          "filename": "pypdf-6.16.1-py3-none-any.whl",
+          "sha256": "63fec31c4092ae50b6729beedcb469055b60d20c834bde1c402df241f371f644",
+          "target": {
+            "abi_tags": [
+              "none"
+            ],
+            "kind": "wheel",
+            "platform_tags": [
+              "any"
+            ],
+            "python_tags": [
+              "py3"
+            ],
+            "python_targets": [
+              "3.11",
+              "3.12",
+              "3.13"
+            ]
+          }
+        }
+      ],
+      "license_evidence": {
+        "record_id": "pypdf@6.16.1",
+        "record_sha256": "08ad019332ee7b5f20ae8f2d6e3571a957e9edd9e46bf10e69c3d8231710154d",
+        "source": "reviewed-artifact-metadata"
+      },
+      "license_expression": "BSD-3-Clause",
+      "name": "pypdf",
+      "requirements": [
+        {
+          "applicable_python_targets": [
+            "3.11",
+            "3.12",
+            "3.13"
+          ],
+          "declared_requirement": "pypdf==6.16.1",
+          "declared_specifier": "==6.16.1",
+          "marker": "",
+          "normalized_name": "pypdf",
+          "project": "owner",
+          "resolved_version": "6.16.1"
+        }
+      ],
+      "version": "6.16.1"
+    },
+    {
+      "artifacts": [
+        {
+          "filename": "pypdfium2-5.13.0-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+          "sha256": "81df25c1ab4c13ff773102d3cbea1967511d079123b067fc077bd0c4d57d91d8",
+          "target": {
+            "abi_tags": [
+              "none"
+            ],
+            "kind": "wheel",
+            "platform_tags": [
+              "manylinux2014_x86_64",
+              "manylinux_2_17_x86_64"
+            ],
+            "python_tags": [
+              "py3"
+            ],
+            "python_targets": [
+              "3.11",
+              "3.12",
+              "3.13"
+            ]
+          }
+        }
+      ],
+      "license_evidence": {
+        "record_id": "pypdfium2@5.13.0",
+        "record_sha256": "d63dedc2d710283f2d87b9ef21cdcfb6d54f3cd967b8c636ac68b16c401bc767",
+        "source": "reviewed-artifact-metadata"
+      },
+      "license_expression": "BSD-3-Clause AND Apache-2.0 AND LicenseRef-pypdfium2-5.13.0-dependency-licenses",
+      "name": "pypdfium2",
+      "requirements": [
+        {
+          "applicable_python_targets": [
+            "3.11",
+            "3.12",
+            "3.13"
+          ],
+          "declared_requirement": "pypdfium2==5.13.0",
+          "declared_specifier": "==5.13.0",
+          "marker": "",
+          "normalized_name": "pypdfium2",
+          "project": "owner",
+          "resolved_version": "5.13.0"
+        }
+      ],
+      "version": "5.13.0"
+    },
+    {
+      "artifacts": [
+        {
+          "filename": "python_dateutil-2.9.0.post0-py2.py3-none-any.whl",
+          "sha256": "a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427",
+          "target": {
+            "abi_tags": [
+              "none"
+            ],
+            "kind": "wheel",
+            "platform_tags": [
+              "any"
+            ],
+            "python_tags": [
+              "py2",
+              "py3"
+            ],
+            "python_targets": [
+              "3.11",
+              "3.12",
+              "3.13"
+            ]
+          }
+        }
+      ],
+      "license_evidence": {
+        "record_id": "python-dateutil@2.9.0.post0",
+        "record_sha256": "d1e9fb1973ee928773e912415602e828e7c0d6833346ad4bfd442de845ba7836",
+        "source": "reviewed-artifact-metadata"
+      },
+      "license_expression": "Apache-2.0 OR BSD-3-Clause",
+      "name": "python-dateutil",
+      "requirements": [
+        {
+          "applicable_python_targets": [
+            "3.11",
+            "3.12",
+            "3.13"
+          ],
+          "declared_requirement": "python-dateutil==2.9.0.post0",
+          "declared_specifier": "==2.9.0.post0",
+          "marker": "",
+          "normalized_name": "python-dateutil",
+          "project": "sidecar",
+          "resolved_version": "2.9.0.post0"
+        }
+      ],
+      "version": "2.9.0.post0"
+    },
+    {
+      "artifacts": [
+        {
+          "filename": "simplejson-4.1.1-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl",
+          "sha256": "7ce252b28fddbdd83db5bd7d93dad2a8a591d7ada098afec9c1b23d6b722a7a4",
+          "target": {
+            "abi_tags": [
+              "cp311"
+            ],
+            "kind": "wheel",
+            "platform_tags": [
+              "manylinux1_x86_64",
+              "manylinux_2_28_x86_64",
+              "manylinux_2_5_x86_64"
+            ],
+            "python_tags": [
+              "cp311"
+            ],
+            "python_targets": [
+              "3.11"
+            ]
+          }
+        },
+        {
+          "filename": "simplejson-4.1.1-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl",
+          "sha256": "45ec18e337fec538b7e902d489505c450b2454653d1290f3f50385e6fd8aa607",
+          "target": {
+            "abi_tags": [
+              "cp312"
+            ],
+            "kind": "wheel",
+            "platform_tags": [
+              "manylinux1_x86_64",
+              "manylinux_2_28_x86_64",
+              "manylinux_2_5_x86_64"
+            ],
+            "python_tags": [
+              "cp312"
+            ],
+            "python_targets": [
+              "3.12"
+            ]
+          }
+        },
+        {
+          "filename": "simplejson-4.1.1-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl",
+          "sha256": "8e5cdd6a5d52299f345c15ab5678cc4249e24f383f361d986afbc3c7072a6b6b",
+          "target": {
+            "abi_tags": [
+              "cp313"
+            ],
+            "kind": "wheel",
+            "platform_tags": [
+              "manylinux1_x86_64",
+              "manylinux_2_28_x86_64",
+              "manylinux_2_5_x86_64"
+            ],
+            "python_tags": [
+              "cp313"
+            ],
+            "python_targets": [
+              "3.13"
+            ]
+          }
+        }
+      ],
+      "license_evidence": {
+        "record_id": "simplejson@4.1.1",
+        "record_sha256": "9e3d8aab5893b53317b54b71cfa9717f995707bffb954c88c948777d51035c91",
+        "source": "reviewed-artifact-metadata"
+      },
+      "license_expression": "MIT OR AFL-2.1",
+      "name": "simplejson",
+      "requirements": [
+        {
+          "applicable_python_targets": [
+            "3.11",
+            "3.12",
+            "3.13"
+          ],
+          "declared_requirement": "simplejson==4.1.1",
+          "declared_specifier": "==4.1.1",
+          "marker": "",
+          "normalized_name": "simplejson",
+          "project": "sidecar",
+          "resolved_version": "4.1.1"
+        }
+      ],
+      "version": "4.1.1"
+    },
+    {
+      "artifacts": [
+        {
+          "filename": "six-1.17.0-py2.py3-none-any.whl",
+          "sha256": "4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274",
+          "target": {
+            "abi_tags": [
+              "none"
+            ],
+            "kind": "wheel",
+            "platform_tags": [
+              "any"
+            ],
+            "python_tags": [
+              "py2",
+              "py3"
+            ],
+            "python_targets": [
+              "3.11",
+              "3.12",
+              "3.13"
+            ]
+          }
+        }
+      ],
+      "license_evidence": {
+        "record_id": "six@1.17.0",
+        "record_sha256": "356c3bb3a4c8c9c6e2058ab6acee85f68af52fe016a8feb61d2362f46a479c1b",
+        "source": "reviewed-artifact-metadata"
+      },
+      "license_expression": "MIT",
+      "name": "six",
+      "requirements": [
+        {
+          "applicable_python_targets": [
+            "3.11",
+            "3.12",
+            "3.13"
+          ],
+          "declared_requirement": "six==1.17.0",
+          "declared_specifier": "==1.17.0",
+          "marker": "",
+          "normalized_name": "six",
+          "project": "sidecar",
+          "resolved_version": "1.17.0"
+        }
+      ],
+      "version": "1.17.0"
+    }
+  ],
+  "inventory_scope": "direct_runtime_only",
+  "platform": "linux-x86_64-cpython",
+  "python_targets": [
+    "3.11",
+    "3.12",
+    "3.13"
+  ],
+  "reviewed_artifact_metadata": {
+    "path": "scripts/phase5-v1-reviewed-artifact-metadata.json",
+    "sha256": "7fb6a03daf6dcf9d45822d57d113ae2e1958ed1ea574b1249710685cbee9cba0"
+  },
+  "schema_version": "2.0.0",
+  "sidecar_reviewed_lock": {
+    "path": "sidecars/futu-opend/supply/dependency-lock-v1.json",
+    "sha256": "bdcf05af6c834abc17b34cd26517e0fae30c4fafd96973f972dcb85fc0bd4a87"
+  },
+  "supply_manifest_path": "scripts/phase5-v1-release-supply-manifest.json"
+}

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/published-package.schema.json",
+  "title": "PublishedPackage",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "publication_id",
+    "profile",
+    "issuer_id",
+    "data_cutoff_date",
+    "publication_manifest_sha256",
+    "publication_manifest_fingerprint",
+    "payload_member_count",
+    "payload_total_bytes",
+    "package_fingerprint"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "artifact_type": {"const": "published-package"},
+    "publication_id": {"type": "string", "minLength": 1},
+    "profile": {"enum": ["research_only", "full_valuation"]},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "data_cutoff_date": {"type": "string", "format": "date"},
+    "publication_manifest_sha256": {"$ref": "#/$defs/sha256"},
+    "publication_manifest_fingerprint": {"$ref": "#/$defs/sha256"},
+    "payload_member_count": {"type": "integer", "minimum": 1, "maximum": 510},
+    "payload_total_bytes": {"type": "integer", "minimum": 1, "maximum": 536870912},
+    "package_fingerprint": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+  }
+}

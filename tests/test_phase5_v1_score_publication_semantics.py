@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from decimal import ROUND_UP, Subnormal, localcontext
 from typing import Any
 
 import pytest
@@ -185,6 +186,8 @@ def _scorecard_source(
         "overall_score": "50" if status == "complete" else None,
         "confidence_percent": "80" if status == "complete" else None,
         "recommendation": "观察" if status == "complete" else "无法评级",
+        "current_intrinsic_value": "100" if status == "complete" else None,
+        "market_price": "90",
         "margin_of_safety": "0.10" if status == "complete" else None,
         "twelve_month_upside": "0.05" if status == "complete" else None,
         "critical_red_flags": [],
@@ -254,6 +257,11 @@ def test_scorecard_publication_replays_recommendation_after_identity_rebinding()
     with pytest.raises(ResearchReportError, match="recommendation does not replay"):
         _scorecard_manifest(recommendation_rebind)
 
+    avoid_rebind = deepcopy(source)
+    avoid_rebind["recommendation"] = "回避"
+    with pytest.raises(ResearchReportError, match="recommendation does not replay"):
+        _scorecard_manifest(avoid_rebind)
+
     warning_rebind = deepcopy(source)
     warning_rebind["critical_red_flags"] = [
         {
@@ -265,6 +273,110 @@ def test_scorecard_publication_replays_recommendation_after_identity_rebinding()
     ]
     with pytest.raises(ResearchReportError, match="source schema is invalid"):
         _scorecard_manifest(warning_rebind)
+
+
+def test_score_publication_replays_long_decimals_independent_of_ambient_precision() -> None:
+    component_score = "10.123456789012345678901234567890123456789"
+    total_score = "50.617283945061728394506172839450617283945"
+    confidence = "80.123456789012345678901234567890123456789"
+    source = _complete_score_source("graham")
+    for component in source["components"]:
+        component["score"] = component_score
+        component["confidence_percent"] = confidence
+    source["total_score"] = total_score
+    source["confidence_percent"] = confidence
+
+    fingerprints = set()
+    for precision, emax in ((2, 0), (4, 1), (28, 1), (80, 1)):
+        with localcontext() as context:
+            context.prec = precision
+            context.rounding = ROUND_UP
+            context.Emax = emax
+            context.Emin = -1
+            context.traps[Subnormal] = True
+            manifest = _score_manifest(source)
+        fingerprints.add(manifest.fingerprint)
+
+    assert len(fingerprints) == 1
+    assert manifest.source_payload["total_score"] == total_score
+
+
+def test_scorecard_publication_replays_long_lens_totals_independent_of_ambient_precision(
+) -> None:
+    score_manifests = tuple(
+        _score_manifest(_complete_score_source(lens)) for lens in LENS_COMPONENTS
+    )
+    source = _scorecard_source(score_manifests, status="complete")
+    lens_total = "50.123456789012345678901234567890123456789"
+    confidence = "80.123456789012345678901234567890123456789"
+    for row in source["lens_scores"]:
+        row["total_score"] = lens_total
+        row["confidence_percent"] = confidence
+    source["overall_score"] = lens_total
+    source["confidence_percent"] = confidence
+
+    fingerprints = set()
+    for precision, emax in ((2, 0), (4, 1), (28, 1), (80, 1)):
+        with localcontext() as context:
+            context.prec = precision
+            context.rounding = ROUND_UP
+            context.Emax = emax
+            context.Emin = -1
+            context.traps[Subnormal] = True
+            manifest = _scorecard_manifest(source)
+        fingerprints.add(manifest.fingerprint)
+
+    assert len(fingerprints) == 1
+    assert manifest.source_payload["overall_score"] == lens_total
+
+
+def test_scorecard_publication_uses_exact_overvaluation_basis_at_rounded_boundary() -> None:
+    score_manifests = tuple(
+        _score_manifest(_complete_score_source(lens)) for lens in LENS_COMPONENTS
+    )
+    below_threshold = _scorecard_source(score_manifests, status="complete")
+    below_threshold["current_intrinsic_value"] = "1." + "0" * 89 + "1"
+    below_threshold["market_price"] = "1.15"
+    below_threshold["margin_of_safety"] = "-0.15"
+    below_threshold["recommendation"] = "观察"
+    assert _scorecard_manifest(below_threshold).source_payload["recommendation"] == "观察"
+
+    exact_threshold = deepcopy(below_threshold)
+    exact_threshold["current_intrinsic_value"] = "1"
+    exact_threshold["recommendation"] = "回避"
+    assert _scorecard_manifest(exact_threshold).source_payload["recommendation"] == "回避"
+
+
+def test_score_publication_matches_the_closed_builder_decimal_domain() -> None:
+    in_domain = "10." + "0" * 999 + "1"
+    exact_total = "50." + "0" * 999 + "5"
+    source = _complete_score_source("graham")
+    for component in source["components"]:
+        component["score"] = in_domain
+    source["total_score"] = exact_total
+    assert _score_manifest(source).source_payload["total_score"] == exact_total
+
+    rounded_total = deepcopy(source)
+    rounded_total["total_score"] = "50"
+    with pytest.raises(ResearchReportError, match="arithmetic does not replay"):
+        _score_manifest(rounded_total)
+
+    out_of_domain = deepcopy(source)
+    for component in out_of_domain["components"]:
+        component["score"] = "10." + "0" * 1199 + "1"
+    out_of_domain["total_score"] = "50"
+    with pytest.raises(ResearchReportError, match="bounded decimal domain"):
+        _score_manifest(out_of_domain)
+
+    score_manifests = tuple(
+        _score_manifest(_complete_score_source(lens)) for lens in LENS_COMPONENTS
+    )
+    scorecard = _scorecard_source(score_manifests, status="complete")
+    for row in scorecard["lens_scores"]:
+        row["total_score"] = "50." + "0" * 1199 + "1"
+    scorecard["overall_score"] = "50"
+    with pytest.raises(ResearchReportError, match="bounded decimal domain"):
+        _scorecard_manifest(scorecard)
 
 
 def test_blocked_publication_keeps_every_unknown_and_aggregate_null() -> None:
@@ -283,6 +395,18 @@ def test_blocked_publication_keeps_every_unknown_and_aggregate_null() -> None:
     assert scorecard["confidence_percent"] is None
     assert scorecard["recommendation"] == "无法评级"
     assert manifest.source_payload["overall_score"] is None
+
+
+@pytest.mark.parametrize("status", ("blocked", "partial"))
+def test_incomplete_scorecard_publication_checks_market_price_domain(status: str) -> None:
+    score_manifests = tuple(
+        _score_manifest(_partial_score_source(lens)) for lens in LENS_COMPONENTS
+    )
+    scorecard = _scorecard_source(score_manifests, status=status)
+    scorecard["market_price"] = "1" + "0" * 1200
+
+    with pytest.raises(ResearchReportError, match="bounded decimal domain"):
+        _scorecard_manifest(scorecard)
 
 
 def test_blocked_scorecard_rejects_four_complete_lenses() -> None:

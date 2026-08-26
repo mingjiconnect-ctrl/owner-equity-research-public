@@ -73,7 +73,15 @@ gates would add control-plane work without improving the exact-head product revi
    and a twelve-month target. Both composites require all three compatible, eligible panels. If
    any panel is missing, partial, blocked, ineligible, or contested, the affected composite is
    `null`; there is no two-panel fallback. No probability or discretionary method weighting is
-   permitted.
+   permitted. Comparable Current Period Policy v1 admits only named-human-reviewed FY/TTM duration
+   Facts available by the research cutoff: their inclusive duration must be 364, 365, 366, or 371
+   days and their period end may be no more than 456 days before the valuation date. For both the
+   metric and its `weighted_average_diluted_shares` denominator, latest means the maximum
+   `(period_end, SourceDocument.published_date)` key. The two selected Facts must have exactly the
+   same `start` and `end`; instant current-share Facts are ineligible. Different values or bases at
+   one latest key are contested rather than selectable. One stale selection, conflicting latest
+   key, or otherwise ineligible preselected peer fails the complete-case comparable panel closed,
+   so it contributes no current or twelve-month median value.
 9. Four isolated scoring lenses—Graham, Buffett, Munger, and Duan Yongping—consume the same frozen
    evidence and valuation outputs without seeing one another's result. Each lens contains exactly
    five fixed items worth 0-20 points each and emits a 0-100 score only when all five items are

@@ -7,7 +7,8 @@
   "required": [
     "schema_version", "scorecard_id", "extension_label", "issuer_id", "as_of_date", "status",
     "research_bundle_fingerprint", "composite_valuation_fingerprint", "lens_scores",
-    "overall_score", "confidence_percent", "recommendation", "margin_of_safety",
+    "overall_score", "confidence_percent", "recommendation", "current_intrinsic_value",
+    "market_price", "margin_of_safety",
     "twelve_month_upside", "critical_red_flags", "issue_codes"
   ],
   "properties": {
@@ -23,6 +24,8 @@
     "overall_score": {"anyOf": [{"$ref": "#/$defs/score100"}, {"type": "null"}]},
     "confidence_percent": {"anyOf": [{"$ref": "#/$defs/score100"}, {"type": "null"}]},
     "recommendation": {"enum": ["重点关注", "关注", "观察", "回避", "无法评级"]},
+    "current_intrinsic_value": {"anyOf": [{"$ref": "#/$defs/positiveDecimal"}, {"type": "null"}]},
+    "market_price": {"$ref": "#/$defs/positiveDecimal"},
     "margin_of_safety": {"anyOf": [{"$ref": "#/$defs/decimal"}, {"type": "null"}]},
     "twelve_month_upside": {"anyOf": [{"$ref": "#/$defs/decimal"}, {"type": "null"}]},
     "critical_red_flags": {"type": "array", "items": {"$ref": "#/$defs/criticalRedFlag"}},
@@ -76,6 +79,7 @@
   "$defs": {
     "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
     "decimal": {"type": "string", "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"},
+    "positiveDecimal": {"type": "string", "pattern": "^(?:[1-9][0-9]*(?:\\.[0-9]+)?|0\\.[0-9]*[1-9][0-9]*)$"},
     "score100": {"type": "string", "pattern": "^(?:(?:0|[1-9][0-9]?)(?:\\.[0-9]+)?|100(?:\\.0+)?)$"},
     "evidenceBinding": {
       "type": "object", "additionalProperties": false,
