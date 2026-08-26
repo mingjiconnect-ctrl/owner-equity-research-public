@@ -1,0 +1,15 @@
+Owner Research Private Sidecar License Notice
+
+SPDX-License-Identifier: LicenseRef-Owner-Research-Proprietary
+
+This notice applies only to the project-original source code and artifacts of the
+Owner Research Futu OpenD sidecar. No public, open-source, or implied license is
+granted. All rights are reserved by the applicable copyright holders. Use,
+copying, modification, publication, redistribution, sublicensing, or sale is
+permitted only under separate written authorization from the applicable rights
+holder.
+
+This notice does not relicense any third-party material. In particular, the Futu
+OpenAPI SDK and every other dependency remain governed solely by their respective
+licenses and terms. This notice also does not establish Futu legal rights, account
+entitlements, market-data rights, or permission to redistribute vendor data.

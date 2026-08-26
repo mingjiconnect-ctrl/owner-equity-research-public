@@ -1,0 +1,34 @@
+[Unit]
+Description=Owner Research quote-only Futu OpenD sidecar
+After=network.target
+
+[Service]
+Type=simple
+User=@SIDECAR_USER@
+Group=@SIDECAR_GROUP@
+UMask=0077
+RuntimeDirectory=owner-research-futu
+RuntimeDirectoryMode=0700
+Environment=OWNER_RESEARCH_FUTU_PRIVATE_HOME=/run/owner-research-futu/home
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=@LIBEXECDIR@/owner-research-futu-preopen-and-launch --signer-key-id @SIGNER_KEY_ID@
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+IPAddressDeny=any
+IPAddressAllow=localhost
+StandardOutput=null
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

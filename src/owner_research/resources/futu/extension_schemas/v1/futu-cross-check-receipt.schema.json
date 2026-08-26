@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/futu/v1/futu-cross-check-receipt.schema.json",
+  "title": "FutuCrossCheckReceipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "receipt_id", "issuer_id", "contract_graph_fingerprint", "official_operand_fingerprint", "official_object_type", "official_object_id", "official_object_fingerprint", "official_authority", "vendor_observation_id", "vendor_observation_fingerprint", "canonical_concept", "comparison_rule", "result", "materiality", "status", "resolution", "reviewer_id", "vendor_may_overwrite", "created_at", "receipt_fingerprint"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "receipt_id": {"type": "string", "pattern": "^futu-crosscheck:[a-f0-9]{64}$"},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "contract_graph_fingerprint": {"$ref": "#/$defs/sha256"},
+    "official_operand_fingerprint": {"$ref": "#/$defs/sha256"},
+    "official_object_type": {"enum": ["Fact", "SourceDocument", "Claim"]},
+    "official_object_id": {"type": "string", "minLength": 1},
+    "official_object_fingerprint": {"$ref": "#/$defs/sha256"},
+    "official_authority": {"enum": ["primary_regulatory", "company_primary"]},
+    "vendor_observation_id": {"type": "string", "pattern": "^futu-observation:[a-f0-9]{64}$"},
+    "vendor_observation_fingerprint": {"$ref": "#/$defs/sha256"},
+    "canonical_concept": {"type": "string", "minLength": 1},
+    "comparison_rule": {"enum": ["exact_decimal", "reported_precision_interval", "exact_text", "exact_split_ratio", "exact_split_ratio_us_announcement_only", "not_comparable"]},
+    "result": {"enum": ["consistent", "conflict", "not_comparable", "unavailable"]},
+    "materiality": {"enum": ["hard_block", "kernel_required", "context_only"]},
+    "status": {"enum": ["resolved", "review_required", "not_applicable"]},
+    "resolution": {"type": ["string", "null"]},
+    "reviewer_id": {"type": ["string", "null"], "pattern": "^human:.+"},
+    "vendor_may_overwrite": {"const": false},
+    "created_at": {"type": "string", "format": "date-time"},
+    "receipt_fingerprint": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {"sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}
+}

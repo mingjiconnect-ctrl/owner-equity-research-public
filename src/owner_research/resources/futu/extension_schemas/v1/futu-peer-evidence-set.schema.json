@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/futu/v1/futu-peer-evidence-set.schema.json",
+  "title": "FutuPeerEvidenceSet",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "evidence_set_id", "run_id", "target_security_id", "price_blind_freeze", "price_blind_freeze_fingerprint", "peer_sessions", "evidence_set_fingerprint"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "evidence_set_id": {"type": "string", "pattern": "^futu-peer-set:[a-f0-9]{64}$"},
+    "run_id": {"type": "string", "minLength": 1},
+    "target_security_id": {"type": "string", "minLength": 1},
+    "price_blind_freeze": {"$ref": "#/$defs/reference"},
+    "price_blind_freeze_fingerprint": {"$ref": "#/$defs/sha256"},
+    "peer_sessions": {"type": "array", "minItems": 5, "maxItems": 15, "items": {"$ref": "#/$defs/reference"}},
+    "evidence_set_fingerprint": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "reference": {"type": "object", "additionalProperties": false, "required": ["object_id", "fingerprint"], "properties": {"object_id": {"type": "string", "minLength": 1}, "fingerprint": {"$ref": "#/$defs/sha256"}}}
+  }
+}

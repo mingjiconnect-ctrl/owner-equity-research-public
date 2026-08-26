@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .fingerprints import canonical_sha256, to_json_value
 from .validation import ContractGraph
@@ -23,6 +23,9 @@ from .valuation_price_blind_freeze import (
     load_price_blind_input_artifact,
 )
 from .valuation_security_identity import SecurityIdentityCompilationResult
+
+if TYPE_CHECKING:
+    from .valuation_futu_market import FutuMarketReferenceProvider
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,7 +62,7 @@ def prepare_owner_valuation(
     price_blind_artifact_directory: Path,
     expected_freeze: PriceBlindFreezeCompilationResult,
     expected_security: SecurityIdentityCompilationResult,
-    market_provider: ReviewedFileMarketProvider,
+    market_provider: ReviewedFileMarketProvider | FutuMarketReferenceProvider,
     clock: RunClock,
 ) -> OwnerValuationPreparationResult:
     """Replay the completed 5B-5D freeze, then compile current shares and Snapshot v4."""
@@ -83,14 +86,38 @@ def prepare_owner_valuation(
             prepared_market_reference=None,
             issue_codes=expected_security.issue_codes or ("security_identity_blocked",),
         )
-    acquisition = acquire_reviewed_market_reference(
-        price_blind_artifact_directory=price_blind_artifact_directory,
-        graph=graph,
-        expected_freeze=loaded,
-        expected_security=expected_security,
-        provider=market_provider,
-        clock=clock,
+    from .valuation_futu_market import (
+        FutuMarketReferenceProvider,
+        acquire_futu_market_reference,
+        build_futu_market_reference_snapshot,
     )
+
+    is_reviewed = (
+        type(market_provider) is ReviewedFileMarketProvider
+        and getattr(market_provider.acquire, "__func__", None)
+        is ReviewedFileMarketProvider.acquire
+    )
+    is_futu = type(market_provider) is FutuMarketReferenceProvider
+    if is_reviewed:
+        acquisition = acquire_reviewed_market_reference(
+            price_blind_artifact_directory=price_blind_artifact_directory,
+            graph=graph,
+            expected_freeze=loaded,
+            expected_security=expected_security,
+            provider=market_provider,
+            clock=clock,
+        )
+    elif is_futu:
+        acquisition = acquire_futu_market_reference(
+            price_blind_artifact_directory=price_blind_artifact_directory,
+            graph=graph,
+            expected_freeze=loaded,
+            expected_security=expected_security,
+            provider=market_provider,
+            clock=clock,
+        )
+    else:
+        raise TypeError("market-reference provider is not component-owned")
     shares = compile_quote_date_current_common_shares(
         price_blind_artifact_directory=price_blind_artifact_directory,
         graph=graph,
@@ -111,14 +138,23 @@ def prepare_owner_valuation(
             prepared_market_reference=None,
             issue_codes=shares.issue_codes,
         )
-    prepared = build_reviewed_market_reference_snapshot(
-        price_blind_artifact_directory=price_blind_artifact_directory,
-        graph=graph,
-        expected_freeze=loaded,
-        expected_security=expected_security,
-        acquisition=acquisition,
-        current_shares=shares,
-    )
+    if is_reviewed:
+        prepared = build_reviewed_market_reference_snapshot(
+            price_blind_artifact_directory=price_blind_artifact_directory,
+            graph=graph,
+            expected_freeze=loaded,
+            expected_security=expected_security,
+            acquisition=acquisition,
+            current_shares=shares,
+        )
+    else:
+        prepared = build_futu_market_reference_snapshot(
+            graph=graph,
+            expected_freeze=loaded,
+            expected_security=expected_security,
+            acquisition=acquisition,
+            current_shares=shares,
+        )
     return OwnerValuationPreparationResult(
         status="prepared",
         issuer_id=artifact["issuer_id"],

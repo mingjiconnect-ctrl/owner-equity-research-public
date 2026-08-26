@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/futu/v1/futu-legal-rights-receipt.schema.json",
+  "title": "FutuLegalRightsReceipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "receipt_id", "policy_sha256", "component_lock_sha256", "account_scope_sha256", "agreement_sha256", "allowed_mics", "allowed_currencies", "allowed_data_families", "allowed_protocol_ids", "rights", "effective_at", "issued_at", "expires_at", "revoked_at", "signature_algorithm", "signer_key_id", "signature_hex"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "receipt_id": {"type": "string", "pattern": "^futu-legal:[a-f0-9]{64}$"},
+    "policy_sha256": {"$ref": "#/$defs/sha256"},
+    "component_lock_sha256": {"$ref": "#/$defs/sha256"},
+    "account_scope_sha256": {"$ref": "#/$defs/sha256"},
+    "agreement_sha256": {"$ref": "#/$defs/sha256"},
+    "allowed_mics": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["XNAS", "XNYS"]}},
+    "allowed_currencies": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"const": "USD"}},
+    "allowed_data_families": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "allowed_protocol_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "integer", "minimum": 1}},
+    "rights": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["internal_research", "valuation", "raw_retention", "audit_replay", "derived_private_report", "derived_public_report"],
+      "properties": {
+        "internal_research": {"type": "boolean"},
+        "valuation": {"type": "boolean"},
+        "raw_retention": {"type": "boolean"},
+        "audit_replay": {"type": "boolean"},
+        "derived_private_report": {"type": "boolean"},
+        "derived_public_report": {"type": "boolean"}
+      }
+    },
+    "effective_at": {"type": "string", "format": "date-time"},
+    "issued_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "revoked_at": {"type": ["string", "null"], "format": "date-time"},
+    "signature_algorithm": {"const": "ed25519"},
+    "signer_key_id": {"type": "string", "minLength": 1},
+    "signature_hex": {"type": "string", "pattern": "^[a-f0-9]{128}$"}
+  },
+  "$defs": {"sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}
+}
