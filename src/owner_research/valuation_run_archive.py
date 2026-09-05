@@ -432,7 +432,7 @@ def _reject_extended_acl(descriptor: int, label: str) -> None:
     raise ValuationRunArchiveError(f"{label} cannot carry an extended ACL")
 
 
-def _open_regular_without_symlink_components(path: Path, label: str) -> int:
+def _darwin_fixed_root_alias(path: Path) -> tuple[Path, Path] | None:
     absolute = Path(path).expanduser().absolute()
     # Darwin exposes /tmp, /var, and /etc as fixed root-owned aliases into
     # /private.  Normalize only that platform-owned first component; every
@@ -452,7 +452,15 @@ def _open_regular_without_symlink_components(path: Path, label: str) -> int:
                 and alias_target == expected_target
                 and alias_target.is_dir()
             ):
-                absolute = alias_target.joinpath(*absolute.parts[2:])
+                return root_alias, alias_target
+    return None
+
+
+def _open_regular_without_symlink_components(path: Path, label: str) -> int:
+    absolute = Path(path).expanduser().absolute()
+    fixed_alias = _darwin_fixed_root_alias(absolute)
+    if fixed_alias is not None:
+        absolute = fixed_alias[1].joinpath(*absolute.parts[2:])
     parts = absolute.parts
     if len(parts) < 2 or not absolute.name:
         raise ValuationRunArchiveError(f"{label} path is invalid")
@@ -631,12 +639,15 @@ def _validate_pinned_kernel_payloads(
 
 
 def _reject_symlink_path(path: Path) -> None:
-    for candidate in (path, *path.parents):
+    absolute = Path(path).expanduser().absolute()
+    fixed_alias = _darwin_fixed_root_alias(absolute)
+    allowed_alias = None if fixed_alias is None else fixed_alias[0]
+    for candidate in (absolute, *absolute.parents):
         try:
             details = candidate.lstat()
         except FileNotFoundError:
             continue
-        if stat.S_ISLNK(details.st_mode):
+        if stat.S_ISLNK(details.st_mode) and candidate != allowed_alias:
             raise ValuationRunArchiveError("valuation archive path cannot contain a symlink")
 
 

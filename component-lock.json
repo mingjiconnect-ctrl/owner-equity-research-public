@@ -140,7 +140,7 @@
         "valuation_cli.py": "a711d393cc264dafffac6f6e3a4339e2832ad60e6b6e461d05a4b85eddb5775d",
         "valuation_futu_market.py": "601e64b48c622be345b58b55c941d28aac5000deee34d28680965d2256cf08b8",
         "valuation_run.py": "19095e932cc2ce1b63f6a77d063abef95dda04efee7325bcb3a9162ce33192d6",
-        "valuation_run_archive.py": "fb45ab146aa3064d762e4f315e79e6f12a9703d933ab6ff19c75b4e4962d70c9",
+        "valuation_run_archive.py": "e128d6ced75bd27f8c2cd930ab8a3a569b2831b6fe2118cf73dbade3cf3d7b3f",
         "valuation_run_context.py": "6684e92387f2a71189b9861ca7d29fda4034050f077f910fc88be6ff710b39bf",
         "valuation_synthesis.py": "14d9fff51cb1d4174b141dfa1f5c6d0fec07e05d4cedf6723507541ff8ae35be",
         "valuation_synthesis_types.py": "18d7274272d7d069dc790da4cfa6bf95a6540b9dc0ceaa45fa2e132e5ae1e362",

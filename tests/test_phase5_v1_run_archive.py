@@ -1458,6 +1458,29 @@ def test_archive_component_lock_accepts_platform_tmp_root_alias(temporary_root: 
     assert digest == _sha256(b"{}")
 
 
+@pytest.mark.skipif(sys.platform != "darwin", reason="Darwin fixed root alias")
+@pytest.mark.parametrize("temporary_root", ("/tmp", "/var/tmp"))
+def test_archive_write_and_reload_accept_platform_tmp_root_alias(
+    sample_payloads: dict[str, dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    temporary_root: str,
+) -> None:
+    execution = _completed(sample_payloads, monkeypatch, tmp_path)
+    with tempfile.TemporaryDirectory(dir=temporary_root) as directory:
+        output = Path(directory) / "valuation-run"
+
+        written = write_valuation_run_archive(execution, output_directory=output)
+        reloaded = load_valuation_run_archive(
+            output,
+            expected_execution=execution,
+            expected_runtime_manifest_authority=_typed_runtime_authority(),
+        )
+
+        assert written.output_directory == output
+        assert reloaded == written
+
+
 def test_archive_object_path_or_manifest_rebind_is_rejected_by_completed_result(
     sample_payloads: dict[str, dict[str, Any]],
     monkeypatch: pytest.MonkeyPatch,
