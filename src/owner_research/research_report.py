@@ -2717,7 +2717,16 @@ def _read_bounded_regular_file(
     if stat.S_ISLNK(path_details.st_mode):
         raise ResearchReportError(f"{label} cannot be a symlink")
     flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
-    directory_flags = flags | getattr(os, "O_DIRECTORY", 0)
+    # The installed wheel can live below an execute-only directory that permits
+    # traversal but not listing.  Linux O_PATH keeps that normal traversal
+    # behavior while O_DIRECTORY | O_NOFOLLOW still pins every ancestor to a
+    # non-symlink directory.  Other platforms retain the portable O_RDONLY path.
+    directory_flags = (
+        getattr(os, "O_PATH", os.O_RDONLY)
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
     parent_descriptor = os.open("/", directory_flags)
     try:
         for part in absolute.parent.parts[1:]:

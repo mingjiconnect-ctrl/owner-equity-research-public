@@ -4,6 +4,7 @@ import base64
 import hashlib
 import inspect
 import json
+import os
 import tempfile
 from importlib.metadata import FileHash, PackagePath
 from pathlib import Path
@@ -74,6 +75,46 @@ def test_bounded_resource_read_accepts_the_platform_tmp_root_alias() -> None:
             limit=1024,
             label="temporary installed resource",
         ) == content
+
+
+@pytest.mark.skipif(not hasattr(os, "O_PATH"), reason="Linux O_PATH behavior")
+def test_bounded_resource_read_traverses_execute_only_ancestor(tmp_path: Path) -> None:
+    traversal = tmp_path / "execute-only"
+    protected = traversal / "protected"
+    protected.mkdir(parents=True)
+    resource = protected / "resource.json"
+    content = b'{"status":"available"}\n'
+    resource.write_bytes(content)
+    resource.chmod(0o444)
+    protected.chmod(0o555)
+    traversal.chmod(0o111)
+    try:
+        actual = report_module._read_bounded_regular_file(
+            resource,
+            limit=1024,
+            label="installed report resource",
+        )
+    finally:
+        traversal.chmod(0o700)
+
+    assert actual == content
+
+
+def test_bounded_resource_read_rejects_symlinked_ancestor(tmp_path: Path) -> None:
+    protected = tmp_path / "protected"
+    protected.mkdir()
+    resource = protected / "resource.json"
+    resource.write_bytes(b'{}\n')
+    resource.chmod(0o444)
+    alias = tmp_path / "alias"
+    alias.symlink_to(protected, target_is_directory=True)
+
+    with pytest.raises(ResearchReportError, match="not no-follow readable"):
+        report_module._read_bounded_regular_file(
+            alias / resource.name,
+            limit=1024,
+            label="installed report resource",
+        )
 
 
 def test_report_children_always_receive_the_private_output_umask(

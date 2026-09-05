@@ -437,8 +437,13 @@ def _open_regular_without_symlink_components(path: Path, label: str) -> int:
     parts = absolute.parts
     if len(parts) < 2 or not absolute.name:
         raise ValuationRunArchiveError(f"{label} path is invalid")
+    # Linux permits a trusted caller to traverse an execute-only directory when
+    # it already knows the child name.  O_PATH preserves that capability without
+    # granting directory-read access, while O_DIRECTORY | O_NOFOLLOW keeps every
+    # component in this descriptor walk non-symlink and directory-only.  Systems
+    # without O_PATH retain the portable O_RDONLY behavior.
     directory_flags = (
-        os.O_RDONLY
+        getattr(os, "O_PATH", os.O_RDONLY)
         | getattr(os, "O_DIRECTORY", 0)
         | getattr(os, "O_CLOEXEC", 0)
         | getattr(os, "O_NOFOLLOW", 0)

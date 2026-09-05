@@ -2277,3 +2277,21 @@ def test_publisher_rejects_symlinked_parent(
             output_directory=linked_parent / "published",
             allow_injected_test_renderer=True,
         )
+
+
+@pytest.mark.skipif(not hasattr(os, "O_PATH"), reason="Linux O_PATH behavior")
+def test_publisher_opens_final_parent_below_execute_only_ancestor(tmp_path: Path) -> None:
+    traversal = tmp_path / "execute-only"
+    parent = traversal / "publication-parent"
+    parent.mkdir(parents=True)
+    parent.chmod(0o700)
+    traversal.chmod(0o100)
+    descriptor: int | None = None
+    try:
+        descriptor = publisher_module._open_directory_chain(parent)
+        assert os.listdir(descriptor) == []
+        os.fsync(descriptor)
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        traversal.chmod(0o700)

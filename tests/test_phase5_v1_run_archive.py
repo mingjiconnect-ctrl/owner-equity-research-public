@@ -1423,6 +1423,27 @@ def test_archive_component_lock_rejects_symlinked_parent_and_ambient_writers(
         archive_module._component_lock(component_lock)
 
 
+@pytest.mark.skipif(not hasattr(os, "O_PATH"), reason="Linux O_PATH behavior")
+def test_archive_component_lock_traverses_execute_only_ancestor(
+    tmp_path: Path,
+) -> None:
+    traversal = tmp_path / "execute-only"
+    protected = traversal / "protected"
+    protected.mkdir(parents=True)
+    component_lock = protected / "component-lock.json"
+    component_lock.write_bytes(b"{}")
+    component_lock.chmod(0o444)
+    protected.chmod(0o555)
+    traversal.chmod(0o111)
+    try:
+        payload, digest = archive_module._component_lock(component_lock)
+    finally:
+        traversal.chmod(0o700)
+
+    assert payload == {}
+    assert digest == _sha256(b"{}")
+
+
 def test_archive_object_path_or_manifest_rebind_is_rejected_by_completed_result(
     sample_payloads: dict[str, dict[str, Any]],
     monkeypatch: pytest.MonkeyPatch,

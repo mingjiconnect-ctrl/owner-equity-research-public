@@ -592,7 +592,7 @@ def _open_regular_without_symlink_components(path: Path, label: str) -> int:
     if len(parts) < 2 or not absolute.name:
         raise ValuationRunError(f"{label} path is invalid")
     directory_flags = (
-        os.O_RDONLY
+        getattr(os, "O_PATH", os.O_RDONLY)
         | getattr(os, "O_DIRECTORY", 0)
         | getattr(os, "O_CLOEXEC", 0)
         | getattr(os, "O_NOFOLLOW", 0)

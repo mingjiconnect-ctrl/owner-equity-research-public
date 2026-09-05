@@ -1972,11 +1972,23 @@ def _open_directory_chain(path: Path) -> int:
     absolute = Path(path).expanduser().absolute()
     if not absolute.is_absolute():
         raise ResearchPublisherError("publication path must be absolute")
-    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_CLOEXEC", 0)
-    flags |= getattr(os, "O_NOFOLLOW", 0)
-    descriptor = os.open("/", flags)
+    final_flags = (
+        os.O_RDONLY
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    traversal_flags = (
+        getattr(os, "O_PATH", os.O_RDONLY)
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    components = absolute.parts[1:]
+    descriptor = os.open("/", final_flags if not components else traversal_flags)
     try:
-        for part in absolute.parts[1:]:
+        for index, part in enumerate(components):
+            flags = final_flags if index == len(components) - 1 else traversal_flags
             next_descriptor = os.open(part, flags, dir_fd=descriptor)
             os.close(descriptor)
             descriptor = next_descriptor

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -514,6 +515,24 @@ def test_generic_run_reads_are_descriptor_first_nofollow_and_bounded(
     monkeypatch.setattr(Path, "lstat", forbidden_lstat)
     monkeypatch.setattr(Path, "open", forbidden_open)
     assert run_module._read_regular_file(source, "fixture", maximum=64) == b'{"ok":true}'
+
+    if hasattr(os, "O_PATH"):
+        traversal = tmp_path / "execute-only"
+        protected = traversal / "protected"
+        protected.mkdir(parents=True)
+        protected_source = protected / "authority.json"
+        protected_source.write_bytes(b'{"ok":true}')
+        protected_source.chmod(0o444)
+        protected.chmod(0o555)
+        traversal.chmod(0o111)
+        try:
+            assert run_module._read_regular_file(
+                protected_source,
+                "fixture",
+                maximum=64,
+            ) == b'{"ok":true}'
+        finally:
+            traversal.chmod(0o700)
 
     link = tmp_path / "link.json"
     link.symlink_to(source)
