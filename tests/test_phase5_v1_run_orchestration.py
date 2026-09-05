@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import os
+import sys
+import tempfile
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -555,3 +557,17 @@ def test_generic_run_reads_are_descriptor_first_nofollow_and_bounded(
     source.chmod(0o666)
     with pytest.raises(run_module.ValuationRunError, match="bounded regular"):
         run_module._read_regular_file(source, "fixture", maximum=64)
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Darwin fixed root alias")
+@pytest.mark.parametrize("temporary_root", ("/tmp", "/var/tmp"))
+def test_generic_run_read_accepts_platform_tmp_root_alias(temporary_root: str) -> None:
+    with tempfile.TemporaryDirectory(dir=temporary_root) as directory:
+        source = Path(directory) / "authority.json"
+        source.write_bytes(b'{"ok":true}')
+
+        assert run_module._read_regular_file(
+            source,
+            "fixture",
+            maximum=64,
+        ) == b'{"ok":true}'

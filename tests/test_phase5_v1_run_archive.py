@@ -1444,6 +1444,20 @@ def test_archive_component_lock_traverses_execute_only_ancestor(
     assert digest == _sha256(b"{}")
 
 
+@pytest.mark.skipif(sys.platform != "darwin", reason="Darwin fixed root alias")
+@pytest.mark.parametrize("temporary_root", ("/tmp", "/var/tmp"))
+def test_archive_component_lock_accepts_platform_tmp_root_alias(temporary_root: str) -> None:
+    with tempfile.TemporaryDirectory(dir=temporary_root) as directory:
+        component_lock = Path(directory) / "component-lock.json"
+        component_lock.write_bytes(b"{}")
+        component_lock.chmod(0o444)
+
+        payload, digest = archive_module._component_lock(component_lock)
+
+    assert payload == {}
+    assert digest == _sha256(b"{}")
+
+
 def test_archive_object_path_or_manifest_rebind_is_rejected_by_completed_result(
     sample_payloads: dict[str, dict[str, Any]],
     monkeypatch: pytest.MonkeyPatch,

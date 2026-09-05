@@ -6,6 +6,8 @@ import inspect
 import json
 import os
 import subprocess
+import sys
+import tempfile
 import threading
 from copy import deepcopy
 from dataclasses import replace
@@ -809,13 +811,35 @@ def test_report_spec_requires_every_listed_input_type(
     tmp_path: Path,
 ) -> None:
     research, source_index, _, scores = _typed_report_inputs(sample_payloads, tmp_path)
+    later_score = contract_from_dict(
+        "score",
+        {
+            **scores[0].to_dict(),
+            "score_id": "score:acme:later-quality",
+            "framework": "z-framework",
+            "component": "z-component",
+        },
+    )
+    first_score = contract_from_dict(
+        "score",
+        {
+            **scores[0].to_dict(),
+            "score_id": "score:acme:first-quality",
+            "framework": "a-framework",
+            "component": "a-component",
+        },
+    )
+    assert isinstance(later_score, Score)
+    assert isinstance(first_score, Score)
+    scores = (later_score, first_score)
+    assert source_index.graph.scores == ()
     report_payload = {
         **sample_payloads["report-spec"],
         "sections": [
             {
                 "section_id": "all-required-types",
                 "title": "全部必需类型",
-                "required_input_types": ["Fact", "ValuationAssumptionCandidate"],
+                "required_input_types": ["Fact", "Score", "ValuationAssumptionCandidate"],
             }
         ],
         "output_formats": ["json", "markdown", "latex_pdf"],
@@ -847,6 +871,23 @@ def test_report_spec_requires_every_listed_input_type(
         for binding in paragraph["bindings"]
         if binding["object_type"] == "Fact"
     ] == ["Fact"]
+    score_bindings = [
+        binding
+        for paragraph in section["paragraphs"]
+        for binding in paragraph["bindings"]
+        if binding["object_type"] == "Score"
+    ]
+    assert score_bindings == [
+        {
+            "object_type": "Score",
+            "object_id": first_score.score_id,
+            "fingerprint": first_score.fingerprint,
+        }
+    ]
+    assert not any(
+        "required_input_type:Score" in paragraph["missing_evidence"]
+        for paragraph in section["paragraphs"]
+    )
     assert any(
         "required_input_type:ValuationAssumptionCandidate" in paragraph["missing_evidence"]
         for paragraph in section["paragraphs"]
@@ -2295,3 +2336,15 @@ def test_publisher_opens_final_parent_below_execute_only_ancestor(tmp_path: Path
         if descriptor is not None:
             os.close(descriptor)
         traversal.chmod(0o700)
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Darwin fixed root alias")
+@pytest.mark.parametrize("temporary_root", ("/tmp", "/var/tmp"))
+def test_publisher_opens_platform_tmp_root_alias(temporary_root: str) -> None:
+    with tempfile.TemporaryDirectory(dir=temporary_root) as directory:
+        descriptor = publisher_module._open_directory_chain(Path(directory))
+        try:
+            assert os.listdir(descriptor) == []
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)

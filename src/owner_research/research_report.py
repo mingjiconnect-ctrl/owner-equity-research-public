@@ -5878,6 +5878,7 @@ def _build_report_content(
     report_spec: ReportSpec,
     research_source_index: ResearchSourceIndex,
     research_source_manifest: ResearchSourceIndexPublicationManifest,
+    legacy_scores: tuple[Score, ...],
     valuation: ReloadedValuationInput | None,
     futu_session_manifest: FutuSessionPublicationManifest | None,
     futu_partial_session_manifest: FutuPartialSessionPublicationManifest | None,
@@ -5994,6 +5995,11 @@ def _build_report_content(
     typed_records: dict[str, list[tuple[str, object]]] = {}
     for _, collection, value in records:
         typed_records.setdefault(type(value).__name__, []).append((collection, value))
+    for score in sorted(
+        legacy_scores,
+        key=lambda item: (item.framework, item.component, item.score_id),
+    ):
+        typed_records.setdefault("Score", []).append(("legacy_scores", score))
     report_spec_statuses: list[str] = []
     for spec_section in report_spec.sections:
         raw_id = re.sub(r"[^a-z0-9_-]", "_", str(spec_section["section_id"]).lower())
@@ -7385,6 +7391,7 @@ def build_research_report(
         report_spec=report_spec,
         research_source_index=research_source_index,
         research_source_manifest=research_source_manifest,
+        legacy_scores=scores,
         valuation=valuation,
         futu_session_manifest=futu_session_manifest,
         futu_partial_session_manifest=futu_partial_session_manifest,
