@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import sys
+import tempfile
 from dataclasses import replace
 from pathlib import Path
 
@@ -55,6 +57,27 @@ def test_artifact_writer_round_trips_canonical_pair_through_contract_graph(
         (receipt.run_manifest_path, result.run_manifest),
     ):
         assert path.read_text("utf-8") == canonical_json(contract.to_dict()) + "\n"
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Darwin fixed root alias")
+@pytest.mark.parametrize("temporary_root", ("/tmp", "/var/tmp"))
+def test_artifact_writer_and_loader_accept_platform_tmp_root_alias(
+    sample_payloads,
+    temporary_root: str,
+) -> None:
+    graph, result = _result(sample_payloads)
+    with tempfile.TemporaryDirectory(dir=temporary_root) as directory:
+        output = Path(directory) / "bundle"
+
+        receipt = write_research_bundle_artifacts(
+            graph,
+            result,
+            output_directory=output,
+        )
+        loaded = load_research_bundle_artifacts(output, graph=graph)
+
+        assert receipt.output_directory == output.absolute()
+        assert loaded == result
 
 
 def test_identical_replay_does_not_rewrite_artifacts(sample_payloads, tmp_path: Path) -> None:

@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 import stat
+import sys
 import uuid
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
@@ -660,8 +661,26 @@ def compile_price_blind_input_freeze(
 
 
 def _reject_symlink_path(path: Path) -> None:
-    for candidate in (path, *path.parents):
-        if candidate.is_symlink():
+    absolute = Path(path).expanduser().absolute()
+    allowed_alias: Path | None = None
+    if sys.platform == "darwin" and len(absolute.parts) >= 2:
+        root_alias = Path(absolute.anchor) / absolute.parts[1]
+        expected_target = Path("/private") / absolute.parts[1]
+        try:
+            alias_details = root_alias.lstat()
+            alias_target = root_alias.resolve(strict=True)
+        except OSError:
+            pass
+        else:
+            if (
+                stat.S_ISLNK(alias_details.st_mode)
+                and alias_details.st_uid == 0
+                and alias_target == expected_target
+                and alias_target.is_dir()
+            ):
+                allowed_alias = root_alias
+    for candidate in (absolute, *absolute.parents):
+        if candidate.is_symlink() and candidate != allowed_alias:
             raise PriceBlindFreezeError("price-blind artifact path cannot contain a symlink")
 
 

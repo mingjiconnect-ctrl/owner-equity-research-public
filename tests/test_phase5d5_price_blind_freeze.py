@@ -3,6 +3,8 @@ from __future__ import annotations
 import copy
 import inspect
 import json
+import sys
+import tempfile
 from dataclasses import FrozenInstanceError, dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -248,6 +250,32 @@ def test_writer_and_reloader_are_atomic_canonical_and_strict(
         load_price_blind_input_artifact(output, graph=graph, expected_result=result)
 
 
+@pytest.mark.skipif(sys.platform != "darwin", reason="Darwin fixed root alias")
+@pytest.mark.parametrize("temporary_root", ("/tmp", "/var/tmp"))
+def test_price_blind_writer_and_loader_accept_platform_tmp_root_alias(
+    sample_payloads,
+    monkeypatch,
+    temporary_root: str,
+) -> None:
+    graph, result = _compile(sample_payloads, monkeypatch)
+    with tempfile.TemporaryDirectory(dir=temporary_root) as directory:
+        output = Path(directory) / "price-blind"
+
+        receipt = write_price_blind_input_artifact(
+            graph,
+            result,
+            output_directory=output,
+        )
+        loaded = load_price_blind_input_artifact(
+            output,
+            graph=graph,
+            expected_result=result,
+        )
+
+        assert receipt.output_directory == output.absolute()
+        assert loaded.fingerprint == result.fingerprint
+
+
 def test_price_blind_reader_is_bounded_descriptor_first_and_stable(
     sample_payloads, monkeypatch, tmp_path: Path
 ) -> None:
@@ -309,6 +337,17 @@ def test_price_blind_reader_rejects_oversize_symlink_and_different_overwrite(
     path.symlink_to(target)
     with pytest.raises(PriceBlindFreezeError, match="unsafe entry"):
         load_price_blind_input_artifact(output, graph=graph, expected_result=result)
+
+    real_parent = tmp_path / "real-price-blind-parent"
+    real_parent.mkdir()
+    symlink_parent = tmp_path / "symlink-price-blind-parent"
+    symlink_parent.symlink_to(real_parent, target_is_directory=True)
+    with pytest.raises(PriceBlindFreezeError, match="symlink"):
+        write_price_blind_input_artifact(
+            graph,
+            result,
+            output_directory=symlink_parent / "nested" / "price-blind",
+        )
 
 
 def test_freeze_rejects_nonhuman_or_nonchronological_authorization() -> None:
