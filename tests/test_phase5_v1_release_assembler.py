@@ -7,6 +7,7 @@ import os
 import runpy
 import shutil
 import subprocess
+import sys
 from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -1675,6 +1676,13 @@ def _trusted_key(
     return path, private
 
 
+def _darwin_logical_var_path(path: Path) -> Path:
+    absolute = path.absolute()
+    if sys.platform != "darwin" or absolute.parts[:3] != ("/", "private", "var"):
+        pytest.skip("test temporary directory is not below Darwin /private/var")
+    return Path("/var").joinpath(*absolute.parts[3:])
+
+
 def _gates(evidence: dict[str, Any]) -> dict[str, dict[str, Any]]:
     gates = {
         "legal": {
@@ -2332,6 +2340,46 @@ def test_trusted_signer_key_rejects_symlinked_parent_rebind(
             alias / key.name,
             expected_key_id=TEST_ONLY_SIGNER_KEY_ID,
             source_root=source,
+            executed_at=datetime.strptime(EXECUTED_AT, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC),
+            verification_time=datetime.strptime(VERIFICATION_TIME, "%Y-%m-%dT%H:%M:%SZ").replace(
+                tzinfo=UTC
+            ),
+        )
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Darwin fixed root aliases only")
+def test_trusted_signer_key_accepts_only_fixed_var_alias(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    trust = tmp_path / "trust"
+    key, private = _trusted_key(trust)
+
+    loaded = NAMESPACE["_load_trusted_key"](
+        _darwin_logical_var_path(key),
+        expected_key_id=TEST_ONLY_SIGNER_KEY_ID,
+        source_root=_darwin_logical_var_path(source),
+        executed_at=datetime.strptime(EXECUTED_AT, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC),
+        verification_time=datetime.strptime(VERIFICATION_TIME, "%Y-%m-%dT%H:%M:%SZ").replace(
+            tzinfo=UTC
+        ),
+    )
+    assert loaded.public_bytes(
+        serialization.Encoding.Raw,
+        serialization.PublicFormat.Raw,
+    ) == private.public_key().public_bytes(
+        serialization.Encoding.Raw,
+        serialization.PublicFormat.Raw,
+    )
+
+    user_alias = tmp_path / "trust-user-alias"
+    user_alias.symlink_to(trust, target_is_directory=True)
+    with pytest.raises(ERROR, match="unsafe or unavailable"):
+        NAMESPACE["_load_trusted_key"](
+            _darwin_logical_var_path(user_alias / key.name),
+            expected_key_id=TEST_ONLY_SIGNER_KEY_ID,
+            source_root=_darwin_logical_var_path(source),
             executed_at=datetime.strptime(EXECUTED_AT, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC),
             verification_time=datetime.strptime(VERIFICATION_TIME, "%Y-%m-%dT%H:%M:%SZ").replace(
                 tzinfo=UTC

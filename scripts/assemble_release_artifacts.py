@@ -972,6 +972,95 @@ def _stat_identity(value: os.stat_result) -> tuple[int, ...]:
     )
 
 
+def _darwin_fixed_root_alias(path: Path) -> tuple[Path, Path] | None:
+    absolute = Path(path).expanduser().absolute()
+    if (
+        sys.platform != "darwin"
+        or len(absolute.parts) < 2
+        or absolute.parts[1] not in {"etc", "tmp", "var"}
+    ):
+        return None
+    root_alias = Path(absolute.anchor) / absolute.parts[1]
+    expected_target = Path("/private") / absolute.parts[1]
+    try:
+        alias_details = root_alias.lstat()
+        target_details = expected_target.lstat()
+        alias_target = root_alias.resolve(strict=True)
+    except OSError:
+        return None
+    if (
+        stat.S_ISLNK(alias_details.st_mode)
+        and alias_details.st_uid == 0
+        and alias_target == expected_target
+        and stat.S_ISDIR(target_details.st_mode)
+        and not stat.S_ISLNK(target_details.st_mode)
+        and target_details.st_uid == 0
+    ):
+        return root_alias, expected_target
+    return None
+
+
+def _normalize_darwin_fixed_root_alias(path: Path) -> Path:
+    absolute = Path(path).expanduser().absolute()
+    fixed_alias = _darwin_fixed_root_alias(absolute)
+    if fixed_alias is None:
+        return absolute
+    return fixed_alias[1].joinpath(*absolute.parts[2:])
+
+
+def _open_release_directory_chain(path: Path, *, label: str) -> int:
+    """Open one absolute directory while rejecting every non-system symlink."""
+
+    absolute = _normalize_darwin_fixed_root_alias(path)
+    components = absolute.parts[1:]
+    final_flags = (
+        os.O_RDONLY
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    traversal_flags = (
+        getattr(os, "O_PATH", os.O_RDONLY)
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    descriptor: int | None = None
+    try:
+        descriptor = os.open(
+            absolute.anchor,
+            final_flags if not components else traversal_flags,
+        )
+        for index, component in enumerate(components):
+            initial = os.stat(component, dir_fd=descriptor, follow_symlinks=False)
+            next_descriptor = os.open(
+                component,
+                final_flags if index == len(components) - 1 else traversal_flags,
+                dir_fd=descriptor,
+            )
+            try:
+                opened = os.fstat(next_descriptor)
+                if _stat_identity(initial) != _stat_identity(opened) or not stat.S_ISDIR(
+                    opened.st_mode
+                ):
+                    raise ReleaseAssemblyError(f"{label} changed while being opened")
+            except (OSError, ReleaseAssemblyError):
+                os.close(next_descriptor)
+                raise
+            previous_descriptor = descriptor
+            descriptor = next_descriptor
+            os.close(previous_descriptor)
+        return descriptor
+    except ReleaseAssemblyError:
+        if descriptor is not None:
+            os.close(descriptor)
+        raise
+    except (OSError, ValueError) as exc:
+        if descriptor is not None:
+            os.close(descriptor)
+        raise ReleaseAssemblyError(f"{label} is unsafe or unavailable") from exc
+
+
 def _capture_regular_at(
     directory_descriptor: int,
     name: str,
@@ -3994,8 +4083,12 @@ def _load_trusted_key(
     )
     if expected_key_id != policy_key["key_id"]:
         raise ReleaseAssemblyError("CLI signer key id is not the release-control signer")
-    requested = Path(os.path.abspath(Path(key_file).expanduser()))
-    source = Path(os.path.abspath(Path(source_root).expanduser()))
+    requested = _normalize_darwin_fixed_root_alias(
+        Path(os.path.abspath(Path(key_file).expanduser()))
+    )
+    source = _normalize_darwin_fixed_root_alias(
+        Path(os.path.abspath(Path(source_root).expanduser()))
+    )
     if requested == source or source in requested.parents:
         raise ReleaseAssemblyError(
             "trusted signer key must be preinstalled outside candidate source"
@@ -5302,17 +5395,30 @@ def _strict_reload_release_directory(
     if set(expected_names) != required_names:
         raise ReleaseAssemblyError("expected public release file set is not exact")
     owns_parent_descriptor = parent_descriptor is None
-    parent_path_metadata = output.parent.lstat()
+    normalized_parent = _normalize_darwin_fixed_root_alias(output.parent)
+    parent_path_metadata = normalized_parent.lstat()
     if (
         not stat.S_ISDIR(parent_path_metadata.st_mode)
         or stat.S_ISLNK(parent_path_metadata.st_mode)
     ):
         raise ReleaseAssemblyError("published release parent is unsafe")
     if parent_descriptor is None:
-        parent_descriptor = os.open(
+        parent_descriptor = _open_release_directory_chain(
             output.parent,
-            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+            label="published release parent",
         )
+    else:
+        validation_descriptor = _open_release_directory_chain(
+            output.parent,
+            label="published release parent",
+        )
+        try:
+            if _release_directory_binding(
+                os.fstat(validation_descriptor)
+            ) != _release_directory_binding(os.fstat(parent_descriptor)):
+                raise ReleaseAssemblyError("published release parent identity drifted")
+        finally:
+            os.close(validation_descriptor)
     try:
         parent_before = os.fstat(parent_descriptor)
         parent_snapshot_identity = _release_stat_identity(parent_before)
@@ -5397,7 +5503,7 @@ def _strict_reload_release_directory(
                         f"{name}"
                     )
             parent_after = os.fstat(parent_descriptor)
-            parent_path_after = output.parent.lstat()
+            parent_path_after = normalized_parent.lstat()
             final_path_metadata = os.stat(
                 output.name,
                 dir_fd=parent_descriptor,
@@ -5605,13 +5711,14 @@ def assemble_release(
 
     output = output_directory.absolute()
     parent = output.parent
-    parent_metadata = parent.lstat()
+    normalized_parent = _normalize_darwin_fixed_root_alias(parent)
+    parent_metadata = normalized_parent.lstat()
     if not stat.S_ISDIR(parent_metadata.st_mode) or stat.S_ISLNK(parent_metadata.st_mode):
         raise ReleaseAssemblyError("release output parent is not a safe directory")
     parent_identity = _release_directory_binding(parent_metadata)
-    parent_descriptor = os.open(
+    parent_descriptor = _open_release_directory_chain(
         parent,
-        os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+        label="release output parent",
     )
     staging_name = f".{output.name}.staging-{uuid.uuid4().hex}"
     staging_identity: tuple[int, ...] | None = None

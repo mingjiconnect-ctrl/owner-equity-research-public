@@ -419,6 +419,54 @@ def test_reviewed_file_provider_rejects_symlinked_ancestor_directories(
         ).acquire(acquisition.request)
 
 
+@pytest.mark.skipif(sys.platform != "darwin", reason="Darwin fixed-root alias regression")
+@pytest.mark.parametrize("logical_parent", (Path("/tmp"), Path("/var/tmp")))
+def test_reviewed_file_provider_accepts_verified_darwin_root_alias(
+    logical_parent: Path,
+) -> None:
+    logical_root = Path(
+        tempfile.mkdtemp(prefix="owner-research-reviewed-alias-", dir=logical_parent)
+    )
+    try:
+        review = logical_root / "reviewed-close.json"
+        payload = b'{"schema_version":"1.0.0"}'
+        review.write_bytes(payload)
+        review.chmod(0o600)
+
+        assert market_provider_module._read_regular_file(
+            review,
+            label="reviewed market receipt",
+            maximum_bytes=market_provider_module._MAX_REVIEW_RECEIPT_BYTES,
+        ) == payload
+    finally:
+        shutil.rmtree(logical_root)
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Darwin fixed-root alias regression")
+def test_reviewed_file_provider_still_rejects_nested_symlink_after_root_alias(
+) -> None:
+    logical_root = Path(
+        tempfile.mkdtemp(prefix="owner-research-reviewed-nested-link-", dir="/tmp")
+    )
+    try:
+        real_directory = logical_root / "real"
+        real_directory.mkdir(mode=0o700)
+        review = real_directory / "reviewed-close.json"
+        review.write_bytes(b'{"schema_version":"1.0.0"}')
+        review.chmod(0o600)
+        linked_directory = logical_root / "linked"
+        linked_directory.symlink_to(real_directory, target_is_directory=True)
+
+        with pytest.raises(ValueError, match="path cannot contain a symlink"):
+            market_provider_module._read_regular_file(
+                linked_directory / review.name,
+                label="reviewed market receipt",
+                maximum_bytes=market_provider_module._MAX_REVIEW_RECEIPT_BYTES,
+            )
+    finally:
+        shutil.rmtree(logical_root)
+
+
 def test_reviewed_file_provider_rejects_world_writable_or_hardlinked_evidence(
     sample_payloads,
     monkeypatch,

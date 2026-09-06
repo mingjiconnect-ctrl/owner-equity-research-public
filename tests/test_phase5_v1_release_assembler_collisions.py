@@ -5,8 +5,10 @@ import itertools
 import json
 import os
 import runpy
+import shutil
 import stat
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -129,6 +131,14 @@ def _rewrite(path: Path, raw: bytes) -> None:
     path.chmod(0o444)
 
 
+def _remove_read_only_tree(path: Path) -> None:
+    if not path.exists() or path.is_symlink():
+        return
+    for directory in (path, *(item for item in path.rglob("*") if item.is_dir())):
+        directory.chmod(0o700)
+    shutil.rmtree(path)
+
+
 def _recompute_checksums(output: Path) -> None:
     values = {
         path.name: path.read_bytes()
@@ -184,6 +194,52 @@ def test_exact_names_publish_and_strictly_reload_one_closed_directory(
         expected_files=_expected_files(output),
         canonical_names=canonical_names,
     )
+    user_alias = tmp_path / "publication-user-alias"
+    user_alias.symlink_to(tmp_path, target_is_directory=True)
+    with pytest.raises(ERROR, match="unsafe"):
+        real_reload(
+            user_alias / output.name,
+            expected_files=_expected_files(output),
+            canonical_names=canonical_names,
+        )
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Darwin fixed root aliases only")
+def test_fixed_tmp_alias_can_publish_and_strictly_reload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    kwargs = _case(tmp_path, monkeypatch)
+    output = Path("/tmp") / f"owner-release-{os.getpid()}-{tmp_path.name}"
+    assert not output.exists()
+    kwargs["output_directory"] = output
+    try:
+        published = ASSEMBLE(**kwargs)
+        assert published == output
+        NAMESPACE["_strict_reload_release_directory"](
+            published,
+            expected_files=_expected_files(published),
+            canonical_names=_canonical_names(kwargs),
+        )
+    finally:
+        _remove_read_only_tree(output)
+
+
+def test_release_output_parent_rejects_nested_user_symlink(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    kwargs = _case(tmp_path, monkeypatch)
+    physical_parent = tmp_path / "physical-publication"
+    nested_parent = physical_parent / "nested"
+    nested_parent.mkdir(parents=True)
+    user_alias = tmp_path / "publication-user-alias"
+    user_alias.symlink_to(physical_parent, target_is_directory=True)
+    kwargs["output_directory"] = user_alias / nested_parent.name / "release"
+
+    with pytest.raises(ERROR, match="unsafe or unavailable"):
+        ASSEMBLE(**kwargs)
+    assert not (nested_parent / "release").exists()
 
 
 @pytest.mark.parametrize("generated_name", GENERATED_PUBLIC_FILES)

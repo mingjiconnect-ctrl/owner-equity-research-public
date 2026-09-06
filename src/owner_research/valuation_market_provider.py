@@ -82,6 +82,7 @@ _REVIEWED_RAW_CONTENT_TYPES = frozenset(
 _AUTHORIZATION_STATE_BASE = (
     Path(pwd.getpwuid(os.getuid()).pw_dir) / ".local" / "state" / "owner-research"
 )
+_DARWIN_FIXED_ROOT_ALIASES = frozenset({"etc", "tmp", "var"})
 
 
 def _durable_flush(descriptor: int) -> None:
@@ -94,6 +95,31 @@ def _durable_flush(descriptor: int) -> None:
         fcntl.fcntl(descriptor, command)
         return
     os.fsync(descriptor)
+
+
+def _expected_resolved_local_path(path: Path) -> Path:
+    """Normalize only a verified platform-owned Darwin root alias."""
+
+    absolute = Path(path).expanduser().absolute()
+    if sys.platform == "darwin" and len(absolute.parts) >= 2:
+        first_component = absolute.parts[1]
+        if first_component in _DARWIN_FIXED_ROOT_ALIASES:
+            root_alias = Path(absolute.anchor) / first_component
+            expected_target = Path("/private") / first_component
+            try:
+                alias_details = root_alias.lstat()
+                alias_target = root_alias.resolve(strict=True)
+            except OSError:
+                pass
+            else:
+                if (
+                    stat.S_ISLNK(alias_details.st_mode)
+                    and alias_details.st_uid == 0
+                    and alias_target == expected_target
+                    and alias_target.is_dir()
+                ):
+                    return alias_target.joinpath(*absolute.parts[2:])
+    return absolute
 
 
 def _fd_extended_acl_text(descriptor: int) -> str | None:
@@ -337,10 +363,11 @@ def _read_regular_file(path: Path, *, label: str, maximum_bytes: int) -> bytes:
         | getattr(os, "O_NOFOLLOW", 0)
         | getattr(os, "O_NONBLOCK", 0)
     )
-    components = path.parts
+    walk_path = _expected_resolved_local_path(path)
+    components = walk_path.parts
     if not components:
         raise ValueError(f"{label} is unreadable")
-    if path.is_absolute():
+    if walk_path.is_absolute():
         anchor = os.sep
         components = components[1:]
     else:

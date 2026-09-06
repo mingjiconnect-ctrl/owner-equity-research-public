@@ -18,6 +18,7 @@ from .attestation import (
 from .canonical import (
     SidecarContractError,
     canonical_sha256,
+    expected_resolved_local_path,
     require_exact_members,
     require_sha256,
     utc_now,
@@ -489,7 +490,7 @@ class FutuSidecarServer:
         parent_stat = parent.lstat()
         if (
             not self.socket_path.is_absolute()
-            or parent.resolve(strict=True) != parent
+            or parent.resolve(strict=True) != expected_resolved_local_path(parent)
             or not stat.S_ISDIR(parent_stat.st_mode)
             or parent_stat.st_uid != os.getuid()
             or stat.S_IMODE(parent_stat.st_mode) != 0o700

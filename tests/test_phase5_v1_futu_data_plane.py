@@ -5,6 +5,7 @@ import json
 import os
 import socket
 import struct
+import sys
 import threading
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
@@ -4161,9 +4162,11 @@ def test_peer_quote_plan_is_exact_static_then_daily_close_and_uses_peer_scope() 
 
 def test_unix_socket_transport_sends_exactly_one_bounded_frame(tmp_path: Path) -> None:
     suffix = hashlib.sha256(os.fsencode(tmp_path)).hexdigest()[:12]
-    temporary_anchor = Path("/private/tmp") if Path("/private/tmp").is_dir() else Path("/tmp")
+    temporary_anchor = Path("/tmp")
     socket_directory = temporary_anchor / f"futu-test-{suffix}"
     socket_directory.mkdir(mode=0o700)
+    if sys.platform == "darwin":
+        assert socket_directory.resolve(strict=True) != socket_directory
     socket_path = socket_directory / "sidecar.sock"
     listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     listener.bind(os.fspath(socket_path))
@@ -4207,6 +4210,51 @@ def test_unix_socket_transport_sends_exactly_one_bounded_frame(tmp_path: Path) -
     assert captured == {"payload": request, "trailing": b""}
     socket_path.unlink()
     socket_directory.rmdir()
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Darwin fixed root alias")
+def test_unix_socket_transport_rejects_nested_user_symlink_under_logical_tmp(
+    tmp_path: Path,
+) -> None:
+    suffix = hashlib.sha256(f"nested-symlink:{tmp_path}".encode()).hexdigest()[:12]
+    test_root = Path("/tmp") / f"futu-symlink-{suffix}"
+    real_directory = test_root / "real"
+    alias_directory = test_root / "alias"
+    socket_path = real_directory / "sidecar.sock"
+    listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        test_root.mkdir(mode=0o700)
+        real_directory.mkdir(mode=0o700)
+        alias_directory.symlink_to(real_directory, target_is_directory=True)
+        listener.bind(os.fspath(socket_path))
+        socket_path.chmod(0o600)
+        listener.listen(1)
+
+        transport = UnixSocketFutuSidecarTransport(
+            socket_path=alias_directory / socket_path.name,
+            expected_uid=os.getuid(),
+            timeout_seconds=1,
+        )
+        with pytest.raises(FutuSidecarError, match="cannot traverse a symbolic link"):
+            transport.exchange(b"nested-symlink-probe", maximum_response_bytes=1024)
+    finally:
+        listener.close()
+        try:
+            socket_path.unlink()
+        except OSError:
+            pass
+        try:
+            alias_directory.unlink()
+        except OSError:
+            pass
+        try:
+            real_directory.rmdir()
+        except OSError:
+            pass
+        try:
+            test_root.rmdir()
+        except OSError:
+            pass
 
 
 def _socket_recv_exact(connection: socket.socket, size: int) -> bytes:

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import os
+import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 from pathlib import Path
 
@@ -345,6 +347,36 @@ def test_launcher_private_home_must_be_exact_owner_only_directory(
     monkeypatch.setenv("OWNER_RESEARCH_FUTU_PRIVATE_HOME", os.fspath(linked))
     with pytest.raises(LauncherError, match="mode-0700"):
         _activate_rootless_environment()
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Darwin fixed root alias")
+def test_launcher_normalizes_logical_tmp_but_rejects_nested_user_symlink(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    private_home = Path(tempfile.mkdtemp(prefix="oer-launcher-home-", dir="/tmp"))
+    try:
+        assert private_home.parent == Path("/tmp")
+        physical_home = private_home.resolve(strict=True)
+        assert physical_home != private_home
+
+        monkeypatch.setenv("OWNER_RESEARCH_FUTU_PRIVATE_HOME", os.fspath(private_home))
+        _activate_rootless_environment()
+        assert os.environ["HOME"] == os.fspath(physical_home)
+        assert os.environ["XDG_CACHE_HOME"] == os.fspath(physical_home / ".cache")
+        assert os.environ["XDG_CONFIG_HOME"] == os.fspath(physical_home / ".config")
+        assert os.environ["XDG_DATA_HOME"] == os.fspath(
+            physical_home / ".local" / "share"
+        )
+
+        real_home = private_home / "real-home"
+        linked_home = private_home / "linked-home"
+        real_home.mkdir(mode=0o700)
+        linked_home.symlink_to(real_home, target_is_directory=True)
+        monkeypatch.setenv("OWNER_RESEARCH_FUTU_PRIVATE_HOME", os.fspath(linked_home))
+        with pytest.raises(LauncherError, match="mode-0700"):
+            _activate_rootless_environment()
+    finally:
+        shutil.rmtree(private_home)
 
 
 def _supply() -> dict[str, object]:

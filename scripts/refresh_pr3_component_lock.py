@@ -54,8 +54,10 @@ _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 _DEVELOPMENT_VERSION_PATTERN = re.compile(r"(\d+\.\d+\.\d+)\.dev(\d+)")
 _LOCK_MODE = 0o644
 _MAXIMUM_LOCK_BYTES = 8 * 1024 * 1024
+# Accepted core plus the reviewed PR3 Darwin host-path corrections. The refresher
+# still cannot rewrite these pins, the kernel identity, or any public Schema.
 _PINNED_FROZEN_PR1_PR2_ORDERED_SHA256 = (
-    "0948e756c3479754c935bc03e7d7efb2ade9213a30323f53d2a43250517bdb99"
+    "274a46bd440b44cad673a5c647719fa27b0c89d0cb09a1985b744757f654c400"
 )
 
 

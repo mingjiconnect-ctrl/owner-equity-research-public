@@ -4,7 +4,10 @@ import hashlib
 import inspect
 import json
 import os
+import shutil
 import subprocess
+import sys
+import tempfile
 import zipfile
 from pathlib import Path
 
@@ -20,6 +23,7 @@ from owner_research.valuation_kernel_materializer import (
     _store_cas_bytes,
     _store_private_cas_member,
     _verify_registered_wheel,
+    load_and_verify_runtime_manifest,
     materialize_pinned_kernel_runtime,
     verify_pinned_kernel_checkout,
 )
@@ -197,6 +201,65 @@ def test_private_cas_rejects_preexisting_child_directory_symlink(
                 expected_sha256=digest,
             )
     assert not tuple(target.iterdir())
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Darwin fixed-root alias regression")
+@pytest.mark.parametrize("logical_parent", (Path("/tmp"), Path("/var/tmp")))
+def test_runtime_manifest_accepts_verified_darwin_root_alias(
+    logical_parent: Path,
+) -> None:
+    logical_root = Path(
+        tempfile.mkdtemp(prefix="owner-research-runtime-alias-", dir=logical_parent)
+    )
+    try:
+        cas = logical_root / "private-cas"
+        manifests = cas / "manifests"
+        cas.mkdir(mode=0o700)
+        manifests.mkdir(mode=0o700)
+        raw = b"{"
+        digest = hashlib.sha256(raw).hexdigest()
+        manifest = manifests / f"{digest}.json"
+        manifest.write_bytes(raw)
+        manifest.chmod(0o600)
+
+        with pytest.raises(KernelMaterializationError, match="invalid JSON"):
+            load_and_verify_runtime_manifest(
+                manifest,
+                cas_root=cas.resolve(strict=True),
+                expected_manifest_file_sha256=digest,
+            )
+    finally:
+        shutil.rmtree(logical_root)
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Darwin fixed-root alias regression")
+def test_runtime_manifest_rejects_nested_symlink_after_darwin_root_alias() -> None:
+    logical_root = Path(
+        tempfile.mkdtemp(prefix="owner-research-runtime-nested-link-", dir="/tmp")
+    )
+    try:
+        real_parent = logical_root / "real"
+        real_parent.mkdir(mode=0o700)
+        cas = real_parent / "private-cas"
+        cas.mkdir(mode=0o700)
+        manifests = cas / "manifests"
+        manifests.mkdir(mode=0o700)
+        raw = b"{"
+        digest = hashlib.sha256(raw).hexdigest()
+        manifest = manifests / f"{digest}.json"
+        manifest.write_bytes(raw)
+        manifest.chmod(0o600)
+        linked_parent = logical_root / "linked"
+        linked_parent.symlink_to(real_parent, target_is_directory=True)
+
+        with pytest.raises(KernelMaterializationError, match="outside the private CAS"):
+            load_and_verify_runtime_manifest(
+                linked_parent / "private-cas" / "manifests" / manifest.name,
+                cas_root=cas,
+                expected_manifest_file_sha256=digest,
+            )
+    finally:
+        shutil.rmtree(logical_root)
 
 
 def test_authority_loader_rejects_duplicate_key_in_exact_lock_snapshot(

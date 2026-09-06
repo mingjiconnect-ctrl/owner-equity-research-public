@@ -282,7 +282,7 @@ LOCKED_RUNTIME_MEMBERS = {
 }
 EXPECTED_RUNTIME_MEMBER_SHA256 = {
     "runtime_authority": ("0a317935d257e2fb406bc8efd9c90d42b1e572a6f8e6baa3c6d75b7cb48530dd"),
-    "materializer_code": ("0f7117cb1d34cef5eac421d21f5931bcb0724eff64bc861ef72ace17941b219f"),
+    "materializer_code": ("99ef65386015acfdf962140471a5277fdf492027b1f28b1aa61e3ce25e5785d6"),
     "runner_code": ("1baebaaa11aab5165ff3d6d1e1567b2dfbc2dac2cd23576572112038ca16fd0b"),
 }
 

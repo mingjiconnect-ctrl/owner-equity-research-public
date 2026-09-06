@@ -111,6 +111,34 @@ _ADMITTED_FINANCIAL_FIELD_REGISTRY: ContextVar[Mapping[str, FrozenMap] | None] =
     ContextVar("admitted_financial_field_registry", default=None)
 )
 
+
+def _expected_resolved_local_path(path: Path) -> Path:
+    """Normalize only a verified platform-owned Darwin root alias."""
+
+    absolute = Path(path).expanduser().absolute()
+    if (
+        sys.platform == "darwin"
+        and len(absolute.parts) >= 2
+        and absolute.parts[1] in {"etc", "tmp", "var"}
+    ):
+        root_alias = Path(absolute.anchor) / absolute.parts[1]
+        expected_target = Path("/private") / absolute.parts[1]
+        try:
+            alias_details = root_alias.lstat()
+            alias_target = root_alias.resolve(strict=True)
+        except OSError:
+            pass
+        else:
+            if (
+                stat.S_ISLNK(alias_details.st_mode)
+                and alias_details.st_uid == 0
+                and alias_target == expected_target
+                and alias_target.is_dir()
+            ):
+                return alias_target.joinpath(*absolute.parts[2:])
+    return absolute
+
+
 _PARAMETER_KEYS: dict[int, frozenset[str]] = {
     3103: frozenset(
         {
@@ -253,7 +281,10 @@ class UnixSocketFutuSidecarTransport:
             resolved_endpoint = self.socket_path.resolve(strict=True)
         except OSError as exc:
             raise FutuSidecarError("isolated sidecar endpoint is unavailable") from exc
-        if resolved_parent != parent or resolved_endpoint != self.socket_path:
+        if (
+            resolved_parent != _expected_resolved_local_path(parent)
+            or resolved_endpoint != _expected_resolved_local_path(self.socket_path)
+        ):
             raise FutuSidecarError("sidecar endpoint cannot traverse a symbolic link")
         if (
             not stat.S_ISDIR(parent_stat.st_mode)

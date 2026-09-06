@@ -130,7 +130,7 @@
         "futu_crosscheck.py": "d856fed5f0d927cdb144f96394f89e047bd99833a053364b84af2715abd1dbf9",
         "futu_receipts.py": "5928c7e1b20b5a174b1802f81c8006cb4a8634e5ded0a94c723fea66b60fccab",
         "futu_session.py": "ff5011d8be1dbd79e27ac61e38f3fe915c0383a065d3611a9c08b268a4789320",
-        "futu_sidecar.py": "6a364210692cacb0ceafe98be970d4a36d2878afaf24ca4deeb53121ea8b79ec",
+        "futu_sidecar.py": "bf8ba2eefccd42e7fe8945aab27533c50094a7a30afcb6a3bf9942c947c6138b",
         "owner_equity_research.py": "e87d04bef8bda88113e304dd908cf0218609fcf9c5ff629539a2b18d32e85d20",
         "owner_equity_runtime.py": "61bf240789a9ddd1278b6123fba9e0aca7d01eba791c9f9d0f51bc435f4b8fec",
         "owner_equity_types.py": "1f4ef50a7ca334a07ee55b6930dfb217b00aff30721c76a46c00b91610289fa4",
@@ -140,7 +140,7 @@
         "valuation_cli.py": "a711d393cc264dafffac6f6e3a4339e2832ad60e6b6e461d05a4b85eddb5775d",
         "valuation_futu_market.py": "601e64b48c622be345b58b55c941d28aac5000deee34d28680965d2256cf08b8",
         "valuation_run.py": "19095e932cc2ce1b63f6a77d063abef95dda04efee7325bcb3a9162ce33192d6",
-        "valuation_run_archive.py": "e128d6ced75bd27f8c2cd930ab8a3a569b2831b6fe2118cf73dbade3cf3d7b3f",
+        "valuation_run_archive.py": "8413d8c0e09f7002668411ab52b445dd49a989a3738d91bef2a43a49810c7a8f",
         "valuation_run_context.py": "6684e92387f2a71189b9861ca7d29fda4034050f077f910fc88be6ff710b39bf",
         "valuation_synthesis.py": "14d9fff51cb1d4174b141dfa1f5c6d0fec07e05d4cedf6723507541ff8ae35be",
         "valuation_synthesis_types.py": "18d7274272d7d069dc790da4cfa6bf95a6540b9dc0ceaa45fa2e132e5ae1e362",
@@ -181,8 +181,8 @@
       "endpoint_id": "reviewed-file",
       "price_basis": "reviewed_unadjusted_regular_session_close",
       "module_path": "valuation_market_provider.py",
-      "adapter_sha256": "b0a3fbe8076e8e061dc70f2cdafed1ac24d07649c9cda76ff2511d1719f04174",
-      "parser_sha256": "b0a3fbe8076e8e061dc70f2cdafed1ac24d07649c9cda76ff2511d1719f04174"
+      "adapter_sha256": "f3a56e3f10facebf293ef24a4e7d4f4d2b74df57d7a65c888555dbc81f39009d",
+      "parser_sha256": "f3a56e3f10facebf293ef24a4e7d4f4d2b74df57d7a65c888555dbc81f39009d"
     },
     "authorization_consumption_store": {
       "policy_id": "handoff-global-filesystem-reservation",
@@ -191,7 +191,7 @@
       "namespace": "market-authorizations-v1",
       "root_policy": "module_import_user_state_home",
       "module_path": "valuation_market_provider.py",
-      "code_sha256": "b0a3fbe8076e8e061dc70f2cdafed1ac24d07649c9cda76ff2511d1719f04174"
+      "code_sha256": "f3a56e3f10facebf293ef24a4e7d4f4d2b74df57d7a65c888555dbc81f39009d"
     }
   },
   "valuation_kernel_runtime": {
@@ -202,7 +202,7 @@
     },
     "materializer_code": {
       "path": "valuation_kernel_materializer.py",
-      "sha256": "0f7117cb1d34cef5eac421d21f5931bcb0724eff64bc861ef72ace17941b219f"
+      "sha256": "99ef65386015acfdf962140471a5277fdf492027b1f28b1aa61e3ce25e5785d6"
     },
     "runner_code": {
       "path": "valuation_pinned_kernel.py",

@@ -143,10 +143,10 @@ def test_pr3_comprehensive_lock_rejects_manifest_drift(tmp_path: Path) -> None:
     assert "module_sha256 map mismatch" in "\n".join(result.errors)
 
 
-def test_kernel_runtime_extension_preserves_frozen_market_kernel_and_schema_maps() -> None:
+def test_runtime_compatibility_pins_preserve_kernel_and_schema_maps() -> None:
     lock = load_component_lock(ROOT / "component-lock.json")
     assert canonical_sha256(lock["market_access_authority"]) == (
-        "fbf4627db9d793069591cbb24653d8a3fbb2262c75b3d2559527cae6ebe9e7e6"
+        "637f038e4322f8c5f5bfae4b57ccb89f7a2e98ff98e8b9e211f39573003fa0f6"
     )
     assert canonical_sha256(lock["valuation_kernel"]) == (
         "45bd321a26673d46627d9a260d2fd699a994cc74cb1fb018282a20beee1e83ac"
@@ -160,6 +160,18 @@ def test_kernel_runtime_extension_preserves_frozen_market_kernel_and_schema_maps
     frozen_market_block = raw[start:end]
     assert len(frozen_market_block) == 2073
     assert hashlib.sha256(frozen_market_block).hexdigest() == (
+        "097f7d75acd1b9f897af878dd4a7d2efdf4238ad4e10f28c9d1a26a91b8ce8da"
+    )
+    # The Darwin correction changes only the three pins of the same host module;
+    # replay the accepted block to prove every other authority byte is preserved.
+    assert frozen_market_block.count(
+        b"f3a56e3f10facebf293ef24a4e7d4f4d2b74df57d7a65c888555dbc81f39009d"
+    ) == 3
+    accepted_market_block = frozen_market_block.replace(
+        b"f3a56e3f10facebf293ef24a4e7d4f4d2b74df57d7a65c888555dbc81f39009d",
+        b"b0a3fbe8076e8e061dc70f2cdafed1ac24d07649c9cda76ff2511d1719f04174",
+    )
+    assert hashlib.sha256(accepted_market_block).hexdigest() == (
         "70aee6f53ae941f70be39b8a6978577fe2e5a585985cd1a9670ea6e73dab2272"
     )
 

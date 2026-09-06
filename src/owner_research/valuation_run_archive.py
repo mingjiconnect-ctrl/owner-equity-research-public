@@ -652,10 +652,14 @@ def _reject_symlink_path(path: Path) -> None:
 
 
 def _open_directory(path: Path, *, require_read_only: bool = False) -> int:
+    absolute = Path(path).expanduser().absolute()
+    fixed_alias = _darwin_fixed_root_alias(absolute)
+    if fixed_alias is not None:
+        absolute = fixed_alias[1].joinpath(*absolute.parts[2:])
     flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_CLOEXEC", 0)
     flags |= getattr(os, "O_NOFOLLOW", 0)
     try:
-        descriptor = os.open(path, flags)
+        descriptor = os.open(absolute, flags)
     except OSError as exc:
         raise ValuationRunArchiveError("valuation archive directory is unavailable") from exc
     try:

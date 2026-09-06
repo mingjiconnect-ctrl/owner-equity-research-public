@@ -135,6 +135,13 @@ gates would add control-plane work without improving the exact-head product revi
   govern the current PR3.
 - Existing public contract bytes and the six-file archive stay backward compatible. New score,
   synthesis, vendor-receipt, report, and publication contracts are downstream additions.
+- PR3 corrects host filesystem compatibility for macOS's fixed, root-owned
+  `/tmp`, `/var`, and `/etc` aliases into `/private`. This includes the existing reviewed-file
+  reader and runtime-manifest materializer. Their source-byte pins are updated with the fixes;
+  the private kernel, runtime policy, provider semantics, public Schemas, and numerical
+  contracts retain their accepted identities. The additive lock refresher still cannot change
+  these core pins. Nested caller-created symlinks remain rejected, with production read/write
+  and reload regressions included in the same final PR review.
 - CI remains deterministic and networkless. Live Futu evidence is a release precondition bound to
   the exact merged commit, not a new recursive branch-protection gate.
 - Until the real canary exists, PR3 may be developed and merged after exact-head acceptance, but

@@ -43,6 +43,7 @@ _CANONICAL_JSON_KWARGS = {
     "separators": (",", ":"),
     "sort_keys": True,
 }
+_DARWIN_FIXED_ROOT_ALIASES = frozenset({"etc", "tmp", "var"})
 
 
 class KernelMaterializationError(RuntimeError):
@@ -75,6 +76,31 @@ def _canonical_bytes(value: Any) -> bytes:
 
 def _sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
+
+
+def _expected_resolved_local_path(path: Path) -> Path:
+    """Normalize only a verified platform-owned Darwin root alias."""
+
+    absolute = Path(path).expanduser().absolute()
+    if sys.platform == "darwin" and len(absolute.parts) >= 2:
+        first_component = absolute.parts[1]
+        if first_component in _DARWIN_FIXED_ROOT_ALIASES:
+            root_alias = Path(absolute.anchor) / first_component
+            expected_target = Path("/private") / first_component
+            try:
+                alias_details = root_alias.lstat()
+                alias_target = root_alias.resolve(strict=True)
+            except OSError:
+                pass
+            else:
+                if (
+                    stat.S_ISLNK(alias_details.st_mode)
+                    and alias_details.st_uid == 0
+                    and alias_target == expected_target
+                    and alias_target.is_dir()
+                ):
+                    return alias_target.joinpath(*absolute.parts[2:])
+    return absolute
 
 
 def _read_regular_file_nofollow(path: Path, *, maximum_size: int = 256 * 1024 * 1024) -> bytes:
@@ -654,9 +680,14 @@ def _read_private_cas_member(
 
 def _validate_private_cas(cas_root: Path, kernel_checkout: Path) -> Path:
     requested = Path(os.path.abspath(cas_root.expanduser()))
+    expected = _expected_resolved_local_path(requested)
     research_root = Path(__file__).resolve().parents[2]
     kernel_root = kernel_checkout.resolve()
     prospective = requested.resolve(strict=False)
+    if prospective != expected:
+        raise KernelMaterializationError(
+            "private CAS path cannot contain a caller-controlled symlink"
+        )
     if _is_within(prospective, research_root) or _is_within(prospective, kernel_root):
         raise KernelMaterializationError("private CAS must be outside both repositories")
     requested.parent.mkdir(parents=True, exist_ok=True)
@@ -665,6 +696,10 @@ def _validate_private_cas(cas_root: Path, kernel_checkout: Path) -> Path:
     )
     os.close(descriptor)
     resolved = requested.resolve(strict=True)
+    if resolved != expected:
+        raise KernelMaterializationError(
+            "private CAS path cannot contain a caller-controlled symlink"
+        )
     if _is_within(resolved, research_root) or _is_within(resolved, kernel_root):
         raise KernelMaterializationError("private CAS must be outside both repositories")
     return resolved
@@ -672,11 +707,16 @@ def _validate_private_cas(cas_root: Path, kernel_checkout: Path) -> Path:
 
 def _validate_existing_private_cas(cas_root: Path) -> Path:
     requested = Path(os.path.abspath(cas_root.expanduser()))
+    expected = _expected_resolved_local_path(requested)
     descriptor = _open_private_directory(
         requested, create=False, label="private CAS root"
     )
     os.close(descriptor)
     resolved = requested.resolve(strict=True)
+    if resolved != expected:
+        raise KernelMaterializationError(
+            "private CAS path cannot contain a caller-controlled symlink"
+        )
     if _is_within(resolved, Path(__file__).resolve().parents[2]):
         raise KernelMaterializationError("private CAS must be outside the research repository")
     return resolved
@@ -1081,8 +1121,13 @@ def load_and_verify_runtime_manifest(
     """Reload and bind a runtime manifest to current authority, code, and CAS bytes."""
 
     path = Path(os.path.abspath(manifest_path.expanduser()))
+    expected_path = _expected_resolved_local_path(path)
     cas = _validate_existing_private_cas(cas_root)
-    if path.parent != cas / "manifests":
+    try:
+        resolved_path = path.resolve(strict=True)
+    except OSError as exc:
+        raise KernelMaterializationError("runtime manifest is unavailable or unsafe") from exc
+    if resolved_path != expected_path or expected_path.parent != cas / "manifests":
         raise KernelMaterializationError("runtime manifest is outside the private CAS")
     raw = _read_private_cas_member(
         cas, "manifests", path.name, maximum_size=8 * 1024 * 1024

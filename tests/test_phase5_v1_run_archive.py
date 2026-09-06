@@ -4,6 +4,7 @@ import errno
 import hashlib
 import json
 import os
+import shutil
 import stat
 import subprocess
 import sys
@@ -1467,9 +1468,10 @@ def test_archive_write_and_reload_accept_platform_tmp_root_alias(
     temporary_root: str,
 ) -> None:
     execution = _completed(sample_payloads, monkeypatch, tmp_path)
-    with tempfile.TemporaryDirectory(dir=temporary_root) as directory:
-        output = Path(directory) / "valuation-run"
-
+    suffix = hashlib.sha256(f"{tmp_path}:{temporary_root}".encode()).hexdigest()[:12]
+    output = Path(temporary_root) / f"owner-research-valuation-{suffix}"
+    assert output.parent == Path(temporary_root)
+    try:
         written = write_valuation_run_archive(execution, output_directory=output)
         reloaded = load_valuation_run_archive(
             output,
@@ -1479,6 +1481,18 @@ def test_archive_write_and_reload_accept_platform_tmp_root_alias(
 
         assert written.output_directory == output
         assert reloaded == written
+    finally:
+        owned_paths = (
+            output,
+            *output.parent.glob(f".{output.name}.staging-*"),
+            *output.parent.glob(f".{output.name}.rollback-*"),
+        )
+        for owned_path in owned_paths:
+            if owned_path.is_symlink():
+                owned_path.unlink()
+            elif owned_path.exists():
+                owned_path.chmod(0o700)
+                shutil.rmtree(owned_path)
 
 
 def test_archive_object_path_or_manifest_rebind_is_rejected_by_completed_result(

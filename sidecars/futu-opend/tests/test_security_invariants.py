@@ -53,6 +53,10 @@ from owner_research_futu_sidecar.runtime_authorization import (
     RuntimeAuthorizationError,
     verify_runtime_authorization,
 )
+from owner_research_futu_sidecar.sdk_logging import (
+    FutuSdkLogBoundary,
+    FutuSdkLogError,
+)
 from owner_research_futu_sidecar.server import (
     FutuSidecarServer,
     FutuSidecarServerError,
@@ -509,6 +513,69 @@ def test_cas_rejects_hardlink_and_destination_injection(
     assert injected_path is not None
     assert injected_path.read_bytes() == b"attacker-controlled"
     monkeypatch.setattr(cas_module.os, "link", real_link)
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Darwin fixed root alias")
+def test_sidecar_runtime_paths_accept_logical_tmp_fixed_root_alias() -> None:
+    test_root = Path(tempfile.mkdtemp(prefix="oer-sidecar-paths-", dir="/tmp"))
+    server = FutuSidecarServer(
+        socket_path=test_root / "sidecar.sock",
+        service=cast(Any, object()),
+        expected_peer_uid=os.getuid(),
+    )
+    try:
+        assert test_root.parent == Path("/tmp")
+        assert test_root.resolve(strict=True) != test_root
+
+        server.start()
+        assert stat.S_ISSOCK((test_root / "sidecar.sock").lstat().st_mode)
+
+        cas_root = test_root / "cas"
+        cas_root.mkdir(mode=0o700)
+        cas = EncryptedCas(root=cas_root, key=b"\x24" * 32, key_id="darwin-test-cas")
+        receipt = cas.store(b"logical tmp encrypted payload")
+        assert cas.load(receipt) == b"logical tmp encrypted payload"
+
+        private_home = test_root / "private-home"
+        private_home.mkdir(mode=0o700)
+        boundary = FutuSdkLogBoundary(private_home=private_home)
+        boundary.log_directory.mkdir(mode=0o700, parents=True)
+        transient_log = boundary.log_directory / "futu-sdk.log"
+        transient_log.write_bytes(b"transient vendor log")
+        boundary._remove_transient_files()  # noqa: SLF001 - path-boundary regression
+        assert tuple(boundary.log_directory.iterdir()) == ()
+    finally:
+        server.close()
+        shutil.rmtree(test_root)
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Darwin fixed root alias")
+def test_sidecar_runtime_paths_still_reject_nested_user_symlink() -> None:
+    test_root = Path(tempfile.mkdtemp(prefix="oer-sidecar-symlink-", dir="/tmp"))
+    real_directory = test_root / "real"
+    alias_directory = test_root / "alias"
+    try:
+        real_directory.mkdir(mode=0o700)
+        alias_directory.symlink_to(real_directory, target_is_directory=True)
+
+        with pytest.raises(CasError, match="symbolic link"):
+            EncryptedCas(
+                root=alias_directory,
+                key=b"\x25" * 32,
+                key_id="nested-symlink-cas",
+            )
+        with pytest.raises(FutuSdkLogError, match="exact owner-only directory"):
+            FutuSdkLogBoundary(private_home=alias_directory)
+
+        server = FutuSidecarServer(
+            socket_path=alias_directory / "sidecar.sock",
+            service=cast(Any, object()),
+            expected_peer_uid=os.getuid(),
+        )
+        with pytest.raises(FutuSidecarServerError, match="private and owner-controlled"):
+            server.start()
+    finally:
+        shutil.rmtree(test_root)
 
 
 def test_receive_frame_rejects_half_header() -> None:

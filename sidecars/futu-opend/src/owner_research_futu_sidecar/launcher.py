@@ -11,7 +11,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from .canonical import SidecarContractError
+from .canonical import SidecarContractError, expected_resolved_local_path
 from .supervisor import serve_attestor
 
 CONFIG_FD = 3
@@ -72,10 +72,12 @@ def _activate_rootless_environment() -> None:
     private_home = Path(private_home_value)
     try:
         metadata = private_home.lstat()
+        resolved_home = private_home.resolve(strict=True)
     except OSError as exc:
         raise LauncherError("private tmpfs HOME is unavailable") from exc
     if (
         not private_home.is_absolute()
+        or resolved_home != expected_resolved_local_path(private_home)
         or not stat.S_ISDIR(metadata.st_mode)
         or stat.S_IMODE(metadata.st_mode) != 0o700
         or metadata.st_uid != os.getuid()
@@ -83,6 +85,7 @@ def _activate_rootless_environment() -> None:
         raise LauncherError(
             "private tmpfs HOME must be a real mode-0700 directory owned by this UID"
         )
+    private_home = resolved_home
     os.environ["HOME"] = os.fspath(private_home)
     os.environ["XDG_CACHE_HOME"] = os.fspath(private_home / ".cache")
     os.environ["XDG_CONFIG_HOME"] = os.fspath(private_home / ".config")

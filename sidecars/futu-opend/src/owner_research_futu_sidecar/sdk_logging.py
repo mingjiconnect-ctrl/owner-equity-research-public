@@ -7,7 +7,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
-from .canonical import SidecarContractError
+from .canonical import SidecarContractError, expected_resolved_local_path
 
 _FUTU_LOG_RELATIVE = Path(".com.futunn.FutuOpenD") / "Log"
 _MAXIMUM_TRANSIENT_LOG_BYTES = 1024 * 1024
@@ -26,7 +26,7 @@ class FutuSdkLogBoundary:
             raise FutuSdkLogError("private SDK HOME is unavailable") from exc
         if (
             not home.is_absolute()
-            or home.resolve(strict=True) != home
+            or home.resolve(strict=True) != expected_resolved_local_path(home)
             or not stat.S_ISDIR(home_stat.st_mode)
             or home_stat.st_uid != os.getuid()
             or stat.S_IMODE(home_stat.st_mode) != 0o700
@@ -104,7 +104,8 @@ class FutuSdkLogBoundary:
             raise FutuSdkLogError("Futu SDK transient log directory is unsafe") from exc
         if (
             not stat.S_ISDIR(directory_stat.st_mode)
-            or self.log_directory.resolve(strict=True) != self.log_directory
+            or self.log_directory.resolve(strict=True)
+            != expected_resolved_local_path(self.log_directory)
             or directory_stat.st_uid != os.getuid()
         ):
             raise FutuSdkLogError("Futu SDK transient log directory was rebound")

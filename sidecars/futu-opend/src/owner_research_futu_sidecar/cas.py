@@ -13,6 +13,7 @@ from .canonical import (
     SidecarContractError,
     bytes_sha256,
     canonical_bytes,
+    expected_resolved_local_path,
     require_sha256,
 )
 
@@ -89,7 +90,10 @@ class EncryptedCas:
             resolved = self.root.resolve(strict=True)
         except OSError as exc:
             raise CasError("CAS root is unavailable") from exc
-        if resolved != self.root or not stat.S_ISDIR(root_stat.st_mode):
+        if (
+            resolved != expected_resolved_local_path(self.root)
+            or not stat.S_ISDIR(root_stat.st_mode)
+        ):
             raise CasError("CAS root cannot be a symbolic link")
         if root_stat.st_uid != os.getuid() or root_stat.st_mode & 0o077:
             raise CasError("CAS root must be private to the runtime UID")
@@ -186,7 +190,7 @@ class EncryptedCas:
             raise CasError("CAS shard cannot be created") from exc
         shard_stat = shard.lstat()
         if (
-            shard.resolve(strict=True) != shard
+            shard.resolve(strict=True) != expected_resolved_local_path(shard)
             or not stat.S_ISDIR(shard_stat.st_mode)
             or shard_stat.st_uid != os.getuid()
             or shard_stat.st_mode & 0o077
@@ -246,7 +250,7 @@ class EncryptedCas:
             member_stat = path.lstat()
         except OSError as exc:
             raise CasError("CAS member is unavailable") from exc
-        if path.resolve(strict=True) != path:
+        if path.resolve(strict=True) != expected_resolved_local_path(path):
             raise CasError("CAS member is not immutable and owner-controlled")
         self._validate_member_stat(member_stat)
 
