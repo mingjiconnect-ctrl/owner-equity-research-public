@@ -20,7 +20,7 @@ from .cas import EncryptedCas
 from .frame_guard import FrameGuardProxy
 from .opend_adapter import OfficialFutuAdapter
 from .operation_registry import verify_installed_sdk
-from .runtime_authorization import RuntimeRequestPlanItem
+from .runtime_authorization import RuntimeRequestPlanItem, require_runtime_endpoint
 from .sdk_logging import FutuSdkLogBoundary
 from .server import FutuSidecarServer, FutuSidecarService
 from .supervisor import SupervisorAttestorClient
@@ -151,6 +151,9 @@ def _serve(*, config_fd: int, cas_key_fd: int, signer_fd: int) -> int:
             "authorized_security_codes": tuple(codes),
             "request_plan": tuple(RuntimeRequestPlanItem.from_value(item) for item in plan),
         }
+    )
+    require_runtime_endpoint(
+        claims.runtime_schema_version, config["opend_host"], config["opend_port"]
     )
     guard = FrameGuardProxy(
         upstream_host=config["opend_host"],

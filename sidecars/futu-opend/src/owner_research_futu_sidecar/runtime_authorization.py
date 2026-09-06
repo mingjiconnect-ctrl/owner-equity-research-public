@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -121,8 +122,7 @@ class VerifiedRuntimeAuthorization:
     @property
     def request_plan(self) -> tuple[RuntimeRequestPlanItem, ...]:
         return tuple(
-            RuntimeRequestPlanItem.from_value(item)
-            for item in self.payload["request_plan"]
+            RuntimeRequestPlanItem.from_value(item) for item in self.payload["request_plan"]
         )
 
     @property
@@ -178,11 +178,10 @@ def verify_runtime_authorization(
     if keyring["keyring_fingerprint"] != canonical_sha256(keyring_identity):
         raise RuntimeAuthorizationError("authorization role keyring fingerprint is invalid")
     if (
-        authorization["schema_version"] != "1.0.0"
+        authorization["schema_version"] not in {"1.0.0", "2.0.0"}
         or authorization["signature_algorithm"] != "ed25519"
         or authorization["signer_key_id"] != key_id
-        or authorization["sidecar_attestor_key_id"]
-        != expected_sidecar_attestor_key_id
+        or authorization["sidecar_attestor_key_id"] != expected_sidecar_attestor_key_id
         or authorization["receipt_id"]
         != signed_identity("futu-runtime-authorization:", authorization)
     ):
@@ -204,23 +203,50 @@ def verify_runtime_authorization(
     )
 
 
+def runtime_credentials_location(schema_version: str, vm_image_sha256: Any) -> str:
+    """Version 2 describes native macOS honestly, without a fabricated VM identity."""
+    if schema_version == "1.0.0":
+        require_sha256(vm_image_sha256, "VM image SHA-256")
+        return "isolated_vm_tmpfs"
+    if schema_version == "2.0.0" and vm_image_sha256 is None:
+        return "user_managed_macos_opend"
+    raise RuntimeAuthorizationError("runtime profile and VM identity are inconsistent")
+
+
+def require_runtime_platform(schema_version: str) -> None:
+    if schema_version not in {"1.0.0", "2.0.0"}:
+        raise RuntimeAuthorizationError("unsupported runtime profile")
+    if schema_version == "2.0.0" and sys.platform != "darwin":
+        raise RuntimeAuthorizationError("native macOS runtime requires Darwin")
+
+
+def require_runtime_endpoint(schema_version: str, host: str, port: int) -> None:
+    require_runtime_platform(schema_version)
+    if schema_version == "2.0.0" and (
+        host != "127.0.0.1" or type(port) is not int or port != 11111
+    ):
+        raise RuntimeAuthorizationError("native macOS OpenD must use 127.0.0.1:11111")
+
+
 def _validate_authorization_values(value: dict[str, Any]) -> None:
     for key in (
         "policy_sha256",
         "component_lock_sha256",
         "account_scope_sha256",
         "supply_chain_fingerprint",
-        "vm_image_sha256",
         "request_plan_fingerprint",
     ):
         require_sha256(value[key], key)
+    credentials_location = runtime_credentials_location(
+        value["schema_version"], value["vm_image_sha256"]
+    )
     static_valid = (
         isinstance(value["run_id"], str)
         and bool(value["run_id"])
         and isinstance(value["opend_version"], str)
         and bool(value["opend_version"])
         and value["rootless"] is True
-        and value["credentials_location"] == "isolated_vm_tmpfs"
+        and value["credentials_location"] == credentials_location
         and value["host_opend_port_mapped"] is False
         and value["generic_raw_send_enabled"] is False
         and value["logging_enabled"] is False
@@ -231,9 +257,7 @@ def _validate_authorization_values(value: dict[str, Any]) -> None:
         and value["maximum_pages_per_protocol"] == MAXIMUM_PAGES_PER_PROTOCOL
     )
     allowed = value["allowed_protocol_ids"]
-    closed_protocols = sorted(
-        set(INFRASTRUCTURE_PROTOCOL_IDS) | set(DEFAULT_US_QUOTE_PROTOCOL_IDS)
-    )
+    closed_protocols = sorted(set(INFRASTRUCTURE_PROTOCOL_IDS) | set(DEFAULT_US_QUOTE_PROTOCOL_IDS))
     codes = value["authorized_security_codes"]
     plan = value["request_plan"]
     if (
@@ -293,9 +317,7 @@ def validate_request_plan(
         item = RuntimeRequestPlanItem.from_value(item_value)
         protocol_id = item.protocol_id
         expected_mode = "internal" if protocol_id in _INTERNALLY_PAGED else "none"
-        expected_condition = (
-            "eligible_conclusion_only" if protocol_id in _CONDITIONAL else "always"
-        )
+        expected_condition = "eligible_conclusion_only" if protocol_id in _CONDITIONAL else "always"
         maximum_pages = item.maximum_pages
         if (
             item.plan_index != index

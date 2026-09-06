@@ -64,6 +64,11 @@ FUTU_RUNTIME_PROTOCOL_IDS = tuple(
 _SCHEMA_DIRECTORY = (
     Path(__file__).parent / "resources" / "futu" / "extension_schemas" / "v1"
 )
+_NATIVE_RUNTIME_SCHEMA_NAMES = frozenset({
+    "futu-supply-chain-receipt",
+    "futu-runtime-isolation-authorization",
+    "futu-runtime-isolation-receipt",
+})
 _SCHEMA_NAMES = frozenset(
     {
         "futu-account-entitlement-receipt",
@@ -116,19 +121,23 @@ _RUNTIME_PLAN_PROTOCOL_IDS = frozenset(
 _INTERNALLY_PAGED_PROTOCOL_IDS = frozenset({3227, 3230, 3236, 3246})
 
 
-def _encoded_opend_server_version(version: str) -> int:
-    """Encode the pinned dotted OpenD version as returned by GlobalState.serverVer."""
+def _opend_server_identity(version: str) -> tuple[int, int]:
+    """Map major.minor.build to GlobalState's separate version and build fields.
+
+    OpenD 10.10.7008 reports serverVer=1010 and serverBuildNo=7008;
+    the build must not be packed into serverVer or left independently unbound.
+    """
     parts = version.split(".") if isinstance(version, str) else []
     if (
         len(parts) != 3
         or any(not item.isascii() or not item.isdecimal() for item in parts)
         or any(len(item) > 1 and item.startswith("0") for item in parts)
     ):
-        raise FutuReceiptError("OpenD version must be a canonical major.minor.patch string")
-    major, minor, patch = (int(item) for item in parts)
-    if not (1 <= major <= 99 and 0 <= minor <= 99 and 0 <= patch <= 99_999):
+        raise FutuReceiptError("OpenD version must be a canonical major.minor.build string")
+    major, minor, build = (int(item) for item in parts)
+    if not (1 <= major <= 99 and 0 <= minor <= 99 and 1 <= build <= 99_999):
         raise FutuReceiptError("OpenD version components are outside the serverVer encoding")
-    return major * 10_000_000 + minor * 100_000 + patch
+    return major * 100 + minor, build
 
 
 class FutuReceiptError(ValueError):
@@ -148,10 +157,16 @@ class SignatureVerifier(Protocol):
 
 
 @cache
-def _load_futu_schema(name: str) -> dict[str, Any]:
+def _load_futu_schema(name: str, version: str = "1.0.0") -> dict[str, Any]:
     if name not in _SCHEMA_NAMES:
         raise KeyError(f"Unknown Futu extension schema: {name}")
-    path = _SCHEMA_DIRECTORY / f"{name}.schema.json"
+    if version == "1.0.0":
+        directory = _SCHEMA_DIRECTORY
+    elif version == "2.0.0" and name in _NATIVE_RUNTIME_SCHEMA_NAMES:
+        directory = _SCHEMA_DIRECTORY.parent / "v2"
+    else:
+        raise FutuReceiptError(f"Unsupported Futu schema version: {name}/{version}")
+    path = directory / f"{name}.schema.json"
     try:
         with path.open("rb") as handle:
             raw = handle.read(_MAXIMUM_EXTENSION_SCHEMA_BYTES + 1)
@@ -165,21 +180,24 @@ def _load_futu_schema(name: str) -> dict[str, Any]:
     return payload
 
 
-def load_futu_schema(name: str) -> dict[str, Any]:
+def load_futu_schema(name: str, version: str = "1.0.0") -> dict[str, Any]:
     """Load a detached Futu schema without extending the frozen public schema map."""
-    return copy.deepcopy(_load_futu_schema(name))
+    return copy.deepcopy(_load_futu_schema(name, version))
 
 
 @cache
-def futu_schema_validator(name: str) -> Draft202012Validator:
-    schema = _load_futu_schema(name)
+def futu_schema_validator(name: str, version: str = "1.0.0") -> Draft202012Validator:
+    schema = _load_futu_schema(name, version)
     Draft202012Validator.check_schema(schema)
     return Draft202012Validator(schema, format_checker=FormatChecker())
 
 
 def validate_futu_payload(name: str, payload: Mapping[str, Any]) -> None:
+    version = payload.get("schema_version", "1.0.0")
+    if type(version) is not str:
+        raise FutuReceiptError("Futu schema version must be a string")
     errors = sorted(
-        futu_schema_validator(name).iter_errors(to_json_value(payload)),
+        futu_schema_validator(name, version).iter_errors(to_json_value(payload)),
         key=lambda error: tuple(str(part) for part in error.absolute_path),
     )
     if errors:
@@ -581,7 +599,7 @@ class FutuSupplyChainReceipt(FutuContract):
     facade_sha256: str
     adapter_sha256: str
     parser_sha256: str
-    vm_image_sha256: str
+    vm_image_sha256: str | None
     sbom_sha256: str
     license_sha256: str
     daily_close_semantics_evidence_kind: str
@@ -614,8 +632,8 @@ class FutuSupplyChainReceipt(FutuContract):
             or self.opend_server_version <= 0
             or type(self.opend_server_build_no) is not int
             or self.opend_server_build_no <= 0
-            or self.opend_server_version
-            != _encoded_opend_server_version(self.opend_version)
+            or (self.opend_server_version, self.opend_server_build_no)
+            != _opend_server_identity(self.opend_version)
         ):
             raise FutuReceiptError(
                 "supply-chain receipt lacks the pinned OpenD server identity"
@@ -639,7 +657,7 @@ class FutuRuntimeIsolationAuthorization(FutuContract):
     component_lock_sha256: str
     account_scope_sha256: str
     supply_chain_fingerprint: str
-    vm_image_sha256: str
+    vm_image_sha256: str | None
     opend_version: str
     rootless: bool
     credentials_location: str
@@ -739,7 +757,7 @@ class FutuRuntimeIsolationReceipt(FutuContract):
     runtime_authorization_fingerprint: str
     request_plan_fingerprint: str
     authorization_window_seconds: int
-    vm_image_sha256: str
+    vm_image_sha256: str | None
     opend_version: str
     opend_server_version: int
     opend_server_build_no: int
@@ -779,8 +797,8 @@ class FutuRuntimeIsolationReceipt(FutuContract):
             or self.opend_server_version <= 0
             or type(self.opend_server_build_no) is not int
             or self.opend_server_build_no <= 0
-            or self.opend_server_version
-            != _encoded_opend_server_version(self.opend_version)
+            or (self.opend_server_version, self.opend_server_build_no)
+            != _opend_server_identity(self.opend_version)
         ):
             raise FutuReceiptError("runtime receipt protocol or OpenD identity is invalid")
         checkpoints = tuple(item["checkpoint"] for item in self.checkpoints)
@@ -1268,9 +1286,14 @@ def evaluate_futu_authority(
             issues.add("account_scope_mismatch")
         if legal is not None and runtime.account_scope_sha256 != legal.account_scope_sha256:
             issues.add("account_scope_mismatch")
+        expected_credentials = {
+            "1.0.0": "isolated_vm_tmpfs",
+            "2.0.0": "user_managed_macos_opend",
+        }.get(runtime.schema_version)
         unsafe_isolation = (
             not runtime.rootless
-            or runtime.credentials_location != "isolated_vm_tmpfs"
+            or expected_credentials is None
+            or runtime.credentials_location != expected_credentials
             or runtime.host_opend_port_mapped
             or runtime.generic_raw_send_enabled
             or runtime.logging_enabled
@@ -1311,7 +1334,10 @@ def evaluate_futu_authority(
     if supply is not None and runtime is not None:
         if runtime.supply_chain_fingerprint != supply.fingerprint:
             issues.add("supply_chain_mismatch")
-        if runtime.vm_image_sha256 != supply.vm_image_sha256:
+        if (
+            runtime.schema_version != supply.schema_version
+            or runtime.vm_image_sha256 != supply.vm_image_sha256
+        ):
             issues.add("supply_chain_mismatch")
         if runtime.opend_version != supply.opend_version:
             issues.add("supply_chain_mismatch")

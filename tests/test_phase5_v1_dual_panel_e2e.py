@@ -82,18 +82,18 @@ EXPECTED_WORKFLOW_READ_ONLY_MOUNTS = [
     {"role": "trusted_attestation_directory", "target": "/run/owner-research"},
 ]
 EXPECTED_WORKFLOW_WRITABLE_MOUNTS = [{"role": "canonical_summary_output", "target": "/output"}]
-# The runtime locator correction updates component-lock-bound market provenance.
+# The native runtime correction updates component-lock-bound market provenance.
 # The request assumptions, numerical facts, method inputs, and output panels are unchanged.
-EXPECTED_REQUEST_SHA256 = "d97c74056b70fdb7b65fa3532920fd7012d7797be0ec5452aeddadffcac642d6"
-EXPECTED_PUBLIC_REQUEST_SHA256 = "bd8c04d9da05897c5fdcf81d17861b628e17e570fa4cabc6f30c9b20e31dc960"
-EXPECTED_RESULT_SHA256 = "98222e8cb0d0bc4ff8b1578bb4c5dc8672983fbe7ae3ffc2f473ad86fb8d6429"
-EXPECTED_MARKET_RECEIPT_ID = "market-quote-receipt:7c6d0821a173186601e3ccd4"
-EXPECTED_PUBLIC_MARKET_RECEIPT_ID = "market-quote-receipt:290b0542b4de076266369eeb"
+EXPECTED_REQUEST_SHA256 = "e73c172482484537eccf95f59f218eeb2c8a5e93d89f49af1d4b840cfbf309ff"
+EXPECTED_PUBLIC_REQUEST_SHA256 = "dc2b88b678fee34257932b8115e867d3612a9fe439d15ffbc8644537dc3b9789"
+EXPECTED_RESULT_SHA256 = "b5c03431aff85fce392143c6f073f77bf3376b19405b8dd61a9ae283850e5204"
+EXPECTED_MARKET_RECEIPT_ID = "market-quote-receipt:82d56b5b49452cbe9cbe565d"
+EXPECTED_PUBLIC_MARKET_RECEIPT_ID = "market-quote-receipt:74d92d46b234176dc6f75f3b"
 EXPECTED_MARKET_RECEIPT_FINGERPRINT = (
-    "2ba50c6f2870abe800f03151ee17be55b8ca446d9b597894340f0eeaea53d1ed"
+    "9fbf47d14d386b59b5a5450b4934a4473ae13fba79068bf7cbcc159733c4e95f"
 )
 EXPECTED_PUBLIC_MARKET_RECEIPT_FINGERPRINT = (
-    "0380de411fb6ea1a4bfacdb3e46ec04f6049eebfaa87f10b31c45e50c933d55b"
+    "ab607fe316438255c645f62b98e1b4b43fb07e39c3f28000bba811391fdfe520"
 )
 COMPANY_NAME = "Synthetic Nonfinancial Company"
 COMPANY_NAME_FACT_ID = "fact:acme:issuer-legal-name"

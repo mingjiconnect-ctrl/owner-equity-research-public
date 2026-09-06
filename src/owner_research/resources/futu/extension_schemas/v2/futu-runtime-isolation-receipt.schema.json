@@ -1,0 +1,224 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/futu/v2/futu-runtime-isolation-receipt.schema.json",
+  "title": "FutuRuntimeIsolationReceipt — native macOS read-only profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "receipt_id",
+    "run_id",
+    "policy_sha256",
+    "component_lock_sha256",
+    "account_scope_sha256",
+    "supply_chain_fingerprint",
+    "runtime_authorization_fingerprint",
+    "request_plan_fingerprint",
+    "authorization_window_seconds",
+    "vm_image_sha256",
+    "opend_version",
+    "opend_server_version",
+    "opend_server_build_no",
+    "rootless",
+    "credentials_location",
+    "host_opend_port_mapped",
+    "generic_raw_send_enabled",
+    "logging_enabled",
+    "reminder_push_enabled",
+    "automatic_quote_right_takeover_enabled",
+    "trade_and_account_protocols_rejected_before_opend",
+    "allowed_protocol_ids",
+    "checkpoints",
+    "quarantined",
+    "started_at",
+    "ended_at",
+    "issued_at",
+    "expires_at",
+    "signature_algorithm",
+    "signer_key_id",
+    "signature_hex"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "2.0.0"
+    },
+    "receipt_id": {
+      "type": "string",
+      "pattern": "^futu-runtime:[a-f0-9]{64}$"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "policy_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "component_lock_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "account_scope_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "supply_chain_fingerprint": {
+      "$ref": "#/$defs/sha256"
+    },
+    "runtime_authorization_fingerprint": {
+      "$ref": "#/$defs/sha256"
+    },
+    "request_plan_fingerprint": {
+      "$ref": "#/$defs/sha256"
+    },
+    "authorization_window_seconds": {
+      "const": 900
+    },
+    "vm_image_sha256": {
+      "type": "null",
+      "description": "No virtual-machine image exists in the native macOS profile."
+    },
+    "opend_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "opend_server_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "opend_server_build_no": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "rootless": {
+      "type": "boolean"
+    },
+    "credentials_location": {
+      "const": "user_managed_macos_opend",
+      "description": "Login credentials remain exclusively in the user's existing desktop OpenD; the sidecar never reads or transfers them."
+    },
+    "host_opend_port_mapped": {
+      "type": "boolean"
+    },
+    "generic_raw_send_enabled": {
+      "type": "boolean"
+    },
+    "logging_enabled": {
+      "const": false,
+      "description": "Sidecar SDK logging is disabled. This does not claim that desktop OpenD UI logs are disabled."
+    },
+    "reminder_push_enabled": {
+      "type": "boolean"
+    },
+    "automatic_quote_right_takeover_enabled": {
+      "type": "boolean"
+    },
+    "trade_and_account_protocols_rejected_before_opend": {
+      "type": "boolean"
+    },
+    "allowed_protocol_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "checkpoints": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "checkpoint",
+          "protocol_id",
+          "serial_number",
+          "global_state_request_fingerprint",
+          "global_state_response_fingerprint",
+          "observed_at",
+          "qot_logined",
+          "trd_logined",
+          "opend_server_version",
+          "opend_server_build_no"
+        ],
+        "properties": {
+          "checkpoint": {
+            "enum": [
+              "startup",
+              "pre_request",
+              "post_request",
+              "pre_shutdown"
+            ]
+          },
+          "protocol_id": {
+            "const": 1002
+          },
+          "serial_number": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "global_state_request_fingerprint": {
+            "$ref": "#/$defs/sha256"
+          },
+          "global_state_response_fingerprint": {
+            "$ref": "#/$defs/sha256"
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "qot_logined": {
+            "type": "boolean"
+          },
+          "trd_logined": {
+            "type": "boolean"
+          },
+          "opend_server_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "opend_server_build_no": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    },
+    "quarantined": {
+      "type": "boolean"
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "ended_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "signature_algorithm": {
+      "const": "ed25519"
+    },
+    "signer_key_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "signature_hex": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{128}$"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "$comment": "Version 2 is the user-authorized native macOS sidecar profile. No VM is claimed. Existing version-1 schema bytes and Linux semantics remain unchanged."
+}

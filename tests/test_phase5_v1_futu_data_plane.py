@@ -429,8 +429,8 @@ def _authorities(
             "provider_id": "provider:futu-opend-sidecar",
             "provider_version": "1.0.0",
             "opend_version": "10.9.5208",
-            "opend_server_version": 100_905_208,
-            "opend_server_build_no": 1,
+            "opend_server_version": 1009,
+            "opend_server_build_no": 5208,
             "futu_api_version": "10.10.7008",
             "futu_api_distribution_sha256": (
                 "3c607c7dce02a3a2b308f3424420277a360d7b3a4ba4508b39eaa4ff11271f98"

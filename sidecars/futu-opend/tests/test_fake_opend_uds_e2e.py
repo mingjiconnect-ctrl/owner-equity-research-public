@@ -4,6 +4,7 @@ import importlib
 import os
 import shutil
 import socket
+import sys
 import tempfile
 import threading
 from datetime import UTC, datetime, timedelta
@@ -75,8 +76,8 @@ def _supply() -> dict[str, object]:
         "provider_id": "futu-opend-official",
         "provider_version": "1.0.0.dev0",
         "opend_version": "10.10.7008",
-        "opend_server_version": 101007008,
-        "opend_server_build_no": 1,
+        "opend_server_version": 1010,
+        "opend_server_build_no": 7008,
         "futu_api_version": PINNED_SDK_VERSION,
         "futu_api_distribution_sha256": PINNED_SDK_SDIST_SHA256,
         "sdk_operation_registry_sha256": SDK_ADAPTER_REGISTRY_SHA256,
@@ -288,11 +289,16 @@ def test_pinned_sdk_fake_opend_exercises_every_allowed_data_protocol(
     ("trade_logined", "trade_on_global_state_call"),
     [(False, None), (True, None), (False, 2)],
 )
+@pytest.mark.parametrize("native_macos", [
+    False,
+    pytest.param(True, marks=pytest.mark.skipif(sys.platform != "darwin", reason="native macOS")),
+])
 def test_fake_opend_guard_to_signed_uds_fetch(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
     trade_logined: bool,
     trade_on_global_state_call: int | None,
+    native_macos: bool,
 ) -> None:
     fake = FakeOpenD(
         trade_logined=trade_logined,
@@ -365,6 +371,7 @@ def test_fake_opend_guard_to_signed_uds_fetch(
         run_id="run:test-futu-sidecar",
         sidecar_signer_key_id="test-sidecar-key",
         plan=repeated_protocol_plan,
+        native_macos=native_macos,
     )
     authorization_fd, keyring_fd = authority_fds(authorization, keyring)
 
@@ -690,6 +697,12 @@ def test_fake_opend_guard_to_signed_uds_fetch(
             Ed25519Attestor.verify(
                 finalize_response[receipt_name], public_key_hex=attestor.public_key_hex
             )
+        runtime_receipt = finalize_response["runtime_isolation_receipt"]
+        assert runtime_receipt["schema_version"] == ("2.0.0" if native_macos else "1.0.0")
+        assert runtime_receipt["vm_image_sha256"] == (None if native_macos else "4" * 64)
+        assert runtime_receipt["credentials_location"] == (
+            "user_managed_macos_opend" if native_macos else "isolated_vm_tmpfs"
+        )
         assert adapter.connect_attempts == 1
         assert fake.connection_count == 1
         assert fake.init_recv_notify is False

@@ -46,6 +46,7 @@
     "futu_activation": "explicit_valuation_intent_only",
     "futu_financial_and_company_data_role": "secondary_to_sec_ir",
     "futu_runtime": "quote_only_no_trade_or_account_protocols",
+    "futu_runtime_profiles": ["linux_vm_read_only", "macos_local_read_only"],
     "kernel_call_count": 1,
     "ordinary_research": "target_price_and_market_capitalization_blind_with_zero_futu_calls",
     "publication": "local_only",

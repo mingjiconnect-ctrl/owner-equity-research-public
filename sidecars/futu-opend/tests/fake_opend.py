@@ -18,8 +18,8 @@ class FakeOpenD:
     trade_logined: bool = False
     quote_lost_on_global_state_call: int | None = None
     history_empty_then_next: bool = False
-    server_version: int = 101007008
-    server_build_no: int = 1
+    server_version: int = 1010
+    server_build_no: int = 7008
     global_state_server_identity_overrides: dict[int, tuple[int, int]] = field(
         default_factory=dict
     )

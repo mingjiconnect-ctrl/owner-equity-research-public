@@ -3,7 +3,7 @@
 The production entrypoint is the installed
 `owner-research-futu-preopen-and-launch` console script (the bundled
 `launch-rootless.sh` is an equivalent service wrapper). The compatibility alias
-`owner-research-futu-launch` has the same closed contract. It runs as a dedicated
+`owner-research-futu-launch` has the same closed contract. It runs as a
 non-root UID and consumes five
 one-shot, preopened, non-regular handles:
 
@@ -20,9 +20,21 @@ the one-shot plan/sequence ledger. Before every SDK data call, the child asks th
 supervisor for a private authorization ticket binding the next exact plan item. The
 data child cannot propose signing authority or query an unplanned security/protocol.
 
-The orchestrator must create a new private tmpfs HOME, CAS root, and UDS parent for
-each run, all owned by the dedicated UID with mode `0700`. The UDS itself is exactly
-`0600`. OpenD is reachable only on loopback in the same isolated network namespace.
+The orchestrator must create a new private per-run HOME, CAS root, and UDS parent,
+all owned by the executing UID with mode `0700`. The UDS itself is exactly `0600`.
+There are exactly two runtime profiles:
+
+- `linux_vm_read_only`: v1 signed supply/runtime receipts, a pinned VM image,
+  a dedicated non-root UID, tmpfs HOME, and OpenD on loopback in the isolated VM.
+- `macos_local_read_only`: v2 signed supply/runtime receipts, `vm_image_sha256: null`,
+  `credentials_location: user_managed_macos_opend`, and a separate non-root sidecar
+  on Darwin using only `127.0.0.1:11111`. The desktop OpenD keeps its existing login;
+  the sidecar never receives account credentials. This is process/protocol isolation,
+  not VM or network-namespace isolation. SDK logs are disabled; this claim does not
+  describe desktop OpenD's own UI logs. The Linux service template is not used on Mac.
+
+Both profiles use the same closed request plan, protocol guard, supervisor, and
+private encrypted CAS. Neither admits trading/account operations or public binds.
 FDs must be one-shot pipes, connected local sockets, or equivalent non-regular
 supervisor handles; paths, ordinary or sealed regular files, environment secrets,
 inherited account credentials, and command-line secrets are rejected.
@@ -39,4 +51,11 @@ The service manager or canary orchestrator must pass the five already-open handl
 descriptors 3 through 7. The launcher will not open a credential path or accept secret
 bytes on the command line. It rejects missing descriptors, ordinary files, and device
 handles before forking. `OWNER_RESEARCH_FUTU_PRIVATE_HOME` must name an existing,
-non-linked, mode-`0700` directory owned by the dedicated UID.
+non-linked, mode-`0700` directory owned by the executing UID.
+
+For an explicit Mac setup check only, run the exact installed sidecar environment's
+`python -I -B -m owner_research_futu_sidecar.native_preflight`. It makes one
+InitConnect and one GlobalState call, times out after 45 seconds, closes the
+connection, and prints only status, server identity, and response hashes. It does
+not read prices, financial data, or account APIs and does not issue signed authority.
+Ordinary research must not run this probe implicitly.

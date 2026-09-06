@@ -99,3 +99,21 @@ owner-research-valuation --help
 `owner-research-validate` remains the compatibility validator. `owner-research-valuation` remains
 the low-level deterministic kernel runner and is not a substitute for the governed comprehensive
 valuation route.
+
+## Native Mac OpenD setup
+
+When the user explicitly asks to check their logged-in Mac OpenD, use the separate
+verified sidecar environment's `python -I -B -m owner_research_futu_sidecar.native_preflight`.
+This is a bounded connection check, not research or valuation: one InitConnect plus
+one GlobalState request, no data/price/account calls, no retry, and a 45-second timeout.
+It connects only to `127.0.0.1:11111`, does not copy login credentials, and prints a
+status/identity/hash observation. A true `trdLogined` is recorded, not rejected.
+Never invoke this check implicitly during ordinary research or treat success as a
+financial API entitlement, signed rights receipt, or full release canary.
+
+The complete native run uses `macos_local_read_only`: parallel v2 supply and runtime
+receipts, `vm_image_sha256: null`, and `credentials_location: user_managed_macos_opend`.
+The separate non-root sidecar and supervisor retain the same signed plan, protocol
+whitelist, encrypted CAS and finalization used by the v1 Linux VM profile. Native
+Mac mode does not claim a VM or separate network namespace. Use the existing signed
+authority locators in the unified runtime config; there is no new public CLI route.

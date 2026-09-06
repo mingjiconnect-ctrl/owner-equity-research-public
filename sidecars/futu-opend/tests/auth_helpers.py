@@ -76,6 +76,7 @@ def signed_runtime_authority(
     supply_fingerprint: str = "a" * 64,
     opend_version: str = "10.10.7008",
     plan: list[dict[str, Any]] | None = None,
+    native_macos: bool = False,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     runtime_plan = request_plan() if plan is None else plan
     now = datetime.now(UTC)
@@ -87,17 +88,19 @@ def signed_runtime_authority(
         timespec="microseconds"
     ).replace("+00:00", "Z")
     unsigned: dict[str, Any] = {
-        "schema_version": "1.0.0",
+        "schema_version": "2.0.0" if native_macos else "1.0.0",
         "receipt_id": "",
         "run_id": run_id,
         "policy_sha256": "1" * 64,
         "component_lock_sha256": "2" * 64,
         "account_scope_sha256": "3" * 64,
         "supply_chain_fingerprint": supply_fingerprint,
-        "vm_image_sha256": "4" * 64,
+        "vm_image_sha256": None if native_macos else "4" * 64,
         "opend_version": opend_version,
         "rootless": True,
-        "credentials_location": "isolated_vm_tmpfs",
+        "credentials_location": (
+            "user_managed_macos_opend" if native_macos else "isolated_vm_tmpfs"
+        ),
         "host_opend_port_mapped": False,
         "generic_raw_send_enabled": False,
         "logging_enabled": False,

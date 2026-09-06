@@ -40,6 +40,7 @@ from .runtime_authorization import (
 from .runtime_authorization import (
     MAXIMUM_PLANNED_REQUESTS,
     RuntimeRequestPlanItem,
+    runtime_credentials_location,
     validate_request_plan,
 )
 
@@ -306,7 +307,7 @@ class RuntimeClaims:
     component_lock_sha256: str
     account_scope_sha256: str
     supply_chain_fingerprint: str
-    vm_image_sha256: str
+    vm_image_sha256: str | None
     opend_version: str
     allowed_protocol_ids: tuple[int, ...]
     authorized_security_codes: tuple[str, ...]
@@ -327,10 +328,10 @@ class RuntimeClaims:
             (self.component_lock_sha256, "component-lock SHA-256"),
             (self.account_scope_sha256, "account-scope SHA-256"),
             (self.supply_chain_fingerprint, "supply-chain fingerprint"),
-            (self.vm_image_sha256, "VM image SHA-256"),
             (self.request_plan_fingerprint, "request-plan fingerprint"),
         ):
             require_sha256(value, label)
+        runtime_credentials_location(self.runtime_schema_version, self.vm_image_sha256)
         allowed = set(self.allowed_protocol_ids)
         closed = set(INFRASTRUCTURE_PROTOCOL_IDS | DEFAULT_US_QUOTE_PROTOCOL_IDS)
         if (
@@ -373,6 +374,10 @@ class RuntimeClaims:
             raise AttestationError("runtime authorization window is invalid")
         if expires_at <= datetime.now(UTC):
             raise AttestationError("runtime claims are expired")
+
+    @property
+    def runtime_schema_version(self) -> str:
+        return "2.0.0" if self.vm_image_sha256 is None else "1.0.0"
 
 
 @dataclass(frozen=True, slots=True)
@@ -912,7 +917,7 @@ class SessionController:
         assert self.started_at is not None
         claims = self.runtime_claims
         values: dict[str, Any] = {
-            "schema_version": "1.0.0",
+            "schema_version": claims.runtime_schema_version,
             "receipt_id": "",
             "run_id": self.run_id,
             "runtime_authorization_fingerprint": (
@@ -929,7 +934,9 @@ class SessionController:
             "opend_server_version": self.supply_attestation["opend_server_version"],
             "opend_server_build_no": self.supply_attestation["opend_server_build_no"],
             "rootless": True,
-            "credentials_location": "isolated_vm_tmpfs",
+            "credentials_location": runtime_credentials_location(
+                claims.runtime_schema_version, claims.vm_image_sha256
+            ),
             "host_opend_port_mapped": False,
             "generic_raw_send_enabled": False,
             "logging_enabled": False,

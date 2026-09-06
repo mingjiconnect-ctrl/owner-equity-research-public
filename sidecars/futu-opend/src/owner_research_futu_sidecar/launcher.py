@@ -68,13 +68,13 @@ def _main(argv: Sequence[str] | None, *, prog: str) -> int:
 def _activate_rootless_environment() -> None:
     private_home_value = os.environ.get("OWNER_RESEARCH_FUTU_PRIVATE_HOME")
     if not private_home_value:
-        raise LauncherError("private tmpfs HOME is required")
+        raise LauncherError("private per-run HOME is required")
     private_home = Path(private_home_value)
     try:
         metadata = private_home.lstat()
         resolved_home = private_home.resolve(strict=True)
     except OSError as exc:
-        raise LauncherError("private tmpfs HOME is unavailable") from exc
+        raise LauncherError("private per-run HOME is unavailable") from exc
     if (
         not private_home.is_absolute()
         or resolved_home != expected_resolved_local_path(private_home)
@@ -83,7 +83,7 @@ def _activate_rootless_environment() -> None:
         or metadata.st_uid != os.getuid()
     ):
         raise LauncherError(
-            "private tmpfs HOME must be a real mode-0700 directory owned by this UID"
+            "private per-run HOME must be a real mode-0700 directory owned by this UID"
         )
     private_home = resolved_home
     os.environ["HOME"] = os.fspath(private_home)

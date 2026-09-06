@@ -72,6 +72,16 @@ gates would add control-plane work without improving the exact-head product revi
    data only through a signed, sequenced `open`/`fetch`/`finalize` session with verified peer
    credentials, a pre-run isolation authorization, and post-run runtime and execution attestations.
    A protocol document or client-only implementation is not an executable canary substitute.
+   The user also approved native Mac setup on 2026-09-06: a separate non-root sidecar may
+   connect to the already logged-in, user-managed OpenD at `127.0.0.1:11111`. Parallel v2
+   supply-chain/runtime authorization/runtime receipt schemas set `vm_image_sha256` to null
+   and credentials location to `user_managed_macos_opend`. This profile attests process and
+   protocol boundaries, not a Linux VM or separate network namespace. The v1 Linux VM
+   schemas remain byte-for-byte unchanged. Both profiles require the same closed calls,
+   private encrypted CAS and signed authorities. A one-init/one-GlobalState native setup
+   probe may confirm connectivity without reading research data; it cannot grant rights,
+   supply a market price, or satisfy a release canary. OpenD version and build are bound
+   separately to GlobalState's `serverVer` and `serverBuildNo` fields.
 8. The byte-pinned private valuation kernel remains read-only and is called exactly once for the
    accepted McKinsey and Penman execution. Its request, result, and six-file archive bytes remain
    unchanged. A downstream `PROJECT_EXTENSION` freezes three independent panels—McKinsey,

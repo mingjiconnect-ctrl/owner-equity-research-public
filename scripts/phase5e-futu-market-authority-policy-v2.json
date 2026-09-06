@@ -1,7 +1,8 @@
 {
   "account_boundary": {
     "credentials_allowed_locations": [
-      "isolated_vm_tmpfs"
+      "isolated_vm_tmpfs",
+      "user_managed_macos_opend"
     ],
     "credentials_forbidden_locations": [
       "audit_artifacts",
@@ -139,7 +140,23 @@
     "external_quote_only_uds_facade": true,
     "generic_raw_send_allowed": false,
     "host_opend_port_mapping_allowed": false,
-    "rootless_linux_vm_required": true,
+    "rootless_linux_vm_required": false,
+    "allowed_runtime_profiles": {
+      "linux_vm_read_only": {
+        "receipt_schema_version": "1.0.0",
+        "vm_image_sha256_required": true,
+        "credentials_location": "isolated_vm_tmpfs",
+        "rootless_required": true
+      },
+      "macos_local_read_only": {
+        "receipt_schema_version": "2.0.0",
+        "vm_image_sha256": null,
+        "credentials_location": "user_managed_macos_opend",
+        "opend_endpoint": "127.0.0.1:11111",
+        "rootless_required": true,
+        "vm_or_network_namespace_isolation_claimed": false
+      }
+    },
     "trade_and_account_protocols_rejected_before_opend": true
   },
   "schema_version": "2.0.0",

@@ -19,6 +19,12 @@ Proceed only after an explicit valuation request and all of these authorities ex
   CAS required by the runtime authority;
 - injected market and execution clocks with causal ordering.
 
+On Mac, the approved native profile may reuse the logged-in desktop OpenD without
+creating a Linux VM or copying credentials. It requires v2 supply/runtime receipts
+with a null VM hash and `user_managed_macos_opend` credentials location. All other
+preconditions above are unchanged. See the native setup section in runtime-cli.md;
+a successful connection observation alone does not satisfy these data authorities.
+
 If any authority is absent, return `blocked`. If the issuer or security route is unsupported,
 return `specialist_required`. Neither stopped status may retain kernel stdout or create an archive.
 

@@ -64,7 +64,7 @@
     "path": "scripts/phase5e-futu-market-authority-policy-v2.json",
     "policy_id": "phase5e-futu-market-authority",
     "policy_version": "2.0.0",
-    "sha256": "c040d23627baebd61f6e96c8cca17807ab82943b889a5dc6979fdb68a025e26c",
+    "sha256": "796126006627db64c0e9b3d0b8d7910b5c8cb375777e4a5da9991f65181dfd67",
     "status": "current_comprehensive_skill_policy"
   },
   "official_reference_observations": {

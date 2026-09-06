@@ -31,6 +31,7 @@ _RUNTIME_SOURCE_MEMBERS = (
     "cli.py",
     "frame_guard.py",
     "launcher.py",
+    "native_preflight.py",
     "opend_adapter.py",
     "operation_registry.py",
     "protobuf_parser.py",

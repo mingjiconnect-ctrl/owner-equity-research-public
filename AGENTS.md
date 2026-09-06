@@ -290,6 +290,13 @@ force; ADR 0041, ADR 0044, and `docs/phase5-v1-status.json` supersede it.
   Trading, orders, positions, balances, holdings, and account protocols remain forbidden.
   Credentials and raw licensed data never enter the repository, logs, receipts, wheel, plugin, or
   publication package.
+- The user-approved native Mac runtime (2026-09-06) may use the already logged-in desktop
+  OpenD at `127.0.0.1:11111` from a separate non-root quote-only sidecar. Its parallel v2
+  supply/runtime receipts use `vm_image_sha256: null` and
+  `credentials_location: user_managed_macos_opend`; never claim a VM or copy credentials.
+  Keep the v1 Linux VM profile intact. Both profiles retain the same protocol whitelist,
+  signed session, encrypted CAS, and replay rules. A status-only native connection observation
+  is setup evidence, not a data entitlement, financial quote, or completed release canary.
 - Keep package and plugin versions in development state throughout PR3. Do not create an RC tag or
   Release until the exact merged `main` commit passes all checks and a real, signed, isolated Futu
   canary completes the full data-to-local-PDF path. Fixtures, reviewed files, simulated prices,

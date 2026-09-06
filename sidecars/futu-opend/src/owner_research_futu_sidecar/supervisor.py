@@ -31,6 +31,7 @@ from .runtime_authorization import (
     MAXIMUM_AUTHORIZATION_BYTES,
     MAXIMUM_KEYRING_BYTES,
     VerifiedRuntimeAuthorization,
+    require_runtime_platform,
     verify_runtime_authorization,
 )
 from .wire import WIRE_SCHEMA_VERSION, receive_message, send_message
@@ -784,7 +785,7 @@ class _SigningPolicy:
             )
         )
         static_valid = (
-            payload["schema_version"] == "1.0.0"
+            payload["schema_version"] == authorization["schema_version"]
             and payload["run_id"] == self.run_id
             and payload["runtime_authorization_fingerprint"]
             == self.runtime_authorization_fingerprint
@@ -802,7 +803,7 @@ class _SigningPolicy:
             and payload["opend_server_build_no"]
             == self.supply_attestation["opend_server_build_no"]
             and payload["rootless"] is True
-            and payload["credentials_location"] == "isolated_vm_tmpfs"
+            and payload["credentials_location"] == authorization["credentials_location"]
             and payload["host_opend_port_mapped"] is False
             and payload["generic_raw_send_enabled"] is False
             and payload["logging_enabled"] is False
@@ -819,7 +820,6 @@ class _SigningPolicy:
             "policy_sha256",
             "component_lock_sha256",
             "account_scope_sha256",
-            "vm_image_sha256",
         ):
             require_sha256(payload[key], key)
         if not (
@@ -1128,6 +1128,7 @@ def serve_attestor(
         keyring_raw=keyring_raw,
         expected_sidecar_attestor_key_id=signer_key_id,
     )
+    require_runtime_platform(authorization.payload["schema_version"])
     seed = bytearray(_read_secret_fd(seed_fd, count=32))
     try:
         attestor = Ed25519Attestor.from_private_bytes(bytes(seed), signer_key_id=signer_key_id)
