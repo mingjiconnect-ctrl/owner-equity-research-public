@@ -10,7 +10,7 @@ from decimal import Decimal
 from pathlib import PurePosixPath
 from typing import Any
 
-from .component_lock import file_sha256
+from .component_lock import file_sha256, read_stable_file_bytes
 from .contracts import (
     Contract,
     MarketReferenceSnapshot,
@@ -952,9 +952,67 @@ def market_evidence_closure_sha256(
                 context.authorization_consumption.fingerprint,
             )
         )
+    elif governed.evidence_mode == "governed_vendor":
+        from .valuation_futu_market import FutuMarketReferenceAcquisition
+
+        acquisition = context.vendor_market_acquisition
+        if type(acquisition) is not FutuMarketReferenceAcquisition:
+            raise ValuationHandoffValidationError(
+                "Governed Futu market closure lacks its typed acquisition"
+            )
+        entries.update(
+            {
+                (
+                    "FutuMarketExecutionEvidence",
+                    acquisition.market_execution_evidence.evidence_id,
+                    acquisition.market_execution_evidence_fingerprint,
+                ),
+                (
+                    "FutuAuthorityDecision",
+                    acquisition.ticket.authority_decision.run_id,
+                    acquisition.ticket.authority_decision.fingerprint,
+                ),
+                (
+                    "FutuDataRequestReceipt",
+                    acquisition.request.request_id,
+                    acquisition.request.fingerprint,
+                ),
+                (
+                    "FutuDataResponseReceipt",
+                    acquisition.response.response_id,
+                    acquisition.response.fingerprint,
+                ),
+                (
+                    "FutuObservation",
+                    acquisition.observation.observation_id,
+                    acquisition.observation.fingerprint,
+                ),
+                (
+                    "FutuDailyCloseAdapterResult",
+                    acquisition.daily_close.source_observation_id,
+                    acquisition.daily_close.adapter_fingerprint,
+                ),
+                (
+                    "MarketAuthorizationReservation",
+                    acquisition.ticket.reservation.reservation_id,
+                    acquisition.ticket.reservation.fingerprint,
+                ),
+                (
+                    "MarketAuthorizationConsumption",
+                    acquisition.authorization_consumption.consumption_id,
+                    acquisition.authorization_consumption.fingerprint,
+                ),
+                (
+                    "EncryptedPrivateCASObject",
+                    acquisition.response.cas_locator,
+                    acquisition.response.encrypted_object_sha256,
+                ),
+            }
+        )
     elif (
         context.authorization_reservation is not None
         or context.authorization_consumption is not None
+        or context.vendor_market_acquisition is not None
     ):
         raise ValuationHandoffValidationError(
             "Fixture market closure cannot inject authorization attestations"
@@ -1079,7 +1137,11 @@ def _validate_raw_evidence(graph: Any, snapshot: MarketReferenceSnapshot, contex
     from .valuation_market_runtime import contains_secret_material
 
     raw = snapshot.raw_evidence
+    governed = context.market_access_result.receipt
+    if governed is None:
+        raise ValuationHandoffValidationError("Raw evidence lacks its governed Receipt")
     raw_bytes: bytes | None = None
+    replayed_vendor_acquisition: Any | None = None
     if raw["locator"] != context.raw_evidence_locator or contains_secret_material(raw):
         raise ValuationHandoffValidationError("Raw evidence locator is unsafe or mismatched")
     locator = raw["locator"]
@@ -1096,11 +1158,16 @@ def _validate_raw_evidence(graph: Any, snapshot: MarketReferenceSnapshot, contex
             or "@" in relative
         ):
             raise ValuationHandoffValidationError("Repository raw evidence locator is unsafe")
-        root = graph.component_lock_path.resolve().parent
-        path = (root / relative).resolve()
-        if root not in path.parents or not path.is_file():
+        root = graph.component_lock_path.expanduser().absolute().parent
+        path = root.joinpath(*parts)
+        if root not in path.parents:
             raise ValuationHandoffValidationError("Repository raw evidence is unavailable")
-        raw_bytes = path.read_bytes()
+        try:
+            raw_bytes = read_stable_file_bytes(path)
+        except (OSError, ValueError) as exc:
+            raise ValuationHandoffValidationError(
+                "Repository raw evidence is unavailable"
+            ) from exc
         if hashlib.sha256(raw_bytes).hexdigest() != raw["raw_response_sha256"]:
             raise ValuationHandoffValidationError("Repository raw evidence SHA mismatch")
     elif raw["store_kind"] == "reviewed_file":
@@ -1125,14 +1192,42 @@ def _validate_raw_evidence(graph: Any, snapshot: MarketReferenceSnapshot, contex
         if hashlib.sha256(raw_bytes).hexdigest() != raw["raw_response_sha256"]:
             raise ValuationHandoffValidationError("Reviewed-file raw evidence SHA mismatch")
     else:
-        expected = f"cas://sha256/{raw['raw_response_sha256']}"
-        if locator != expected:
-            raise ValuationHandoffValidationError("CAS raw evidence identity mismatch")
-        raise ValuationHandoffValidationError(
-            "Content-addressed market evidence has no active replay authority"
+        if snapshot.evidence_mode != "governed_vendor":
+            expected = f"cas://sha256/{raw['raw_response_sha256']}"
+            if locator != expected:
+                raise ValuationHandoffValidationError("CAS raw evidence identity mismatch")
+            raise ValuationHandoffValidationError(
+                "Content-addressed market evidence has no active replay authority"
+            )
+        from .valuation_futu_market import (
+            FUTU_MARKET_CONTENT_TYPE,
+            FutuMarketReferenceAcquisition,
+            replay_futu_market_reference_acquisition,
         )
-    governed = context.market_access_result.receipt
-    assert governed is not None
+
+        acquisition = context.vendor_market_acquisition
+        if type(acquisition) is not FutuMarketReferenceAcquisition:
+            raise ValuationHandoffValidationError(
+                "Governed Futu CAS evidence lacks its typed acquisition"
+            )
+        try:
+            replayed_vendor_acquisition = replay_futu_market_reference_acquisition(
+                graph=graph,
+                expected_acquisition=acquisition,
+            )
+        except (OSError, TypeError, ValueError) as exc:
+            raise ValuationHandoffValidationError(
+                "Governed Futu CAS evidence does not replay"
+            ) from exc
+        if (
+            locator != acquisition.response.cas_locator
+            or raw["raw_response_sha256"]
+            != acquisition.response.raw_plaintext_sha256
+            or raw["content_type"] != FUTU_MARKET_CONTENT_TYPE
+        ):
+            raise ValuationHandoffValidationError(
+                "Governed Futu CAS receipt identity mismatch"
+            )
     receipt = governed.receipt
     expected_snapshot_id = (
         f"market-reference:{snapshot.issuer_id}:{snapshot.trading_date}:"
@@ -1293,6 +1388,23 @@ def _validate_raw_evidence(graph: Any, snapshot: MarketReferenceSnapshot, contex
             raise ValuationHandoffValidationError(
                 "Reviewed-file evidence replay changed its governed identity"
             )
+        return
+    if snapshot.evidence_mode == "governed_vendor":
+        from .valuation_futu_market import (
+            _validate_replayed_futu_snapshot_projection,
+        )
+
+        try:
+            _validate_replayed_futu_snapshot_projection(
+                graph=graph,
+                snapshot=snapshot,
+                context=context,
+                acquisition=replayed_vendor_acquisition,
+            )
+        except (OSError, TypeError, ValueError) as exc:
+            raise ValuationHandoffValidationError(
+                "Governed Futu market projection does not replay"
+            ) from exc
         return
     authority = load_market_access_authority(graph.component_lock_path)
     registration = next(

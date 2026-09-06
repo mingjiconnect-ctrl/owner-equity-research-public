@@ -1,7 +1,7 @@
 {
   "name": "owner-equity-research",
-  "version": "0.6.0-dev.2",
-  "description": "Auditable owner research with reviewed market references and pinned valuation execution",
+  "version": "1.0.0-dev.0",
+  "description": "Auditable SEC-first research with explicit quote-only valuation, scoring, PDF, and local publication",
   "author": {
     "name": "mingjiconnect-ctrl",
     "url": "https://github.com/mingjiconnect-ctrl"
@@ -12,14 +12,15 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Owner Equity Research",
-    "shortDescription": "Auditable owner research and valuation preparation",
-    "longDescription": "Build source-linked SEC evidence, deterministic research ledgers, a price-blind valuation freeze, quote-date current common shares, and a reviewed-file market reference. The active internal slice compiles a final request and executes only the byte-pinned valuation kernel after explicit authorization; no implicit Skill or network entry is added.",
+    "shortDescription": "Auditable research, valuation, score, and PDF",
+    "longDescription": "Build source-linked SEC/IR evidence and price-blind research. Only explicit valuation intent activates signed quote-only Futu evidence, one byte-pinned kernel call, three-panel synthesis, four-lens scoring, Chinese PDF, and strict local publication.",
     "developerName": "mingjiconnect-ctrl",
     "category": "Productivity",
     "capabilities": [],
     "defaultPrompt": [
       "Build a governed SEC filing evidence package through accounting-quality review.",
-      "Build a deterministic quarterly vertical slice from these filings."
+      "Build a deterministic quarterly vertical slice from these filings.",
+      "Value this supported company with the explicit quote-only workflow and publish the strict local Chinese report package."
     ],
     "brandColor": "#17324D"
   }

@@ -1,8 +1,8 @@
 {
   "lock_version": "1.2.0",
-  "generated_date": "2026-08-11",
+  "generated_date": "2026-08-24",
   "owner_equity_research": {
-    "plugin_version": "0.6.0-dev.2",
+    "plugin_version": "1.0.0-dev.0",
     "public_schema_sha256": {
       "schemas/accounting-quality-finding.schema.json": "0ea5d7de6520fcb19dcedddf1d3c0bc14a58faf7239beae3ef431805516dafc5",
       "schemas/accounting-quality-review.schema.json": "1019218ca7ff086dd5319e4a1b7d18631a2b5725847b14333b02b7f06ea91d46",
@@ -12,11 +12,11 @@
       "schemas/business-model-snapshot.schema.json": "2d064a50ce6c34488e9dfaf380e702cec1418421162b6996a002c32d2b21496b",
       "schemas/business-quality-review.schema.json": "bbd835022baecf085cd7f41768fee29d2062617b9dfa718ed4e22d7471f1b647",
       "schemas/calculation-result.schema.json": "d80735593b3fe5d6f30b605d4404e39783a2f0b0b78703f6485f1e3b8656e8d1",
-    "schemas/capital-allocation-event-candidate.schema.json": "20ee5c687381ec7eff7c945bf9f6375fd004d6cdd01d25d7dfb2f7b7cca289f9",
-    "schemas/capital-allocation-event-review-decision.schema.json": "d1cd89e90bcf093b7e40978098c6baaa53d4d9162061e4b5b2e086524b7497d7",
-    "schemas/capital-allocation-event.schema.json": "f9fde22258e113f089bc4b28ed00f0b836aad8643682a9baa64e23b7df6bde41",
-    "schemas/capital-allocation-outcome.schema.json": "13085c5f9fd3f325f4e8eab49469dc42825646563e0bb865b648692e49f2303f",
-    "schemas/capital-allocation-review.schema.json": "f085af7cacf60cf673e5dd5b3dd2c322eb6ae052f302e2dfbe7f989ef9e9a9fb",
+      "schemas/capital-allocation-event-candidate.schema.json": "20ee5c687381ec7eff7c945bf9f6375fd004d6cdd01d25d7dfb2f7b7cca289f9",
+      "schemas/capital-allocation-event-review-decision.schema.json": "d1cd89e90bcf093b7e40978098c6baaa53d4d9162061e4b5b2e086524b7497d7",
+      "schemas/capital-allocation-event.schema.json": "f9fde22258e113f089bc4b28ed00f0b836aad8643682a9baa64e23b7df6bde41",
+      "schemas/capital-allocation-outcome.schema.json": "13085c5f9fd3f325f4e8eab49469dc42825646563e0bb865b648692e49f2303f",
+      "schemas/capital-allocation-review.schema.json": "f085af7cacf60cf673e5dd5b3dd2c322eb6ae052f302e2dfbe7f989ef9e9a9fb",
       "schemas/claim.schema.json": "33a49f8da194f306b491103caa4ac6016a4864f1324728c6ebe2d8104bc866af",
       "schemas/competitive-advantage-hypothesis.schema.json": "5f1cad3f50ddb92932ac7ae0b8f1582ccd8c452c9a2c6f733572b2292842f0d6",
       "schemas/competitive-context-snapshot.schema.json": "9d9a7a84191eda711adac3846a0adcfbf770a480e7e165f3d03ba0eb4b6c4037",
@@ -47,6 +47,108 @@
       "schemas/valuation-assumption-candidate.schema.json": "008dbea14e23c54bfaa9ad33cb136fa36b8ddb8926000a0455aacaa111817447",
       "schemas/valuation-assumption-review-decision.schema.json": "9f26fba3bf5e130834a9d62c90c9da496b0e7c47d0083e78cd18c73a50ecd93d",
       "schemas/valuation-handoff.schema.json": "df48090b7a860ae5d8bb883bd216fabfa0d91547678b94cf23d22abd0d02f154"
+    },
+    "pr3_comprehensive": {
+      "manifest_version": "1.0.0",
+      "package_version": "1.0.0.dev0",
+      "extension_schema_sha256": {
+        "extension_schemas/comparable-input-receipt.schema.json": "3e5a33fa677c22e4ea4ddad583ae2a5e8c048ce8c748b2c3aee6ffc6d7cb44da",
+        "extension_schemas/comparable-valuation-result.schema.json": "e81fce4a0f5861e543910c7ce7785e7d2b99360f215d238adec688c31fcba8ad",
+        "extension_schemas/composite-valuation-result.schema.json": "92f16573ee48de2c9b6e364e79b8946cd897e13e83e68875138a9fe17c800b33",
+        "extension_schemas/forward-reoi-input-receipt.schema.json": "ba9f982040b13fc71eade2e54424f2cfb5ad5733ff3f5fe17025fd1a8b692644",
+        "extension_schemas/forward-reoi-valuation-result.schema.json": "57cf95a222842a6c73d5cad359b3c8d7b1e74251362acda37efd0473d8d018b0",
+        "extension_schemas/futu-optional-data-disposition.schema.json": "882b3151782f47f992de25ec79cc992415224742de71383c247ecb1618cec09c",
+        "extension_schemas/market-expectations-comparison.schema.json": "5f4424b37db4e3257c6bf7a02f500c0d310336c123ea236f789988980779f648",
+        "extension_schemas/named-human-review-authority.schema.json": "d40f65e9d580f7f90497966458e9035c8b29fc7b9489a7c8f4f8bb7ae29c4050",
+        "extension_schemas/owner-equity-research-input-receipt.schema.json": "ad38b77061e677df0b56613487eb9a0b280b2b7843049e27c20f2c8207aa293a",
+        "extension_schemas/owner-equity-research-phase-receipt.schema.json": "819ad37c09cd0d3567e0650d530013631ffd502725bceaf13dcd8a0cebbf8148",
+        "extension_schemas/owner-equity-research-result.schema.json": "1b563ec63c205d0be5f59d4042366c4776cbb65530650b02846804f92fbbd75f",
+        "extension_schemas/owner-equity-runtime-config.schema.json": "89996b88fba32f8aab5cdf03bebdb9e7c0b0d51fcd3ae9b88f3e32ec4b43a4e4",
+        "extension_schemas/owner-research-gap-publication-manifest.schema.json": "22bb50c4501c0cd6faa07ab18e1f51814634ee502fe5409fd3f3b264eadf7782",
+        "extension_schemas/owner-research-gap-receipt.schema.json": "20fe255703bb762b31ab83af74a09b72235c06bb8ff1e586d7add457bb8493b4",
+        "extension_schemas/owner-scorecard.schema.json": "ef0252ef0c2c39c65ae835b3b5557ade0e4221fe9ec1b08ae171d0873609763c",
+        "extension_schemas/publication-manifest.schema.json": "f83fb9b3bcb9e51a178119e37c0dc293b3e3fbf6fbce0f7a794e7bb104cadd80",
+        "extension_schemas/published-package.schema.json": "83248331d7893c079f9090820b3e82310656e9e2f94af3393a10991d5b911fc6",
+        "extension_schemas/report-build-receipt.schema.json": "ec9009aafe2998b027fb93a062d4218598a6bb5bfd14bb50062c3b5ac9597f40",
+        "extension_schemas/report-toolchain-authority-entry.schema.json": "aff8fc103316f96a1346d7b3afc943dc2f6b113f7bbeb130f5f528916489ee17",
+        "extension_schemas/report-toolchain-authority.schema.json": "1c161eea348234a72a89c168d448a64a3addc6a4cba89cbae01e4226523510e9",
+        "extension_schemas/research-report-content.schema.json": "6691bce66f9e909856b121b69f44c94c8633f795f2381be97295d71444047801",
+        "extension_schemas/research-source-index.schema.json": "9db5014ffa8b89c7f7f1bd0cc1eb1acb094f8fad34871faaebc1875dcf992b51",
+        "extension_schemas/reviewed-peer-set-authority.schema.json": "2019673297110ad2f39298ef970c8bfa12173492bad50b77f67e613744f7265f",
+        "extension_schemas/score-v2.schema.json": "7c8dda4a4e2f14694b5016f5cb2f8320e2080497aaf53302393f71bd70921368",
+        "extension_schemas/synthesis-publication-manifest.schema.json": "354340e0acba4b14efc42a9332140703d7afef13bc072676fa2a123dd679efd4",
+        "extension_schemas/valuation-basis-receipt.schema.json": "414b5ee834632bdf6c357c511845113cc1699a8afe678ee961554a4aea2bfe82"
+      },
+      "futu_authority_policy": {
+        "path": "resources/futu/market-authority-policy-v2.json",
+        "sha256": "796126006627db64c0e9b3d0b8d7910b5c8cb375777e4a5da9991f65181dfd67"
+      },
+      "futu_resource_sha256": {
+        "resources/futu/extension_schemas/v1/futu-account-entitlement-receipt.schema.json": "f6790813b4cb2cc9d299d372cc91dec2010673bf31ade80ff7a58dc0ccfb9b21",
+        "resources/futu/extension_schemas/v1/futu-cross-check-receipt.schema.json": "551a76cb882b0f710fa7d8b9ffd0b4999edb8eb51e6abafe2547c78171218ded",
+        "resources/futu/extension_schemas/v1/futu-data-request-receipt.schema.json": "58adf577d6c13899cc0cb9b9081becfb992945861cb1be8ee16d257f940632e6",
+        "resources/futu/extension_schemas/v1/futu-data-response-receipt.schema.json": "80555b969857b6b30a5a44e1096116b20f4ff37a7b4a7cdea5511b83b2ced73f",
+        "resources/futu/extension_schemas/v1/futu-evidence-bundle.schema.json": "bcc810ef168959253cd1916c10f6cda4ec0266ad99ebb4012dfb08b52e33cfbb",
+        "resources/futu/extension_schemas/v1/futu-frozen-conclusion-receipt.schema.json": "4a9ec0fece7cf2820ce4dc17484dbdc07b4de783965d91e78cf5c7660caf1718",
+        "resources/futu/extension_schemas/v1/futu-historical-kline-quota-receipt.schema.json": "46650a5f0930ddd9c05dad6c7951eeacc6685c9d414478bf9eee09514ffedeb9",
+        "resources/futu/extension_schemas/v1/futu-legal-rights-receipt.schema.json": "90d8b59b22a483914cce680cc77f2e131bebedf770e409dbf4037923e0d9ea40",
+        "resources/futu/extension_schemas/v1/futu-market-execution-evidence.schema.json": "ebccbce366110e071b06c88aa48bcb34e0a9cc57ce25d281498044f1e6ba2b6a",
+        "resources/futu/extension_schemas/v1/futu-market-execution-publication-manifest.schema.json": "da1306c832733c1c16489c4852ef0815cf95b0a763907b22edef3dbddcf8edd1",
+        "resources/futu/extension_schemas/v1/futu-observation-disposition-publication-bundle.schema.json": "b64efc714834e660c7c4439715d6325e15e02c884e8c8369dbceab3cf97d28ca",
+        "resources/futu/extension_schemas/v1/futu-observation-disposition-receipt.schema.json": "ffac65c4ffe5653d1f1a7d760e114ead1283c1d549747617fb682c29934ccb26",
+        "resources/futu/extension_schemas/v1/futu-observation.schema.json": "cd948f2a1d6638bdc0d455591dbed18043410a635004d6662505f632744733b0",
+        "resources/futu/extension_schemas/v1/futu-partial-session-publication-manifest.schema.json": "7d6006b6d51a4005186c5a7c68d0d4c8ae0a2d8ab76a801021c53d11c45ca122",
+        "resources/futu/extension_schemas/v1/futu-peer-evidence-set.schema.json": "7ef3def6f39418493cd7c95fe61910a724c142c08e6935568c0a6a42350b817a",
+        "resources/futu/extension_schemas/v1/futu-peer-session-evidence.schema.json": "05b1b1b1dbf4b0ff7a9bc04bd2492661afe4d4cb134bf837c2f2e23ae3cacc0c",
+        "resources/futu/extension_schemas/v1/futu-runtime-isolation-authorization.schema.json": "15c02716d3ef564340f6e339a369b7ffa80026cdbd61936aae8720a698683fbe",
+        "resources/futu/extension_schemas/v1/futu-runtime-isolation-receipt.schema.json": "7f873f3ff0f160517d32b2ce029e59c75e33d46325b1e5179554e282ad99c6f2",
+        "resources/futu/extension_schemas/v1/futu-security-identity-receipt.schema.json": "3a6e4984a866c61f2fb7667662ca701145b98153a411e310e00ad0611137ccf8",
+        "resources/futu/extension_schemas/v1/futu-session-evidence.schema.json": "7499bb7978e529de7029fca854293f78af4efbbdacb13d671e05fb6e5921d9d1",
+        "resources/futu/extension_schemas/v1/futu-session-publication-manifest.schema.json": "af3e38fe7cc59d68c99df2659d409ca6cbb02548d86ae29c616a24bc69bdba1e",
+        "resources/futu/extension_schemas/v1/futu-supply-chain-receipt.schema.json": "05199ef8799d85d7e40606488c52ff71ecf7c41415796e2909dc3638b776162c",
+        "resources/futu/extension_schemas/v2/futu-runtime-isolation-authorization.schema.json": "59934f55cc093dd3c51522dfb36cd07211b63281ab41888d469a0fbb771d6c97",
+        "resources/futu/extension_schemas/v2/futu-runtime-isolation-receipt.schema.json": "d2a8b23ae0f08e58ba1b425b9cec57e89c678fa471273bb674e93e1ca60a565a",
+        "resources/futu/extension_schemas/v2/futu-supply-chain-receipt.schema.json": "934dbe5622943cbc6f926f9439e4d8e78e54804ae6875e4197b8a81880df4aee",
+        "resources/futu/financial-field-registry-v1.json": "a3a4d4697464e5cf8fcd0c4fb08faf3bf49c584beb181e2dc07e8b9ddff41957",
+        "resources/futu/interface-authority-registry-v1.json": "bbf8a792a83524a9821be592d358efd142369b82f125c65b1fc73aa87537dd22",
+        "resources/futu/issue-code-registry-v1.json": "4478782fb18f367ea551e68f9e8ed3c1213056fac895a08cc56cea202d833317",
+        "resources/futu/protocol-registry-v1.json": "d5d09407eb913faa92e63ab17174d131bb47968e8507754a63d613481cb8d85a",
+        "resources/futu/sdk-adapter-registry-v1.json": "48be8aa86fd9c5fc5b5a3b201939c0bd4386b23dbe408d9f30a8e190ce3bbc4a"
+      },
+      "kernel_schema_resource_sha256": {
+        "resources/phase5-v1-kernel-schemas/assumption-ledger.schema.json": "2232642332dc6444c784e21746cbd16bf8d4cd74fc483a0a345d95f98fc97a7a",
+        "resources/phase5-v1-kernel-schemas/fact-ledger.schema.json": "55be5aadad21629db1cdbe7fce386656eb930b52af8644d1314ba7404e384706",
+        "resources/phase5-v1-kernel-schemas/valuation-request.schema.json": "67e991484943897585a79a8a1d3d0d52ebb36ec0ba4245cad9b17972877cca3d",
+        "resources/phase5-v1-kernel-schemas/valuation-result.schema.json": "bbfed2049ed258b767002b74ff45fb6847eb5723ffd6c1d31c53cf119625a683"
+      },
+      "report_asset_sha256": {
+        "report_assets/NOTO-CJK-LICENSE.txt": "6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2",
+        "report_assets/NotoSansCJKsc-Regular.otf": "2c76254f6fc379fddfce0a7e84fb5385bb135d3e399294f6eeb6680d0365b74b",
+        "report_assets/font-manifest.json": "49ddc5a5d408a7c9a54b7c0cb610dbc2667ca81ae1653c585665a529ac23c1d0",
+        "report_assets/report-template.tex": "5e5bb2a8f65ca3a1a2d0c66ffade2954ffb84e4abc815f0a4e1f8f1b14dce394"
+      },
+      "module_sha256": {
+        "__init__.py": "d66863b255b64fdb7cacad51f5d229a05d0ee4f8efa771a02b1eb25bb4c67a29",
+        "component_lock.py": "24d7267fafd86cefd5fbad2c05d8ee08ad50adcca7af3173378dbf97e95ace4d",
+        "futu_crosscheck.py": "d856fed5f0d927cdb144f96394f89e047bd99833a053364b84af2715abd1dbf9",
+        "futu_receipts.py": "b792445de24287ea81b8a2e6d707213e84c85bae5614f4f97cf6df9b601e7063",
+        "futu_session.py": "daae7b28d8d29b47b75831632b32eafcaddb4897cd65d5f9dadd0c217efc4295",
+        "futu_sidecar.py": "9ac82ce365bf65a6fc7cc263a142d64e8656a226561c48161ddeb40429cdf89c",
+        "owner_equity_research.py": "436a519c57943bc6dd4ec3af0919c622cbc0c198a64114c3cbf63ef8ba2839d1",
+        "owner_equity_runtime.py": "30418a479be833d45157e38a0434e3fbfba8fbfc883f7f0dbdd8602efd686b4c",
+        "owner_equity_types.py": "1f4ef50a7ca334a07ee55b6930dfb217b00aff30721c76a46c00b91610289fa4",
+        "owner_scorecard.py": "eb5dfc608c608e41c6284eeaa7b63db16a3cb9f0c65834466e663705e45ef745",
+        "research_publisher.py": "b8363a4fc5f931b89ff32fb4cf28a30c17cc99e17bbd19e53336eece0a5345dd",
+        "research_report.py": "eb679d3eff9adcc526b64cfb2dba3d1ce8bb535f61fbad4b564ccb3a8b19f97f",
+        "valuation_cli.py": "a711d393cc264dafffac6f6e3a4339e2832ad60e6b6e461d05a4b85eddb5775d",
+        "valuation_futu_market.py": "11893212d5a6e3a90ca7fdfe1f14f479a29d2acf94e596204a1258f5c3bd3246",
+        "valuation_run.py": "19095e932cc2ce1b63f6a77d063abef95dda04efee7325bcb3a9162ce33192d6",
+        "valuation_run_archive.py": "8413d8c0e09f7002668411ab52b445dd49a989a3738d91bef2a43a49810c7a8f",
+        "valuation_run_context.py": "6684e92387f2a71189b9861ca7d29fda4034050f077f910fc88be6ff710b39bf",
+        "valuation_synthesis.py": "14d9fff51cb1d4174b141dfa1f5c6d0fec07e05d4cedf6723507541ff8ae35be",
+        "valuation_synthesis_types.py": "18d7274272d7d069dc790da4cfa6bf95a6540b9dc0ceaa45fa2e132e5ae1e362",
+        "workflow_cli.py": "01810aea9d4eae565a41a97420bcdc8b2ccfda382706685b8b6e81fcbbff7ff7"
+      }
     }
   },
   "market_access_authority": {
@@ -82,8 +184,8 @@
       "endpoint_id": "reviewed-file",
       "price_basis": "reviewed_unadjusted_regular_session_close",
       "module_path": "valuation_market_provider.py",
-      "adapter_sha256": "60af71df7cc36179c0babf87dfaa2f127e1666b732a1d997029cd4dc0f44622a",
-      "parser_sha256": "60af71df7cc36179c0babf87dfaa2f127e1666b732a1d997029cd4dc0f44622a"
+      "adapter_sha256": "f3a56e3f10facebf293ef24a4e7d4f4d2b74df57d7a65c888555dbc81f39009d",
+      "parser_sha256": "f3a56e3f10facebf293ef24a4e7d4f4d2b74df57d7a65c888555dbc81f39009d"
     },
     "authorization_consumption_store": {
       "policy_id": "handoff-global-filesystem-reservation",
@@ -92,7 +194,7 @@
       "namespace": "market-authorizations-v1",
       "root_policy": "module_import_user_state_home",
       "module_path": "valuation_market_provider.py",
-      "code_sha256": "60af71df7cc36179c0babf87dfaa2f127e1666b732a1d997029cd4dc0f44622a"
+      "code_sha256": "f3a56e3f10facebf293ef24a4e7d4f4d2b74df57d7a65c888555dbc81f39009d"
     }
   },
   "valuation_kernel_runtime": {
@@ -103,7 +205,7 @@
     },
     "materializer_code": {
       "path": "valuation_kernel_materializer.py",
-      "sha256": "d5becc51a3708ec43a5a5712f835bccff3b66a132aa36f3304aeea4eff9fb5c2"
+      "sha256": "99ef65386015acfdf962140471a5277fdf492027b1f28b1aa61e3ce25e5785d6"
     },
     "runner_code": {
       "path": "valuation_pinned_kernel.py",

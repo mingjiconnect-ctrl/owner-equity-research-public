@@ -1,0 +1,22 @@
+{
+  "protocols": [
+    {"data_family": "runtime_login_state", "market_scope": ["XNAS", "XNYS"], "name": "GetGlobalState", "protocol_id": 1002, "required_for_complete": true, "stage": "runtime_authority"},
+    {"data_family": "market_price", "market_scope": ["XNAS", "XNYS"], "name": "Qot_RequestHistoryKL", "protocol_id": 3103, "required_for_complete": true, "stage": "market_reference"},
+    {"data_family": "historical_kline_quota", "market_scope": ["XNAS", "XNYS"], "name": "Qot_RequestHistoryKLQuota", "protocol_id": 3104, "required_for_complete": true, "stage": "runtime_authority"},
+    {"data_family": "security_identity", "market_scope": ["XNAS", "XNYS"], "name": "Qot_GetStaticInfo", "protocol_id": 3202, "required_for_complete": true, "stage": "valuation_pre_price_verification"},
+    {"data_family": "financial_statements", "market_scope": ["XNAS", "XNYS"], "name": "Qot_GetFinancialsStatements", "protocol_id": 3227, "required_for_complete": true, "stage": "valuation_pre_price_verification"},
+    {"data_family": "revenue_breakdown", "market_scope": ["XNAS", "XNYS"], "name": "Qot_GetFinancialsRevenueBreakdown", "protocol_id": 3228, "required_for_complete": true, "stage": "valuation_pre_price_verification"},
+    {"data_family": "analyst_consensus", "market_scope": ["XNAS", "XNYS"], "name": "Qot_GetResearchAnalystConsensus", "protocol_id": 3229, "required_for_complete": false, "stage": "post_valuation_context"},
+    {"data_family": "analyst_ratings", "market_scope": ["XNAS", "XNYS"], "name": "Qot_GetResearchRatingSummary", "protocol_id": 3230, "required_for_complete": false, "stage": "post_valuation_context"},
+    {"data_family": "valuation_context", "market_scope": ["XNAS", "XNYS"], "name": "Qot_GetValuationDetail", "protocol_id": 3232, "required_for_complete": false, "stage": "post_valuation_context"},
+    {"data_family": "corporate_actions", "market_scope": ["XNAS", "XNYS"], "name": "Qot_GetCorporateActionsDividends", "protocol_id": 3234, "required_for_complete": true, "stage": "valuation_pre_price_verification"},
+    {"data_family": "corporate_actions", "market_scope": ["XHKG", "XSHG", "XSHE"], "name": "Qot_GetCorporateActionsBuybacks", "protocol_id": 3235, "required_for_complete": false, "stage": "valuation_pre_price_verification", "us_product_disposition": "not_supported", "us_reason_code": "sec_primary_us_buyback", "us_primary_authority": "SEC_IR"},
+    {"data_family": "corporate_actions", "market_scope": ["XNAS", "XNYS"], "name": "Qot_GetCorporateActionsStockSplits", "protocol_id": 3236, "required_for_complete": true, "stage": "valuation_pre_price_verification"},
+    {"data_family": "company_profile", "market_scope": ["XNAS", "XNYS"], "name": "Qot_GetCompanyProfile", "protocol_id": 3243, "required_for_complete": true, "stage": "valuation_pre_price_verification"},
+    {"data_family": "company_profile", "market_scope": ["XNAS", "XNYS"], "name": "Qot_GetCompanyExecutives", "protocol_id": 3244, "required_for_complete": false, "stage": "valuation_pre_price_verification"},
+    {"data_family": "company_profile", "market_scope": ["XNAS", "XNYS"], "name": "Qot_GetCompanyExecutiveBackground", "protocol_id": 3245, "required_for_complete": false, "stage": "valuation_pre_price_verification"},
+    {"data_family": "operating_metrics", "market_scope": ["XNAS", "XNYS"], "name": "Qot_GetCompanyOperationalEfficiency", "protocol_id": 3246, "required_for_complete": false, "stage": "valuation_pre_price_verification"}
+  ],
+  "registry_id": "futu-quote-only-protocol-registry",
+  "registry_version": "1.0.0"
+}

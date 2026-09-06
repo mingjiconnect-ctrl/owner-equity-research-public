@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/futu/v1/futu-observation-disposition-publication-bundle.schema.json",
+  "title": "FutuObservationDispositionPublicationBundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "bundle_id", "evidence_id", "evidence_fingerprint",
+    "run_id", "issuer_id", "security_id", "dispositions", "bundle_fingerprint"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "bundle_id": {"type": "string", "pattern": "^futu-observation-disposition-publication:[a-f0-9]{64}$"},
+    "evidence_id": {"type": "string", "pattern": "^futu-market-execution:[a-f0-9]{64}$"},
+    "evidence_fingerprint": {"$ref": "#/$defs/sha256"},
+    "run_id": {"type": "string", "minLength": 1},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "security_id": {"type": "string", "minLength": 1},
+    "dispositions": {
+      "type": "array",
+      "maxItems": 4096,
+      "items": {"$ref": "#/$defs/disposition"}
+    },
+    "bundle_fingerprint": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "disposition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "receipt_id", "run_id", "issuer_id", "security_id",
+        "execution_bundle_id", "execution_bundle_fingerprint", "vendor_observation_id",
+        "vendor_observation_fingerprint", "protocol_id", "data_family", "field_id",
+        "status", "reason_code", "created_at", "receipt_fingerprint"
+      ],
+      "properties": {
+        "schema_version": {"const": "1.0.0"},
+        "receipt_id": {"type": "string", "pattern": "^futu-observation-disposition:[a-f0-9]{64}$"},
+        "run_id": {"type": "string", "minLength": 1},
+        "issuer_id": {"type": "string", "minLength": 1},
+        "security_id": {"type": "string", "minLength": 1},
+        "execution_bundle_id": {"type": "string", "pattern": "^futu-bundle:[a-f0-9]{64}$"},
+        "execution_bundle_fingerprint": {"$ref": "#/$defs/sha256"},
+        "vendor_observation_id": {"type": "string", "pattern": "^futu-observation:[a-f0-9]{64}$"},
+        "vendor_observation_fingerprint": {"$ref": "#/$defs/sha256"},
+        "protocol_id": {"type": "integer", "minimum": 1000, "maximum": 9999},
+        "data_family": {"type": "string", "minLength": 1},
+        "field_id": {"type": "string", "minLength": 1},
+        "status": {"enum": ["not_applicable", "unavailable", "verified_context_only"]},
+        "reason_code": {
+          "enum": [
+            "official_no_data", "vendor_not_supported", "structure_metadata_only",
+            "no_reviewed_official_segment_mapping", "official_event_set_consistent",
+            "vendor_context_only", "unknown_noncritical_statement_field",
+            "no_reviewed_official_mapping"
+          ]
+        },
+        "created_at": {"type": "string", "format": "date-time"},
+        "receipt_fingerprint": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  }
+}

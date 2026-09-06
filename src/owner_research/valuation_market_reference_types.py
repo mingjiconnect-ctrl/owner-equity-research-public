@@ -232,6 +232,7 @@ class MarketReferenceValidationContext:
     authorization_reservation: Any = field(default=None, repr=False, compare=False)
     authorization_consumption: Any = field(default=None, repr=False, compare=False)
     review_file_path: Path | None = field(default=None, repr=False, compare=False)
+    vendor_market_acquisition: Any = field(default=None, repr=False, compare=False)
     claim_control_authority: Phase5CDilutionClaimAuthority = field(init=False)
 
     def __post_init__(self) -> None:
@@ -334,9 +335,44 @@ class MarketReferenceValidationContext:
                 != access.fingerprint
                 or self.authorization_consumption.quote_fingerprint
                 != self.reviewed_quote.fingerprint
+                or self.vendor_market_acquisition is not None
             ):
                 raise ValueError(
                     "human-reviewed validation context lacks replayable provider evidence"
+                )
+        elif receipt.evidence_mode == "governed_vendor":
+            from .valuation_futu_market import FutuMarketReferenceAcquisition
+
+            acquisition = self.vendor_market_acquisition
+            reviewed_authorities = (
+                self.price_blind_artifact_directory,
+                self.price_blind_freeze_result,
+                self.raw_evidence_path,
+                self.review_file_path,
+                self.market_reference_request,
+                self.reviewed_quote,
+                self.authorization_reservation,
+                self.authorization_consumption,
+            )
+            if any(value is not None for value in reviewed_authorities):
+                raise ValueError(
+                    "governed-vendor context cannot carry reviewed-file replay authority"
+                )
+            if (
+                type(acquisition) is not FutuMarketReferenceAcquisition
+                or self.provider_evidence_sha256
+                != acquisition.market_execution_evidence_fingerprint
+                or acquisition.access_result.fingerprint != access.fingerprint
+                or acquisition.ticket.expected_security_fingerprint != security.fingerprint
+                or acquisition.ticket.expected_freeze_result.artifact
+                != self.price_blind_artifact
+                or acquisition.ticket.request.authorization_handoff_id
+                != access.authorization_handoff_id
+                or acquisition.response.raw_plaintext_sha256
+                != receipt.raw_response_sha256
+            ):
+                raise ValueError(
+                    "governed-vendor context lacks its exact Futu market acquisition"
                 )
         elif any(
             value is not None
@@ -350,10 +386,11 @@ class MarketReferenceValidationContext:
                 self.reviewed_quote,
                 self.authorization_reservation,
                 self.authorization_consumption,
+                self.vendor_market_acquisition,
             )
         ):
             raise ValueError(
-                "non-reviewed market context cannot carry reviewed-file replay authority"
+                "non-reviewed market context cannot carry reviewed-file or vendor replay authority"
             )
         authority = Phase5CDilutionClaimAuthority.from_price_blind_artifact(
             self.price_blind_artifact
@@ -379,7 +416,7 @@ class MarketReferenceValidationContext:
         return self.market_access_result.data_cutoff_date
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "context_id": self.context_id,
             "price_blind_artifact": self.price_blind_artifact.to_dict(),
             "security_compilation_result": self.security_compilation_result.to_dict(),
@@ -411,6 +448,11 @@ class MarketReferenceValidationContext:
             ),
             "claim_control_authority": self.claim_control_authority.to_dict(),
         }
+        if self.vendor_market_acquisition is not None:
+            payload["vendor_market_acquisition_fingerprint"] = (
+                self.vendor_market_acquisition.fingerprint
+            )
+        return payload
 
     @property
     def fingerprint(self) -> str:

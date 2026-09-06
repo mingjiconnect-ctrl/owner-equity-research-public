@@ -6,6 +6,8 @@ import hashlib
 import json
 import os
 import shutil
+import stat
+import sys
 import uuid
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
@@ -44,6 +46,7 @@ from .valuation_phase5c_readiness import assess_phase5c_readiness
 
 PRICE_BLIND_INPUT_SCHEMA_VERSION = "1.0.0"
 PRICE_BLIND_INPUT_FILENAME = "price-blind-input.json"
+PRICE_BLIND_INPUT_MAX_BYTES = 16 * 1024 * 1024
 
 _ARTIFACT_FIELDS = frozenset(
     {
@@ -658,8 +661,26 @@ def compile_price_blind_input_freeze(
 
 
 def _reject_symlink_path(path: Path) -> None:
-    for candidate in (path, *path.parents):
-        if candidate.is_symlink():
+    absolute = Path(path).expanduser().absolute()
+    allowed_alias: Path | None = None
+    if sys.platform == "darwin" and len(absolute.parts) >= 2:
+        root_alias = Path(absolute.anchor) / absolute.parts[1]
+        expected_target = Path("/private") / absolute.parts[1]
+        try:
+            alias_details = root_alias.lstat()
+            alias_target = root_alias.resolve(strict=True)
+        except OSError:
+            pass
+        else:
+            if (
+                stat.S_ISLNK(alias_details.st_mode)
+                and alias_details.st_uid == 0
+                and alias_target == expected_target
+                and alias_target.is_dir()
+            ):
+                allowed_alias = root_alias
+    for candidate in (absolute, *absolute.parents):
+        if candidate.is_symlink() and candidate != allowed_alias:
             raise PriceBlindFreezeError("price-blind artifact path cannot contain a symlink")
 
 
@@ -681,6 +702,59 @@ def _fsync_directory(path: Path) -> None:
     descriptor = os.open(path, os.O_RDONLY)
     try:
         os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _read_bounded_stable_artifact(path: Path, label: str) -> bytes:
+    try:
+        descriptor = os.open(
+            path,
+            os.O_RDONLY
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0),
+        )
+    except OSError as exc:
+        raise PriceBlindFreezeError(f"{label} is unavailable") from exc
+    try:
+        before = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or before.st_nlink != 1
+            or before.st_size > PRICE_BLIND_INPUT_MAX_BYTES
+        ):
+            raise PriceBlindFreezeError(f"{label} is not one bounded regular file")
+        chunks: list[bytes] = []
+        consumed = 0
+        while True:
+            chunk = os.read(
+                descriptor,
+                min(1024 * 1024, PRICE_BLIND_INPUT_MAX_BYTES - consumed + 1),
+            )
+            if not chunk:
+                break
+            consumed += len(chunk)
+            if consumed > PRICE_BLIND_INPUT_MAX_BYTES:
+                raise PriceBlindFreezeError(f"{label} exceeds the byte limit")
+            chunks.append(chunk)
+        after = os.fstat(descriptor)
+
+        def identity(item: os.stat_result) -> tuple[int, ...]:
+            return (
+                item.st_dev,
+                item.st_ino,
+                item.st_mode,
+                item.st_nlink,
+                item.st_uid,
+                item.st_gid,
+                item.st_size,
+                item.st_mtime_ns,
+                item.st_ctime_ns,
+            )
+
+        if identity(before) != identity(after) or consumed != before.st_size:
+            raise PriceBlindFreezeError(f"{label} changed while being read")
+        return b"".join(chunks)
     finally:
         os.close(descriptor)
 
@@ -733,9 +807,14 @@ def write_price_blind_input_artifact(
     target.parent.mkdir(parents=True, exist_ok=True)
     _reject_symlink_path(target)
     content = _artifact_bytes(result)
+    if len(content) > PRICE_BLIND_INPUT_MAX_BYTES:
+        raise PriceBlindFreezeError("price-blind artifact exceeds the byte limit")
     if target.exists() or target.is_symlink():
         _validate_existing_directory(target)
-        existing = (target / PRICE_BLIND_INPUT_FILENAME).read_bytes()
+        existing = _read_bounded_stable_artifact(
+            target / PRICE_BLIND_INPUT_FILENAME,
+            "existing price-blind artifact",
+        )
         if existing == content:
             return PriceBlindInputArtifactReceipt(
                 target,
@@ -743,8 +822,7 @@ def write_price_blind_input_artifact(
                 hashlib.sha256(content).hexdigest(),
                 result.artifact.fingerprint,
             )
-        if not overwrite:
-            raise PriceBlindFreezeError("price-blind artifact exists with different content")
+        raise PriceBlindFreezeError("price-blind artifact exists with different content")
     staging = target.parent / f".{target.name}.staging-{uuid.uuid4().hex}"
     backup: Path | None = None
     try:
@@ -792,7 +870,8 @@ def load_price_blind_input_artifact(
     _validate_existing_directory(source)
     path = source / PRICE_BLIND_INPUT_FILENAME
     try:
-        payload = json.loads(path.read_text("utf-8"))
+        raw = _read_bounded_stable_artifact(path, "price-blind artifact")
+        payload = json.loads(raw.decode("utf-8"))
         artifact = PriceBlindInputArtifact(payload=payload)
     except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
         raise PriceBlindFreezeError(f"price-blind artifact payload is invalid: {exc}") from exc
@@ -806,7 +885,7 @@ def load_price_blind_input_artifact(
     if loaded.fingerprint != expected_result.fingerprint:
         raise PriceBlindFreezeError("price-blind artifact differs from the replayed freeze")
     expected = _artifact_bytes(expected_result)
-    if path.read_bytes() != expected:
+    if raw != expected:
         raise PriceBlindFreezeError("price-blind artifact is not canonically serialized")
     closures = graph.price_blind_reference_closures
     if loaded.supplemental_reference_closure is not None:

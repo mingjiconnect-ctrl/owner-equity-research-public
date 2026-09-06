@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/futu/v1/futu-runtime-isolation-authorization.schema.json",
+  "title": "FutuRuntimeIsolationAuthorization",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "receipt_id", "run_id", "policy_sha256", "component_lock_sha256", "account_scope_sha256", "supply_chain_fingerprint", "vm_image_sha256", "opend_version", "rootless", "credentials_location", "host_opend_port_mapped", "generic_raw_send_enabled", "logging_enabled", "reminder_push_enabled", "automatic_quote_right_takeover_enabled", "trade_and_account_protocols_rejected_before_opend", "allowed_protocol_ids", "authorized_security_codes", "request_plan", "request_plan_fingerprint", "maximum_planned_requests", "maximum_pages_per_protocol", "sidecar_attestor_key_id", "authorization_window_seconds", "issued_at", "valid_from", "expires_at", "signature_algorithm", "signer_key_id", "signature_hex"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "receipt_id": {"type": "string", "pattern": "^futu-runtime-authorization:[a-f0-9]{64}$"},
+    "run_id": {"type": "string", "minLength": 1},
+    "policy_sha256": {"$ref": "#/$defs/sha256"},
+    "component_lock_sha256": {"$ref": "#/$defs/sha256"},
+    "account_scope_sha256": {"$ref": "#/$defs/sha256"},
+    "supply_chain_fingerprint": {"$ref": "#/$defs/sha256"},
+    "vm_image_sha256": {"$ref": "#/$defs/sha256"},
+    "opend_version": {"type": "string", "minLength": 1},
+    "rootless": {"const": true},
+    "credentials_location": {"const": "isolated_vm_tmpfs"},
+    "host_opend_port_mapped": {"const": false},
+    "generic_raw_send_enabled": {"const": false},
+    "logging_enabled": {"const": false},
+    "reminder_push_enabled": {"const": false},
+    "automatic_quote_right_takeover_enabled": {"const": false},
+    "trade_and_account_protocols_rejected_before_opend": {"const": true},
+    "allowed_protocol_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "integer", "minimum": 1}},
+    "authorized_security_codes": {"type": "array", "minItems": 6, "maxItems": 16, "uniqueItems": true, "items": {"type": "string", "pattern": "^US\\.[A-Z0-9][A-Z0-9.-]{0,31}$"}},
+    "request_plan": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["plan_index", "security_code", "protocol_id", "parameters_sha256", "pagination_mode", "maximum_pages", "activation_condition"],
+        "properties": {
+          "plan_index": {"type": "integer", "minimum": 0, "maximum": 127},
+          "security_code": {"type": "string", "pattern": "^US\\.[A-Z0-9][A-Z0-9.-]{0,31}$"},
+          "protocol_id": {"type": "integer", "minimum": 1},
+          "parameters_sha256": {"$ref": "#/$defs/sha256"},
+          "pagination_mode": {"enum": ["none", "internal"]},
+          "maximum_pages": {"type": "integer", "minimum": 1, "maximum": 64},
+          "activation_condition": {"enum": ["always", "eligible_conclusion_only"]}
+        }
+      }
+    },
+    "request_plan_fingerprint": {"$ref": "#/$defs/sha256"},
+    "maximum_planned_requests": {"type": "integer", "minimum": 1, "maximum": 128},
+    "maximum_pages_per_protocol": {"const": 64},
+    "sidecar_attestor_key_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$"},
+    "authorization_window_seconds": {"const": 900},
+    "issued_at": {"type": "string", "format": "date-time"},
+    "valid_from": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "signature_algorithm": {"const": "ed25519"},
+    "signer_key_id": {"type": "string", "minLength": 1},
+    "signature_hex": {"type": "string", "pattern": "^[a-f0-9]{128}$"}
+  },
+  "$defs": {"sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}
+}

@@ -1,6 +1,6 @@
 interface:
   display_name: "Owner Research Publish"
-  short_description: "Publish verified owner research explicitly"
-  default_prompt: "Use $owner-research-publish to check whether a verified package is publishable."
+  short_description: "Publish a strict local research package"
+  default_prompt: "Use $owner-research-publish to publish or reload the exact local research_only or full_valuation package from already verified typed artifacts."
 policy:
   allow_implicit_invocation: false

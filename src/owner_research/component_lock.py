@@ -15,6 +15,45 @@ _PINNED_KERNEL_LOCK_CANONICAL_SHA256 = (
 _PINNED_RUNTIME_AUTHORITY_CANONICAL_SHA256 = (
     "fa65b5b91deeba9b4b7d33aaa7ec4b17017ef33f5f608c82d74cedfcaf42b4cf"
 )
+_PINNED_RESEARCH_SCHEMA_MAP_CANONICAL_SHA256 = (
+    "23c7b640337b6cae5e54881579d16ac9f298e67b0709661589f6528b891a75d4"
+)
+_PR3_MANIFEST_VERSION = "1.0.0"
+_PR3_PACKAGE_VERSION = "1.0.0.dev0"
+_PR3_FUTU_POLICY_PATH = "resources/futu/market-authority-policy-v2.json"
+_PR3_KERNEL_SCHEMA_RESOURCE_ROOT = "resources/phase5-v1-kernel-schemas"
+_PR3_KERNEL_SCHEMA_RESOURCE_FILENAMES = (
+    "assumption-ledger.schema.json",
+    "fact-ledger.schema.json",
+    "valuation-request.schema.json",
+    "valuation-result.schema.json",
+)
+_PR3_MODULE_PATHS = (
+    "__init__.py",
+    "component_lock.py",
+    "futu_crosscheck.py",
+    "futu_receipts.py",
+    "futu_session.py",
+    "futu_sidecar.py",
+    "owner_equity_research.py",
+    "owner_equity_runtime.py",
+    "owner_equity_types.py",
+    "owner_scorecard.py",
+    "research_publisher.py",
+    "research_report.py",
+    "valuation_cli.py",
+    "valuation_futu_market.py",
+    "valuation_run.py",
+    "valuation_run_archive.py",
+    "valuation_run_context.py",
+    "valuation_synthesis.py",
+    "valuation_synthesis_types.py",
+    "workflow_cli.py",
+)
+_PR3_MAXIMUM_MEMBER_BYTES = 64 * 1024 * 1024
+_PR3_MAXIMUM_TOTAL_BYTES = 512 * 1024 * 1024
+_PR3_MAXIMUM_MEMBERS = 512
+_FILE_SHA256_MAXIMUM_SIZE = 16 * 1024 * 1024
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,6 +65,33 @@ class VerificationResult:
         return not self.errors
 
 
+@dataclass(frozen=True, slots=True)
+class ComponentLockSnapshot:
+    """One descriptor-bound component-lock read used for both parsing and identity."""
+
+    path: Path
+    payload: dict[str, Any]
+    raw_bytes: bytes
+    file_sha256: str
+
+
+@dataclass(slots=True)
+class _PR3ReadBudget:
+    member_count: int = 0
+    total_bytes: int = 0
+
+    def claim_member(self) -> int:
+        if self.member_count >= _PR3_MAXIMUM_MEMBERS:
+            raise ValueError("PR3 locked snapshot exceeds its member limit")
+        self.member_count += 1
+        return _PR3_MAXIMUM_TOTAL_BYTES - self.total_bytes
+
+    def consume(self, size: int) -> None:
+        if size > _PR3_MAXIMUM_TOTAL_BYTES - self.total_bytes:
+            raise ValueError("PR3 locked snapshot exceeds its cumulative byte limit")
+        self.total_bytes += size
+
+
 def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     value: dict[str, Any] = {}
     for key, item in pairs:
@@ -33,6 +99,10 @@ def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
             raise ValueError(f"duplicate JSON key in component lock: {key}")
         value[key] = item
     return value
+
+
+def _reject_json_constant(value: str) -> None:
+    raise ValueError(f"non-finite JSON constant in component lock: {value}")
 
 
 def _canonical_payload_sha256(value: Any) -> str:
@@ -52,33 +122,77 @@ def _read_bounded_regular_file_nofollow(
     *,
     maximum_size: int = 8 * 1024 * 1024,
 ) -> bytes:
-    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
-    descriptor = os.open(path, flags)
+    absolute = Path(path).expanduser().absolute()
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_NONBLOCK", 0)
+    )
+    descriptor = os.open(absolute, flags)
     try:
         before = os.fstat(descriptor)
-        if not stat.S_ISREG(before.st_mode) or before.st_size > maximum_size:
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or before.st_nlink != 1
+            or before.st_size > maximum_size
+        ):
             raise ValueError("component lock must be a bounded regular file")
         chunks: list[bytes] = []
-        remaining = maximum_size + 1
-        while remaining:
+        total = 0
+        while True:
+            remaining = maximum_size + 1 - total
+            if remaining <= 0:
+                raise ValueError("component lock exceeds its size limit")
             chunk = os.read(descriptor, min(1024 * 1024, remaining))
             if not chunk:
                 break
             chunks.append(chunk)
-            remaining -= len(chunk)
-        if remaining == 0:
-            raise ValueError("component lock exceeds its size limit")
+            total += len(chunk)
+            if total > maximum_size:
+                raise ValueError("component lock exceeds its size limit")
         after = os.fstat(descriptor)
-        if (
+        try:
+            path_after = absolute.lstat()
+        except OSError as exc:
+            raise ValueError("component lock changed while being read") from exc
+        before_identity = (
             before.st_dev,
             before.st_ino,
+            before.st_mode,
+            before.st_nlink,
+            before.st_uid,
+            before.st_gid,
             before.st_size,
             before.st_mtime_ns,
-        ) != (
+            before.st_ctime_ns,
+        )
+        after_identity = (
             after.st_dev,
             after.st_ino,
+            after.st_mode,
+            after.st_nlink,
+            after.st_uid,
+            after.st_gid,
             after.st_size,
             after.st_mtime_ns,
+            after.st_ctime_ns,
+        )
+        path_identity = (
+            path_after.st_dev,
+            path_after.st_ino,
+            path_after.st_mode,
+            path_after.st_nlink,
+            path_after.st_uid,
+            path_after.st_gid,
+            path_after.st_size,
+            path_after.st_mtime_ns,
+            path_after.st_ctime_ns,
+        )
+        if (
+            before_identity != after_identity
+            or after_identity != path_identity
+            or total != before.st_size
         ):
             raise ValueError("component lock changed while being read")
         return b"".join(chunks)
@@ -86,14 +200,36 @@ def _read_bounded_regular_file_nofollow(
         os.close(descriptor)
 
 
-def load_component_lock(path: Path) -> dict[str, Any]:
+def read_stable_file_bytes(
+    path: Path,
+    *,
+    maximum_size: int = _FILE_SHA256_MAXIMUM_SIZE,
+) -> bytes:
+    """Read a caller-selected regular file once, bounded and without following it."""
+
+    return _read_bounded_regular_file_nofollow(path, maximum_size=maximum_size)
+
+
+def load_component_lock_snapshot(path: Path) -> ComponentLockSnapshot:
+    absolute = Path(path).expanduser().absolute()
+    raw = read_stable_file_bytes(absolute)
     value = json.loads(
-        _read_bounded_regular_file_nofollow(path).decode("utf-8"),
+        raw.decode("utf-8"),
         object_pairs_hook=_reject_duplicate_json_keys,
+        parse_constant=_reject_json_constant,
     )
     if not isinstance(value, dict):
         raise ValueError("component lock must be a JSON object")
-    return value
+    return ComponentLockSnapshot(
+        path=absolute,
+        payload=value,
+        raw_bytes=raw,
+        file_sha256=hashlib.sha256(raw).hexdigest(),
+    )
+
+
+def load_component_lock(path: Path) -> dict[str, Any]:
+    return load_component_lock_snapshot(path).payload
 
 
 def default_component_lock_path() -> Path:
@@ -107,11 +243,14 @@ def default_component_lock_path() -> Path:
 
 
 def file_sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+    """Hash one stable regular file without following its final path component."""
+
+    return hashlib.sha256(
+        read_stable_file_bytes(
+            path,
+            maximum_size=_FILE_SHA256_MAXIMUM_SIZE,
+        )
+    ).hexdigest()
 
 
 def _read_package_file_nofollow(
@@ -170,6 +309,308 @@ def _read_package_file_nofollow(
         os.close(descriptor)
 
 
+def _read_pr3_member_nofollow(path: Path, budget: _PR3ReadBudget) -> bytes:
+    remaining_total = budget.claim_member()
+    metadata = path.lstat()
+    maximum_size = min(_PR3_MAXIMUM_MEMBER_BYTES, remaining_total)
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_nlink != 1
+        or metadata.st_size > _PR3_MAXIMUM_MEMBER_BYTES
+    ):
+        raise ValueError(f"PR3 locked member is unsafe or oversized: {path}")
+    if metadata.st_size > remaining_total:
+        raise ValueError("PR3 locked snapshot exceeds its cumulative byte limit")
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_NONBLOCK", 0)
+    )
+    descriptor = os.open(path, flags)
+    try:
+        before = os.fstat(descriptor)
+        chunks: list[bytes] = []
+        remaining = maximum_size + 1
+        while remaining:
+            chunk = os.read(descriptor, min(1024 * 1024, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        raw = b"".join(chunks)
+        after = os.fstat(descriptor)
+        try:
+            path_after = path.lstat()
+        except OSError as exc:
+            raise ValueError(f"PR3 locked member changed while read: {path}") from exc
+
+        def identity(item: os.stat_result) -> tuple[int, ...]:
+            return (
+                item.st_dev,
+                item.st_ino,
+                item.st_mode,
+                item.st_nlink,
+                item.st_uid,
+                item.st_gid,
+                item.st_size,
+                item.st_mtime_ns,
+                item.st_ctime_ns,
+            )
+
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or before.st_nlink != 1
+            or len(raw) != before.st_size
+            or len(raw) > maximum_size
+            or identity(metadata) != identity(before)
+            or identity(before) != identity(after)
+            or identity(after) != identity(path_after)
+        ):
+            raise ValueError(f"PR3 locked member changed while read: {path}")
+        budget.consume(len(raw))
+        return raw
+    finally:
+        os.close(descriptor)
+
+
+def _collect_pr3_directory(
+    filesystem_root: Path,
+    logical_prefix: str,
+    budget: _PR3ReadBudget,
+) -> dict[str, bytes]:
+    root_metadata = filesystem_root.lstat()
+    if stat.S_ISLNK(root_metadata.st_mode) or not stat.S_ISDIR(root_metadata.st_mode):
+        raise ValueError(f"PR3 locked directory is unsafe: {filesystem_root}")
+    members: dict[str, bytes] = {}
+    for current, directories, filenames in os.walk(filesystem_root, followlinks=False):
+        current_path = Path(current)
+        kept_directories: list[str] = []
+        for directory in directories:
+            child = current_path / directory
+            metadata = child.lstat()
+            if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+                raise ValueError(f"PR3 locked directory contains an unsafe entry: {child}")
+            kept_directories.append(directory)
+        directories[:] = kept_directories
+        for filename in filenames:
+            path = current_path / filename
+            relative = path.relative_to(filesystem_root).as_posix()
+            logical_path = f"{logical_prefix}/{relative}"
+            members[logical_path] = _read_pr3_member_nofollow(path, budget)
+    return members
+
+
+def _pr3_locked_snapshot(
+    *,
+    repository_root: Path | None,
+    package_root: Path | None,
+) -> dict[str, bytes]:
+    if (repository_root is None) == (package_root is None):
+        raise ValueError("exactly one PR3 source or package root is required")
+    if repository_root is not None:
+        module_root = repository_root / "src" / "owner_research"
+        extension_root = repository_root / "extension_schemas"
+        futu_root = module_root / "resources" / "futu"
+        kernel_schema_root = module_root / _PR3_KERNEL_SCHEMA_RESOURCE_ROOT
+        report_root = (
+            repository_root
+            / "plugins"
+            / "owner-equity-research"
+            / "skills"
+            / "owner-equity-research"
+            / "assets"
+        )
+        policy_path = (
+            repository_root / "scripts" / "phase5e-futu-market-authority-policy-v2.json"
+        )
+    else:
+        assert package_root is not None
+        module_root = package_root
+        extension_root = package_root / "extension_schemas"
+        futu_root = package_root / "resources" / "futu"
+        kernel_schema_root = package_root / _PR3_KERNEL_SCHEMA_RESOURCE_ROOT
+        report_root = package_root / "report_assets"
+        policy_path = package_root / _PR3_FUTU_POLICY_PATH
+
+    members: dict[str, bytes] = {}
+    budget = _PR3ReadBudget()
+    for filesystem_root, logical_prefix in (
+        (extension_root, "extension_schemas"),
+        (futu_root, "resources/futu"),
+        (kernel_schema_root, _PR3_KERNEL_SCHEMA_RESOURCE_ROOT),
+        (report_root, "report_assets"),
+    ):
+        discovered = _collect_pr3_directory(filesystem_root, logical_prefix, budget)
+        overlap = set(members) & set(discovered)
+        if overlap:
+            raise ValueError(f"PR3 locked member projection overlaps: {sorted(overlap)}")
+        members.update(discovered)
+    members[_PR3_FUTU_POLICY_PATH] = _read_pr3_member_nofollow(policy_path, budget)
+    for relative_path in _PR3_MODULE_PATHS:
+        members[relative_path] = _read_pr3_member_nofollow(
+            module_root / relative_path,
+            budget,
+        )
+    return members
+
+
+def verify_pr3_comprehensive_snapshot(
+    *,
+    lock_bytes: bytes,
+    members: dict[str, bytes],
+) -> VerificationResult:
+    """Verify the closed additive PR3 manifest against one byte snapshot."""
+
+    try:
+        lock = json.loads(
+            lock_bytes.decode("utf-8"),
+            object_pairs_hook=_reject_duplicate_json_keys,
+            parse_constant=_reject_json_constant,
+        )
+        if not isinstance(lock, dict):
+            raise ValueError("component lock must be a JSON object")
+        owner = lock["owner_equity_research"]
+        if not isinstance(owner, dict):
+            raise TypeError("owner-equity lock must be an object")
+        manifest = owner["pr3_comprehensive"]
+    except (UnicodeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+        return VerificationResult((f"PR3 comprehensive component lock is unavailable: {exc}",))
+
+    errors: list[str] = []
+    if set(lock) != {
+        "lock_version",
+        "generated_date",
+        "owner_equity_research",
+        "market_access_authority",
+        "valuation_kernel_runtime",
+        "valuation_kernel",
+    }:
+        errors.append("PR3 comprehensive top-level component-lock shape mismatch")
+    if lock.get("lock_version") != "1.2.0":
+        errors.append("PR3 comprehensive manifest requires component-lock 1.2.0")
+    if set(owner) != {"plugin_version", "public_schema_sha256", "pr3_comprehensive"}:
+        errors.append("Owner Equity Research component-lock shape mismatch")
+    if owner.get("plugin_version") != "1.0.0-dev.0":
+        errors.append("Owner Equity Research plugin version is not the development candidate")
+    if _canonical_payload_sha256(owner.get("public_schema_sha256")) != (
+        _PINNED_RESEARCH_SCHEMA_MAP_CANONICAL_SHA256
+    ):
+        errors.append("Frozen public research Schema map drifted")
+    if _canonical_payload_sha256(lock.get("valuation_kernel")) != (
+        _PINNED_KERNEL_LOCK_CANONICAL_SHA256
+    ):
+        errors.append("Pinned valuation-kernel lock drifted")
+    expected_manifest_keys = {
+        "manifest_version",
+        "package_version",
+        "extension_schema_sha256",
+        "futu_authority_policy",
+        "futu_resource_sha256",
+        "kernel_schema_resource_sha256",
+        "report_asset_sha256",
+        "module_sha256",
+    }
+    if not isinstance(manifest, dict) or set(manifest) != expected_manifest_keys:
+        return VerificationResult(
+            (*errors, "PR3 comprehensive manifest shape is not the exact closed interface")
+        )
+    if manifest.get("manifest_version") != _PR3_MANIFEST_VERSION:
+        errors.append("PR3 comprehensive manifest version mismatch")
+    if manifest.get("package_version") != _PR3_PACKAGE_VERSION:
+        errors.append("PR3 comprehensive package version mismatch")
+
+    expected_maps = {
+        "extension_schema_sha256": {
+            path: hashlib.sha256(raw).hexdigest()
+            for path, raw in members.items()
+            if path.startswith("extension_schemas/")
+        },
+        "futu_resource_sha256": {
+            path: hashlib.sha256(raw).hexdigest()
+            for path, raw in members.items()
+            if path.startswith("resources/futu/") and path != _PR3_FUTU_POLICY_PATH
+        },
+        "kernel_schema_resource_sha256": {
+            path: hashlib.sha256(raw).hexdigest()
+            for path, raw in members.items()
+            if path.startswith(f"{_PR3_KERNEL_SCHEMA_RESOURCE_ROOT}/")
+        },
+        "report_asset_sha256": {
+            path: hashlib.sha256(raw).hexdigest()
+            for path, raw in members.items()
+            if path.startswith("report_assets/")
+        },
+        "module_sha256": {
+            path: hashlib.sha256(members[path]).hexdigest()
+            for path in _PR3_MODULE_PATHS
+            if path in members
+        },
+    }
+    for key, expected in expected_maps.items():
+        locked = manifest.get(key)
+        if locked != expected:
+            errors.append(f"PR3 comprehensive {key} map mismatch")
+    try:
+        kernel_schema_hashes = lock["valuation_kernel"]["public_schema_sha256"]
+        expected_kernel_schema_resources = {
+            f"{_PR3_KERNEL_SCHEMA_RESOURCE_ROOT}/{filename}": kernel_schema_hashes[
+                f"schemas/{filename}"
+            ]
+            for filename in _PR3_KERNEL_SCHEMA_RESOURCE_FILENAMES
+        }
+    except (KeyError, TypeError):
+        expected_kernel_schema_resources = {}
+        errors.append("Pinned valuation-kernel archive Schema subset is unavailable")
+    if expected_maps["kernel_schema_resource_sha256"] != expected_kernel_schema_resources:
+        errors.append(
+            "PR3 kernel Schema resource inventory differs from the pinned kernel subset"
+        )
+    if set(expected_maps["module_sha256"]) != set(_PR3_MODULE_PATHS):
+        errors.append("PR3 comprehensive required module snapshot is incomplete")
+
+    policy = manifest.get("futu_authority_policy")
+    expected_policy_raw = members.get(_PR3_FUTU_POLICY_PATH)
+    if (
+        not isinstance(policy, dict)
+        or set(policy) != {"path", "sha256"}
+        or policy.get("path") != _PR3_FUTU_POLICY_PATH
+        or expected_policy_raw is None
+        or policy.get("sha256") != hashlib.sha256(expected_policy_raw).hexdigest()
+    ):
+        errors.append("PR3 comprehensive Futu authority policy binding mismatch")
+    return VerificationResult(tuple(errors))
+
+
+def verify_pr3_comprehensive_lock(
+    lock_path: Path | None = None,
+    *,
+    repository_root: Path | None = None,
+    package_root: Path | None = None,
+) -> VerificationResult:
+    """Verify PR3 from a trusted source tree or an installed package tree."""
+
+    path = lock_path or default_component_lock_path()
+    if repository_root is not None and package_root is not None:
+        return VerificationResult(("PR3 verification roots are ambiguous",))
+    if repository_root is None and package_root is None:
+        inferred_repository = path.absolute().parent
+        if (inferred_repository / "src" / "owner_research").is_dir():
+            repository_root = inferred_repository
+        else:
+            package_root = Path(__file__).resolve().parent
+    try:
+        return verify_pr3_comprehensive_snapshot(
+            lock_bytes=_read_bounded_regular_file_nofollow(path),
+            members=_pr3_locked_snapshot(
+                repository_root=repository_root,
+                package_root=package_root,
+            ),
+        )
+    except (OSError, UnicodeError, ValueError) as exc:
+        return VerificationResult((f"PR3 comprehensive package snapshot is unavailable: {exc}",))
+
+
 def verify_kernel_runtime_snapshot(
     *,
     lock_bytes: bytes,
@@ -184,6 +625,7 @@ def verify_kernel_runtime_snapshot(
         lock = json.loads(
             lock_bytes.decode("utf-8"),
             object_pairs_hook=_reject_duplicate_json_keys,
+            parse_constant=_reject_json_constant,
         )
         if not isinstance(lock, dict):
             raise ValueError("component lock must be a JSON object")
@@ -486,10 +928,13 @@ def verify_research_schema_lock(lock_path: Path, repository_root: Path) -> Verif
         )
     for relative_path, expected in locked.items():
         path = repository_root / relative_path
-        if not path.is_file():
+        try:
+            actual = file_sha256(path)
+        except (OSError, ValueError):
             errors.append(f"Missing research schema: {relative_path}")
-        elif file_sha256(path) != expected:
-            errors.append(f"Research schema hash mismatch: {relative_path}")
+        else:
+            if actual != expected:
+                errors.append(f"Research schema hash mismatch: {relative_path}")
     return VerificationResult(tuple(errors))
 
 
@@ -498,7 +943,12 @@ def verify_future_mapping_contract(
     *,
     source_repo: Path,
 ) -> VerificationResult:
-    mapping = json.loads(mapping_path.read_text(encoding="utf-8"))
+    try:
+        mapping = json.loads(read_stable_file_bytes(mapping_path).decode("utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+        return VerificationResult((f"Future mapping fixture cannot be read: {exc}",))
+    if not isinstance(mapping, dict):
+        return VerificationResult(("Future mapping fixture must be a JSON object",))
     errors: list[str] = []
     if mapping.get("mapping_status") not in {
         "NOT_IMPLEMENTED_PHASE_1",
@@ -511,9 +961,12 @@ def verify_future_mapping_contract(
         errors.append("Future mapping fixture has an unknown implementation state")
 
     target_path = source_repo / "schemas" / mapping.get("target_schema", "")
-    if not target_path.is_file():
+    try:
+        target = json.loads(read_stable_file_bytes(target_path).decode("utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError):
         return VerificationResult((f"Future mapping target schema is missing: {target_path}",))
-    target = json.loads(target_path.read_text(encoding="utf-8"))
+    if not isinstance(target, dict):
+        return VerificationResult(("Future mapping target schema must be a JSON object",))
     target_fact = target.get("properties", {}).get("facts", {}).get("items", {})
     target_required = set(target_fact.get("required", []))
     policies = mapping.get("target_required_field_policy", {})
@@ -593,9 +1046,11 @@ def verify_component_lock(
         errors.append("Valuation-kernel checkout is not clean")
 
     project = source_repo / "pyproject.toml"
-    if not project.is_file() or f'version = "{kernel["package_version"]}"' not in project.read_text(
-        encoding="utf-8"
-    ):
+    try:
+        project_text = read_stable_file_bytes(project).decode("utf-8")
+    except (OSError, UnicodeError, ValueError):
+        project_text = ""
+    if f'version = "{kernel["package_version"]}"' not in project_text:
         errors.append("Pinned valuation package version does not match component lock")
 
     for field, relative in (
@@ -603,27 +1058,49 @@ def verify_component_lock(
         ("source_manifest_sha256", "references/source_manifest.json"),
     ):
         path = source_repo / relative
-        if not path.is_file() or file_sha256(path) != kernel.get(field):
+        try:
+            actual = file_sha256(path)
+        except (OSError, ValueError):
+            actual = None
+        if actual != kernel.get(field):
             errors.append(f"Pinned valuation {relative} does not match component lock")
 
+    schema_snapshots: dict[str, bytes] = {}
     for relative_path, expected in kernel["public_schema_sha256"].items():
         path = source_repo / relative_path
-        if not path.is_file():
+        try:
+            raw = read_stable_file_bytes(path)
+        except (OSError, ValueError):
             errors.append(f"Missing pinned schema: {relative_path}")
-        elif file_sha256(path) != expected:
+            continue
+        if hashlib.sha256(raw).hexdigest() != expected:
             errors.append(f"Schema hash mismatch: {relative_path}")
+            continue
+        schema_snapshots[relative_path] = raw
 
     manifest_path = source_repo / "plugins" / "owner-valuation" / ".codex-plugin" / "plugin.json"
-    if not manifest_path.is_file():
+    try:
+        manifest_raw = read_stable_file_bytes(manifest_path)
+        manifest = json.loads(manifest_raw.decode("utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError):
         errors.append("Pinned valuation plugin manifest is missing")
     else:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if not isinstance(manifest, dict):
+            errors.append("Pinned valuation plugin manifest is invalid")
+            manifest = {}
         if manifest.get("version") != kernel["plugin_version"]:
             errors.append("Pinned valuation plugin version does not match component lock")
 
-    fact_schema_path = source_repo / "schemas" / "fact-ledger.schema.json"
-    if fact_schema_path.is_file():
-        schema = json.loads(fact_schema_path.read_text(encoding="utf-8"))
+    fact_schema_raw = schema_snapshots.get("schemas/fact-ledger.schema.json")
+    if fact_schema_raw is not None:
+        try:
+            schema = json.loads(fact_schema_raw.decode("utf-8"))
+        except (UnicodeError, json.JSONDecodeError):
+            errors.append("Pinned FactLedger schema is invalid JSON")
+            schema = {}
+        if not isinstance(schema, dict):
+            errors.append("Pinned FactLedger schema is not a JSON object")
+            schema = {}
         facts = schema.get("properties", {}).get("facts", {}).get("items", {})
         required = set(facts.get("required", []))
         future_mapping_fields = {
@@ -641,5 +1118,6 @@ def verify_component_lock(
             errors.append("Pinned FactLedger value is no longer numeric-only")
 
     errors.extend(verify_kernel_runtime_lock(lock_path).errors)
+    errors.extend(verify_pr3_comprehensive_lock(lock_path).errors)
 
     return VerificationResult(tuple(errors))

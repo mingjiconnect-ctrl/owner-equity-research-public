@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/synthesis-publication-manifest.schema.json",
+  "title": "SynthesisPublicationManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "artifact_type", "manifest_id", "issuer_id", "source_schema",
+    "source_object_id", "source_fingerprint", "source_payload", "manifest_fingerprint"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "artifact_type": {
+      "enum": [
+        "forward-reoi-publication-manifest",
+        "comparable-valuation-publication-manifest",
+        "composite-valuation-publication-manifest",
+        "score-v2-publication-manifest",
+        "owner-scorecard-publication-manifest"
+      ]
+    },
+    "manifest_id": {"type": "string", "minLength": 1},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "source_schema": {
+      "enum": [
+        "forward-reoi-valuation-result",
+        "comparable-valuation-result",
+        "composite-valuation-result",
+        "score-v2",
+        "owner-scorecard"
+      ]
+    },
+    "source_object_id": {"type": "string", "minLength": 1},
+    "source_fingerprint": {"$ref": "#/$defs/sha256"},
+    "source_payload": {"type": "object"},
+    "manifest_fingerprint": {"$ref": "#/$defs/sha256"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"artifact_type": {"const": "forward-reoi-publication-manifest"}}},
+      "then": {"properties": {"source_schema": {"const": "forward-reoi-valuation-result"}}}
+    },
+    {
+      "if": {"properties": {"artifact_type": {"const": "comparable-valuation-publication-manifest"}}},
+      "then": {"properties": {"source_schema": {"const": "comparable-valuation-result"}}}
+    },
+    {
+      "if": {"properties": {"artifact_type": {"const": "composite-valuation-publication-manifest"}}},
+      "then": {"properties": {"source_schema": {"const": "composite-valuation-result"}}}
+    },
+    {
+      "if": {"properties": {"artifact_type": {"const": "score-v2-publication-manifest"}}},
+      "then": {"properties": {"source_schema": {"const": "score-v2"}}}
+    },
+    {
+      "if": {"properties": {"artifact_type": {"const": "owner-scorecard-publication-manifest"}}},
+      "then": {"properties": {"source_schema": {"const": "owner-scorecard"}}}
+    }
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+  }
+}

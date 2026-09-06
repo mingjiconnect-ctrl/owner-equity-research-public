@@ -11,6 +11,11 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from phase5_v1_public_kernel_fixture import (
+    PUBLIC_KERNEL_REPOSITORY,
+    install_public_kernel_schema_oracle,
+    public_kernel_example,
+)
 
 import owner_research
 from owner_research.calculation_integrity import build_calculation_result
@@ -40,14 +45,24 @@ _KERNEL_ENV = os.environ.get("OWNER_VALUATION_REPO")
 KERNEL = (
     Path(_KERNEL_ENV).expanduser().resolve()
     if _KERNEL_ENV
-    else ROOT.parent / "owner-valuation-kernel"
+    else PUBLIC_KERNEL_REPOSITORY
 )
 EXAMPLE = KERNEL / "examples" / "synthetic_nonfinancial.json"
 KERNEL_AVAILABLE = bool(_KERNEL_ENV) and (KERNEL / ".git").exists() and EXAMPLE.is_file()
-requires_private_kernel = pytest.mark.skipif(
-    not KERNEL_AVAILABLE,
-    reason="pinned private kernel checkout is unavailable",
-)
+
+
+@pytest.fixture(autouse=True)
+def _repo_owned_public_kernel_oracle(monkeypatch: pytest.MonkeyPatch) -> None:
+    if _KERNEL_ENV and not KERNEL_AVAILABLE:
+        pytest.fail("OWNER_VALUATION_REPO is not a usable pinned kernel checkout")
+    if not _KERNEL_ENV:
+        install_public_kernel_schema_oracle(monkeypatch)
+
+
+def _kernel_example() -> dict:
+    if KERNEL_AVAILABLE:
+        return json.loads(EXAMPLE.read_text(encoding="utf-8"))
+    return public_kernel_example()
 
 
 @dataclass(frozen=True, slots=True)
@@ -405,7 +420,7 @@ def _request_ready_case(
     quote_decimal: str = "28",
     current_share_count: int = 10_000_000,
 ):
-    example = json.loads(EXAMPLE.read_text(encoding="utf-8"))
+    example = _kernel_example()
     base_ledger = copy.deepcopy(example["fact_ledger"])
     removed = {
         "fact-market-price-per-current-common-share",
@@ -810,8 +825,7 @@ def _rebind_research_bundle(
     prepared.graph = graph
 
 
-@requires_private_kernel
-def test_final_request_is_append_only_rebinds_assumptions_and_runs_rc2() -> None:
+def test_final_request_is_append_only_and_runs_private_rc2_when_available() -> None:
     artifact, prepared, _example = _request_ready_case()
     result = _compile_from_artifact(
         prepared=prepared,
@@ -876,24 +890,24 @@ def test_final_request_is_append_only_rebinds_assumptions_and_runs_rc2() -> None
         prepared.market_equity_calculation.fingerprint
     )
 
-    script = (
-        "import json,sys; from owner_valuation import run_dual_panel; "
-        "json.dump(run_dual_panel(json.load(sys.stdin)),sys.stdout,sort_keys=True)"
-    )
-    completed = subprocess.run(
-        [sys.executable, "-c", script],
-        input=result.canonical_request_json,
-        text=True,
-        capture_output=True,
-        check=True,
-        env={"PYTHONPATH": str(KERNEL / "src")},
-    )
-    output = json.loads(completed.stdout)
-    assert output["panels"]["mckinsey"]
-    assert output["panels"]["penman"]
+    if KERNEL_AVAILABLE:
+        script = (
+            "import json,sys; from owner_valuation import run_dual_panel; "
+            "json.dump(run_dual_panel(json.load(sys.stdin)),sys.stdout,sort_keys=True)"
+        )
+        completed = subprocess.run(
+            [sys.executable, "-c", script],
+            input=result.canonical_request_json,
+            text=True,
+            capture_output=True,
+            check=True,
+            env={"PYTHONPATH": str(KERNEL / "src")},
+        )
+        output = json.loads(completed.stdout)
+        assert output["panels"]["mckinsey"]
+        assert output["panels"]["penman"]
 
 
-@requires_private_kernel
 def test_final_fact_ledger_rejects_stale_base_receipts_after_value_substitution() -> None:
     artifact, prepared, _example = _request_ready_case()
     result = _compile_from_artifact(
@@ -913,7 +927,6 @@ def test_final_fact_ledger_rejects_stale_base_receipts_after_value_substitution(
         )
 
 
-@requires_private_kernel
 def test_request_compile_is_decimal_context_independent_and_does_not_execute_checkout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -948,7 +961,6 @@ def test_request_compile_is_decimal_context_independent_and_does_not_execute_che
     assert result.status == "compiled"
 
 
-@requires_private_kernel
 def test_compilation_receipt_rejects_self_hashed_nested_binding_mutations() -> None:
     artifact, prepared, _example = _request_ready_case()
     result = _compile_from_artifact(
@@ -1026,7 +1038,6 @@ def test_compilation_receipt_rejects_self_hashed_nested_binding_mutations() -> N
         )
 
 
-@requires_private_kernel
 def test_final_request_fails_closed_on_date_specialist_mapping_and_tamper() -> None:
     artifact, prepared, _example = _request_ready_case()
     bad_date = copy.deepcopy(artifact)
@@ -1055,7 +1066,6 @@ def test_final_request_fails_closed_on_date_specialist_mapping_and_tamper() -> N
         _compile_from_artifact(prepared=prepared, artifact=tampered, kernel_repository=KERNEL)
 
 
-@requires_private_kernel
 def test_final_request_rejects_liability_root_and_forecast_axis_shortcuts() -> None:
     artifact, prepared, example = _request_ready_case()
     wrong_liability = copy.deepcopy(artifact)
@@ -1123,7 +1133,6 @@ def test_final_request_rejects_liability_root_and_forecast_axis_shortcuts() -> N
     assert result.status == "compiled"
 
 
-@requires_private_kernel
 def test_assumption_ledger_requires_float_bytes_unique_ids_and_sorted_order() -> None:
     artifact, prepared, _example = _request_ready_case()
 
@@ -1164,7 +1173,6 @@ def test_assumption_ledger_requires_float_bytes_unique_ids_and_sorted_order() ->
         )
 
 
-@requires_private_kernel
 def test_company_and_market_authority_are_evidence_bound() -> None:
     artifact, prepared, _example = _request_ready_case()
 
@@ -1263,7 +1271,6 @@ def test_company_and_market_authority_are_evidence_bound() -> None:
         )
 
 
-@requires_private_kernel
 def test_prepared_market_objects_replay_unique_graph_and_context_ownership() -> None:
     artifact, substituted_source, _example = _request_ready_case()
     substituted_source.market_source = replace(
@@ -1386,7 +1393,6 @@ def test_prepared_market_objects_replay_unique_graph_and_context_ownership() -> 
         )
 
 
-@requires_private_kernel
 def test_final_fact_ledger_rejects_post_hoc_market_context_relabel() -> None:
     artifact, prepared, _example = _request_ready_case()
     result = _compile_from_artifact(
@@ -1423,7 +1429,6 @@ def test_final_fact_ledger_rejects_post_hoc_market_context_relabel() -> None:
         )
 
 
-@requires_private_kernel
 def test_price_blind_ledger_rejects_market_lineage_without_overblocking_benchmarks() -> None:
     artifact, prepared, example = _request_ready_case()
     injected = copy.deepcopy(artifact)
@@ -1472,7 +1477,6 @@ def test_price_blind_ledger_rejects_market_lineage_without_overblocking_benchmar
     assert result.status == "compiled"
 
 
-@requires_private_kernel
 def test_market_equity_projection_uses_projected_quote_times_projected_shares() -> None:
     artifact, prepared, _example = _request_ready_case(
         quote_decimal="0.1",

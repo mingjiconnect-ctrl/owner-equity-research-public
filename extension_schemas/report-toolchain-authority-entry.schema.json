@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/report-toolchain-authority-entry.schema.json",
+  "title": "ReportToolchainAuthority",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "authority_id",
+    "platform_target",
+    "release_evidence_status",
+    "renderer",
+    "offline_bundle",
+    "pdf_text_backend",
+    "pdf_render_backend",
+    "supply_chain",
+    "authority_fingerprint"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "artifact_type": {"const": "report-toolchain-authority-entry"},
+    "authority_id": {
+      "type": "string",
+      "pattern": "^report-toolchain-authority:(linux-x64|macos-arm64):[0-9a-f]{24}$"
+    },
+    "platform_target": {"enum": ["linux-x64", "macos-arm64"]},
+    "release_evidence_status": {"enum": ["ready", "blocked_missing_evidence"]},
+    "renderer": {"$ref": "#/$defs/executable"},
+    "offline_bundle": {"$ref": "#/$defs/tree"},
+    "pdf_text_backend": {"$ref": "#/$defs/distribution"},
+    "pdf_render_backend": {"$ref": "#/$defs/distribution"},
+    "supply_chain": {"$ref": "#/$defs/supplyChain"},
+    "authority_fingerprint": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "safePath": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "httpsUrl": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://",
+      "maxLength": 2048
+    },
+    "executable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["engine", "basename", "sha256", "size", "version"],
+      "properties": {
+        "engine": {"const": "tectonic"},
+        "basename": {"const": "tectonic"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "size": {"type": "integer", "minimum": 1, "maximum": 268435456},
+        "version": {"type": "string", "minLength": 1, "maxLength": 256}
+      }
+    },
+    "tree": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tree_sha256", "member_count", "total_bytes"],
+      "properties": {
+        "tree_sha256": {"$ref": "#/$defs/sha256"},
+        "member_count": {"type": "integer", "minimum": 1, "maximum": 8192},
+        "total_bytes": {"type": "integer", "minimum": 1, "maximum": 536870912}
+      }
+    },
+    "distribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["distribution", "version", "tree_sha256", "member_count", "total_bytes"],
+      "properties": {
+        "distribution": {"enum": ["pypdf", "pypdfium2"]},
+        "version": {"type": "string", "minLength": 1, "maxLength": 256},
+        "tree_sha256": {"$ref": "#/$defs/sha256"},
+        "member_count": {"type": "integer", "minimum": 1, "maximum": 4096},
+        "total_bytes": {"type": "integer", "minimum": 1, "maximum": 402653184}
+      }
+    },
+    "componentEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "component_name",
+        "runtime_identity_sha256",
+        "download_url",
+        "download_sha256",
+        "source_url",
+        "source_sha256",
+        "license_inventory",
+        "sbom_path",
+        "sbom_sha256",
+        "derivation_manifest_path",
+        "derivation_manifest_sha256"
+      ],
+      "properties": {
+        "component_name": {
+          "enum": ["renderer", "offline_bundle", "pdf_text_backend", "pdf_render_backend"]
+        },
+        "runtime_identity_sha256": {"$ref": "#/$defs/sha256"},
+        "download_url": {"$ref": "#/$defs/httpsUrl"},
+        "download_sha256": {"$ref": "#/$defs/sha256"},
+        "source_url": {"$ref": "#/$defs/httpsUrl"},
+        "source_sha256": {"$ref": "#/$defs/sha256"},
+        "license_inventory": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 512,
+          "items": {"$ref": "#/$defs/licenseEvidence"}
+        },
+        "sbom_path": {"$ref": "#/$defs/safePath"},
+        "sbom_sha256": {"$ref": "#/$defs/sha256"},
+        "derivation_manifest_path": {"$ref": "#/$defs/safePath"},
+        "derivation_manifest_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "licenseEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "component_scope",
+        "spdx_license_id",
+        "license_path",
+        "license_sha256"
+      ],
+      "properties": {
+        "component_scope": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._/-]{0,255}$"
+        },
+        "spdx_license_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9.+-]{0,127}$"
+        },
+        "license_path": {"$ref": "#/$defs/safePath"},
+        "license_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "components": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["renderer", "offline_bundle", "pdf_text_backend", "pdf_render_backend"],
+      "properties": {
+        "renderer": {"oneOf": [{"$ref": "#/$defs/componentEvidence"}, {"type": "null"}]},
+        "offline_bundle": {"oneOf": [{"$ref": "#/$defs/componentEvidence"}, {"type": "null"}]},
+        "pdf_text_backend": {"oneOf": [{"$ref": "#/$defs/componentEvidence"}, {"type": "null"}]},
+        "pdf_render_backend": {"oneOf": [{"$ref": "#/$defs/componentEvidence"}, {"type": "null"}]}
+      }
+    },
+    "supplyChain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "components", "missing_evidence_codes"],
+      "properties": {
+        "status": {"enum": ["ready", "blocked_missing_evidence"]},
+        "components": {"$ref": "#/$defs/components"},
+        "missing_evidence_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
+          }
+        }
+      }
+    }
+  }
+}

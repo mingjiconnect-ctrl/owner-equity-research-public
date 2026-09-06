@@ -137,11 +137,13 @@ def _unacquired_inputs(
     tmp_path: Path,
     *,
     current_share_value: int | float = 100_000_000,
+    kernel_example: dict | None = None,
 ):
     graph, freeze, directory, security = _security_context(
         sample_payloads,
         monkeypatch,
         tmp_path,
+        kernel_example=kernel_example,
     )
     graph, freeze = _rebind_freeze_to_phase5c_authority(graph, freeze)
     security = compile_security_identity(
@@ -189,7 +191,8 @@ def _unacquired_inputs(
         valuation_handoffs=freeze.handoffs,
         component_lock_path=ROOT / "component-lock.json",
     )
-    write_price_blind_input_artifact(graph, freeze, output_directory=directory, overwrite=True)
+    directory = tmp_path / "price-blind-phase5c"
+    write_price_blind_input_artifact(graph, freeze, output_directory=directory)
     review, raw = _reviewed_market_files(tmp_path, security, freeze)
     return graph, freeze, directory, security, review, raw
 
@@ -414,6 +417,54 @@ def test_reviewed_file_provider_rejects_symlinked_ancestor_directories(
             linked_directory / real_review.name,
             linked_directory / real_raw.name,
         ).acquire(acquisition.request)
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Darwin fixed-root alias regression")
+@pytest.mark.parametrize("logical_parent", (Path("/tmp"), Path("/var/tmp")))
+def test_reviewed_file_provider_accepts_verified_darwin_root_alias(
+    logical_parent: Path,
+) -> None:
+    logical_root = Path(
+        tempfile.mkdtemp(prefix="owner-research-reviewed-alias-", dir=logical_parent)
+    )
+    try:
+        review = logical_root / "reviewed-close.json"
+        payload = b'{"schema_version":"1.0.0"}'
+        review.write_bytes(payload)
+        review.chmod(0o600)
+
+        assert market_provider_module._read_regular_file(
+            review,
+            label="reviewed market receipt",
+            maximum_bytes=market_provider_module._MAX_REVIEW_RECEIPT_BYTES,
+        ) == payload
+    finally:
+        shutil.rmtree(logical_root)
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Darwin fixed-root alias regression")
+def test_reviewed_file_provider_still_rejects_nested_symlink_after_root_alias(
+) -> None:
+    logical_root = Path(
+        tempfile.mkdtemp(prefix="owner-research-reviewed-nested-link-", dir="/tmp")
+    )
+    try:
+        real_directory = logical_root / "real"
+        real_directory.mkdir(mode=0o700)
+        review = real_directory / "reviewed-close.json"
+        review.write_bytes(b'{"schema_version":"1.0.0"}')
+        review.chmod(0o600)
+        linked_directory = logical_root / "linked"
+        linked_directory.symlink_to(real_directory, target_is_directory=True)
+
+        with pytest.raises(ValueError, match="path cannot contain a symlink"):
+            market_provider_module._read_regular_file(
+                linked_directory / review.name,
+                label="reviewed market receipt",
+                maximum_bytes=market_provider_module._MAX_REVIEW_RECEIPT_BYTES,
+            )
+    finally:
+        shutil.rmtree(logical_root)
 
 
 def test_reviewed_file_provider_rejects_world_writable_or_hardlinked_evidence(
@@ -1748,7 +1799,8 @@ def test_prepare_owner_valuation_replays_price_blind_freeze_before_market(
         valuation_handoffs=freeze.handoffs,
         component_lock_path=ROOT / "component-lock.json",
     )
-    write_price_blind_input_artifact(graph, freeze, output_directory=directory, overwrite=True)
+    directory = tmp_path / "price-blind-phase5c"
+    write_price_blind_input_artifact(graph, freeze, output_directory=directory)
     review, raw = _reviewed_market_files(tmp_path, security, freeze)
     result = prepare_owner_valuation(
         graph=graph,

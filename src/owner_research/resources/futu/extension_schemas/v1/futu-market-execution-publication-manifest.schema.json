@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/futu/v1/futu-market-execution-publication-manifest.schema.json",
+  "title": "FutuMarketExecutionPublicationManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "manifest_id", "evidence_id", "evidence_fingerprint", "run_id", "issuer_id", "security_id", "checkpoint_at", "authority_decision_fingerprint", "authority_receipts", "runtime_authorization_fingerprint", "contract_graph_fingerprint", "execution_bundles", "requests", "responses", "observations", "official_operands", "cross_checks", "observation_dispositions", "cas_objects", "global_state_guards", "manifest_fingerprint"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "manifest_id": {"type": "string", "pattern": "^futu-market-execution-publication:[a-f0-9]{64}$"},
+    "evidence_id": {"type": "string", "pattern": "^futu-market-execution:[a-f0-9]{64}$"},
+    "evidence_fingerprint": {"$ref": "#/$defs/sha256"},
+    "run_id": {"type": "string", "minLength": 1},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "security_id": {"type": "string", "minLength": 1},
+    "checkpoint_at": {"type": "string", "format": "date-time"},
+    "authority_decision_fingerprint": {"$ref": "#/$defs/sha256"},
+    "authority_receipts": {"type": "object", "additionalProperties": false, "required": ["legal", "account", "supply_chain", "security_identity"], "properties": {"legal": {"$ref": "#/$defs/sha256"}, "account": {"$ref": "#/$defs/sha256"}, "supply_chain": {"$ref": "#/$defs/sha256"}, "security_identity": {"$ref": "#/$defs/sha256"}}},
+    "runtime_authorization_fingerprint": {"$ref": "#/$defs/sha256"},
+    "contract_graph_fingerprint": {"$ref": "#/$defs/sha256"},
+    "execution_bundles": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"$ref": "#/$defs/reference"}},
+    "requests": {"type": "array", "items": {"$ref": "#/$defs/reference"}},
+    "responses": {"type": "array", "items": {"$ref": "#/$defs/reference"}},
+    "observations": {"type": "array", "items": {"$ref": "#/$defs/reference"}},
+    "official_operands": {"type": "array", "items": {"$ref": "#/$defs/reference"}},
+    "cross_checks": {"type": "array", "items": {"$ref": "#/$defs/reference"}},
+    "observation_dispositions": {"type": "array", "items": {"$ref": "#/$defs/reference"}},
+    "cas_objects": {"type": "array", "items": {"$ref": "#/$defs/cas"}},
+    "global_state_guards": {"type": "array", "items": {"$ref": "#/$defs/guard"}},
+    "manifest_fingerprint": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "reference": {"type": "object", "additionalProperties": false, "required": ["object_id", "fingerprint"], "properties": {"object_id": {"type": "string", "minLength": 1}, "fingerprint": {"$ref": "#/$defs/sha256"}}},
+    "cas": {"type": "object", "additionalProperties": false, "required": ["response_fingerprint", "raw_evidence_kind", "raw_plaintext_sha256", "encrypted_object_sha256", "cas_locator", "raw_byte_count"], "properties": {"response_fingerprint": {"$ref": "#/$defs/sha256"}, "raw_evidence_kind": {"const": "opend_protobuf_s2c_frame"}, "raw_plaintext_sha256": {"$ref": "#/$defs/sha256"}, "encrypted_object_sha256": {"$ref": "#/$defs/sha256"}, "cas_locator": {"type": "string", "pattern": "^cas://sha256/[a-f0-9]{64}$"}, "raw_byte_count": {"type": "integer", "minimum": 1}}},
+    "guard": {"type": "object", "additionalProperties": false, "required": ["phase", "response_fingerprint", "serial_number", "request_fingerprint", "qot_logined", "trd_logined"], "properties": {"phase": {"enum": ["pre_request", "post_request"]}, "response_fingerprint": {"$ref": "#/$defs/sha256"}, "serial_number": {"type": "integer", "minimum": 0}, "request_fingerprint": {"$ref": "#/$defs/sha256"}, "qot_logined": {"const": true}, "trd_logined": {"type": "boolean"}}}
+  }
+}

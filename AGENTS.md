@@ -2,10 +2,14 @@
 
 ## Phase boundary
 
-- Current product label: `Phase 5 v1 final-request and pinned-kernel vertical slice`.
-- `docs/phase5-v1-status.json` is the current authority; the phase is `in_progress`, and only
-  `PR2 final-request and pinned-kernel vertical slice` is authorized. PR1 is accepted on merged
-  `main`; ADR 0042 defines the PR2 execution boundary.
+- Current product label: `Phase 5 v1 comprehensive Skill single-PR3 delivery`.
+- `docs/phase5-v1-status.json` is the current authority; the phase is a
+  `code_complete_preview`, and ADR 0044
+  authorizes one PR3 containing four ordered implementation slices: trusted run/archive core,
+  SEC/IR research plus valuation-intent-only Futu data, valuation synthesis plus four-lens scoring,
+  and report/PDF/local Publisher plus the callable Skill. PR1 and PR2 are accepted on merged
+  `main`; ADR 0043 remains the
+  historical authority for the six-file archive and explicit valuation boundary.
 - ADR 0041 retires the recursive G1-G5 and acceptance-only path from required governance.
   `docs/phase-status.json` and the former recursive controller remain frozen as
   `legacy_governance`; their closeouts are historical evidence, not current authorization.
@@ -14,7 +18,7 @@
 
 The phase bullets below through Phase 5E-2B.1-2A record the authority and constraints that applied
 at each closeout. Present-tense wording inside this historical record has no current normative
-force; ADR 0041 and `docs/phase5-v1-status.json` supersede it.
+force; ADR 0041, ADR 0044, and `docs/phase5-v1-status.json` supersede it.
 
 - Phase 1 is frozen at `v0.1.0-alpha.1`.
 - Phase 2 is frozen at `v0.2.0-alpha.1` / `feac934`.
@@ -170,8 +174,8 @@ force; ADR 0041 and `docs/phase5-v1-status.json` supersede it.
   base-owned. It creates no
   production Fact or compiler. The former two-file closeout, special branch, preinstalled judge,
   and successor prohibitions are retained in `legacy_governance` only; they no longer authorize or
-  block current Phase 5 v1 work. Phase 6 through Phase 9 still require separate reviewed
-  authorization after Phase 5.
+  block current Phase 5 v1 work. At that historical closeout, Phase 6 through Phase 9 still
+  required separate reviewed authorization; ADR 0044 now supersedes that product-scope limit.
 - Phase 5D-2 may add only the internal, keyword-only `compile_reviewed_assumption_ledger`
   entrypoint and immutable review/result types. It must replay the exact Candidate compilation,
   derive Decision and reserved assumption IDs, accept only `human:<name>` reviewers, augment only
@@ -222,9 +226,9 @@ force; ADR 0041 and `docs/phase5-v1-status.json` supersede it.
   `phase5/semantic-audit`. The Actions context runs deterministic candidate replay once at the
   exact PR head and must not be represented as an independent review.
 - A separate fresh-context reviewer must bind the exact commit/tree, test counts, P0-P3 counts and
-  report SHA in PR evidence. Pull requests require P0 and P1 equal to zero in both gates. Release
-  candidates require P0, P1, P2, and P3 equal to zero. Merged `main` runs smoke and deterministic
-  replay.
+  report SHA in PR evidence. The final PR3 candidate is the sole acceptance point and requires
+  P0, P1, P2, and P3 equal to zero in both candidate replay and independent review. Merged `main`
+  runs smoke and deterministic replay.
 - Canonical audit summaries stay outside the repository and may be uploaded as CI artifacts. Do
   not write new CI run IDs into product state.
 - CI may resolve dependencies before verification; candidate tests and audit execution must remain
@@ -251,14 +255,52 @@ force; ADR 0041 and `docs/phase5-v1-status.json` supersede it.
   5E-2B.1-2A used the now-retired dual-state closeout rule under audit `2.3.2.3.3`. Those P0-P3
   closeout requirements remain historical evidence and do not replace the ADR 0041 thresholds.
 
-## Phase 5 v1 vertical-slice authority
+## Phase 5 v1 single-PR3 authority
 
-- Advance Phase 5 through complete, bounded vertical slices governed by ADR 0041 and
-  `docs/phase5-v1-status.json`.
-- The PR2 slice consumes the accepted PR1 preparation result without reacquiring market evidence.
-  It may append only governed current-share and market lineage, compile one rc.2 request, and call
-  the byte-pinned kernel exactly once inside a proven no-network subprocess. It must remain
-  internal and cannot add scoring, reporting, publishing, a package-root API, CLI, or Skill entry.
+- Implement the four ADR 0044 slices in one PR3. They are bounded implementation groups with one
+  final exact-head acceptance; they are not separate authorization gates. Do not create an
+  acceptance-only branch, dynamic successor profile, protected-status publisher, or next-gate
+  seed between them.
+- Slice 1 completes the explicit owner-valuation Python/CLI entry and the strict six-file atomic
+  archive/reloader. Slice 2 adds SEC/IR-primary research and valuation-intent-only Futu
+  cross-checks plus governed post-freeze market access. Slice 3 adds independently frozen
+  McKinsey, Penman, and comparables
+  panels, eligible current-value and twelve-month medians, and independent Graham, Buffett,
+  Munger, and Duan Yongping scores. Slice 4 adds the report, LaTeX/PDF, local-only Publisher, and
+  final Skill routes.
+- Ordinary research remains target-price and market-capitalization blind and makes zero Futu
+  calls. Only explicit valuation intent activates Futu; its non-price financial and company data
+  may cross-check but cannot replace SEC/IR Facts. Target-security or peer prices are read only
+  after the price-blind freeze. The accepted private kernel remains read-only, is called exactly
+  once, and its request/result and strict six-file archive stay unchanged. Synthesis, scoring,
+  reporting, and publication are downstream `PROJECT_EXTENSION` consumers.
+- Current-value and twelve-month composites require all three independently frozen McKinsey,
+  Penman, and comparables panels; a missing, partial, blocked, ineligible, or contested panel makes
+  the affected composite `null`, with no two-panel fallback. Each Graham, Buffett, Munger, and Duan
+  Yongping lens has exactly five 0-20 items. `Unknown` and partial evidence remain nonnumeric rather
+  than zero and prevent the lens and overall score.
+- Apply recommendation labels in fixed order: `无法评级` for partial, blocked,
+  `specialist_required`, or contested; otherwise `回避` for overall below 50, price at least 15%
+  above intrinsic value, or a permanent-capital-loss critical red flag; otherwise `重点关注` at
+  80/80%/25%/20% overall/confidence/margin-of-safety/twelve-month-upside with no critical red flag;
+  otherwise `关注` at 70/70%/15%/10% with no critical red flag; otherwise `观察`.
+- Every live Futu path is quote-only and must prove `qotLogined=true`. Record `trdLogined`
+  faithfully as OpenD server-connection state; either boolean value is allowed. It is not API
+  permission and cannot by itself block a run (user-approved correction, 2026-09-06).
+  Trading, orders, positions, balances, holdings, and account protocols remain forbidden.
+  Credentials and raw licensed data never enter the repository, logs, receipts, wheel, plugin, or
+  publication package.
+- The user-approved native Mac runtime (2026-09-06) may use the already logged-in desktop
+  OpenD at `127.0.0.1:11111` from a separate non-root quote-only sidecar. Its parallel v2
+  supply/runtime receipts use `vm_image_sha256: null` and
+  `credentials_location: user_managed_macos_opend`; never claim a VM or copy credentials.
+  Keep the v1 Linux VM profile intact. Both profiles retain the same protocol whitelist,
+  signed session, encrypted CAS, and replay rules. A status-only native connection observation
+  is setup evidence, not a data entitlement, financial quote, or completed release canary.
+- Keep package and plugin versions in development state throughout PR3. Do not create an RC tag or
+  Release until the exact merged `main` commit passes all checks and a real, signed, isolated Futu
+  canary completes the full data-to-local-PDF path. Fixtures, reviewed files, simulated prices,
+  alternative APIs, and technical documentation are not canary substitutes.
 - The old G1-G5 controller, acceptance-only branches, dynamic successor profiles, protected status
   publication, and next-gate seeding are `legacy_governance`. The legacy workflow is manual only
   and its checks must not be required by branch protection.

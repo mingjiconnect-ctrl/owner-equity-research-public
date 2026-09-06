@@ -5,6 +5,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from .calculation_integrity import build_calculation_result
+from .component_lock import read_stable_file_bytes
 from .contracts import CalculationResult, Fact, FiscalPeriod
 from .fingerprints import canonical_sha256
 
@@ -71,7 +72,7 @@ def _build(
         _require_compatible(facts)
     fact_map = {fact.fact_id: fact for fact in facts}
     period_map = {item.period_id: item for item in periods}
-    code_sha = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+    code_sha = hashlib.sha256(read_stable_file_bytes(Path(__file__))).hexdigest()
     identity = canonical_sha256(
         {
             "concept": concept,

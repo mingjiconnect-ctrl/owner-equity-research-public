@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/futu/v1/futu-historical-kline-quota-receipt.schema.json",
+  "title": "FutuHistoricalKlineQuotaReceipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "receipt_id", "run_id", "account_scope_sha256", "runtime_authorization_fingerprint", "runtime_request_plan", "request_plan_fingerprint", "protocol_id", "observed_at", "quota_kind", "quota_window_days", "used_quota", "remaining_quota", "detail_records", "planned_history_security_codes", "already_counted_security_codes", "required_incremental_security_count", "sufficient", "source_request_fingerprint", "source_response_fingerprint", "receipt_fingerprint"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "receipt_id": {"type": "string", "pattern": "^futu-history-quota:[a-f0-9]{64}$"},
+    "run_id": {"type": "string", "minLength": 1},
+    "account_scope_sha256": {"$ref": "#/$defs/sha256"},
+    "runtime_authorization_fingerprint": {"$ref": "#/$defs/sha256"},
+    "runtime_request_plan": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "items": {"$ref": "#/$defs/request_plan_item"}
+    },
+    "request_plan_fingerprint": {"$ref": "#/$defs/sha256"},
+    "protocol_id": {"const": 3104},
+    "observed_at": {"type": "string", "format": "date-time"},
+    "quota_kind": {"const": "historical_candlestick_distinct_security_7d"},
+    "quota_window_days": {"const": 7},
+    "used_quota": {"type": "integer", "minimum": 0},
+    "remaining_quota": {"type": "integer", "minimum": 0},
+    "detail_records": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["raw_market_code", "raw_security_code", "vendor_security_code", "source_request_time", "source_request_timestamp", "last_request_at"],
+        "properties": {
+          "raw_market_code": {"type": "integer", "minimum": 0},
+          "raw_security_code": {"type": "string", "minLength": 1, "maxLength": 128},
+          "vendor_security_code": {"type": ["string", "null"], "pattern": "^US\\.[A-Z0-9][A-Z0-9.-]{0,31}$"},
+          "source_request_time": {"type": "string", "minLength": 1, "maxLength": 64},
+          "source_request_timestamp": {"type": ["integer", "null"], "minimum": 1},
+          "last_request_at": {"type": "string", "format": "date-time"}
+        }
+      }
+    },
+    "planned_history_security_codes": {"type": "array", "minItems": 6, "maxItems": 16, "uniqueItems": true, "items": {"type": "string", "pattern": "^US\\.[A-Z0-9][A-Z0-9.-]{0,31}$"}},
+    "already_counted_security_codes": {"type": "array", "maxItems": 16, "uniqueItems": true, "items": {"type": "string", "pattern": "^US\\.[A-Z0-9][A-Z0-9.-]{0,31}$"}},
+    "required_incremental_security_count": {"type": "integer", "minimum": 0, "maximum": 16},
+    "sufficient": {"type": "boolean"},
+    "source_request_fingerprint": {"$ref": "#/$defs/sha256"},
+    "source_response_fingerprint": {"$ref": "#/$defs/sha256"},
+    "receipt_fingerprint": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "request_plan_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plan_index", "security_code", "protocol_id", "parameters_sha256", "pagination_mode", "maximum_pages", "activation_condition"],
+      "properties": {
+        "plan_index": {"type": "integer", "minimum": 0, "maximum": 127},
+        "security_code": {"type": "string", "pattern": "^US\\.[A-Z0-9][A-Z0-9.-]{0,31}$"},
+        "protocol_id": {"type": "integer", "minimum": 1},
+        "parameters_sha256": {"$ref": "#/$defs/sha256"},
+        "pagination_mode": {"enum": ["none", "internal"]},
+        "maximum_pages": {"type": "integer", "minimum": 1, "maximum": 64},
+        "activation_condition": {"enum": ["always", "eligible_conclusion_only"]}
+      }
+    }
+  }
+}

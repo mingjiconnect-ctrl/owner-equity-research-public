@@ -11,18 +11,103 @@ Private, engineering-grade foundations for auditable public-equity research.
 
 ## Current Phase 5 authority
 
-`Phase 5 v1 final-request and pinned-kernel vertical slice` is `in_progress` under ADRs 0041 and
-0042 and `docs/phase5-v1-status.json`. Only `PR2 final-request and pinned-kernel vertical slice` is
-authorized. PR1 is accepted on merged `main`; the former
-recursive G1-G5 controller, acceptance-only branches, and `docs/phase-status.json` are retained as
-`legacy_governance`; they are historical evidence rather than the current required path.
+`Phase 5 v1 comprehensive Skill single-PR3 delivery` is `code_complete_preview` under ADRs 0041-0044 and
+`docs/phase5-v1-status.json`. ADR 0044 authorizes one PR3 with four ordered implementation slices:
+the trusted run/archive core; SEC/IR-primary research plus valuation-intent-only Futu data;
+independent valuation synthesis plus four-lens scoring; and report/PDF/local Publisher plus the
+callable Skill. PR1 and PR2 are accepted on merged `main`. The former recursive G1-G5 controller, acceptance-only
+branches, and `docs/phase-status.json` remain `legacy_governance`; they are historical evidence,
+not the current path.
 
 Pull requests require exactly `verify (3.11)`, `verify (3.12)`, `verify (3.13)`, and
 `phase5/semantic-audit`. That Actions context is a deterministic candidate replay at the exact
 pull-request head; it is not an independent review. Before merge, a separate fresh-context review
 must bind the exact commit/tree, test counts, P0-P3 counts and report SHA in pull-request evidence.
-Both gates require P0=P1=0. Release candidates require P0=P1=P2=P3=0, while merged `main` runs smoke
-and deterministic replay. Canonical summaries stay outside product state.
+The final PR3 head is the sole acceptance point and requires P0=P1=P2=P3=0 in both gates. Merged
+`main` runs smoke and deterministic replay. Canonical summaries stay outside product state.
+
+Ordinary research remains target-price and market-capitalization blind and makes zero Futu calls.
+Only an explicit valuation request activates entitled Futu access: non-price financial-statement
+and company-information data may cross-check, but never replace, the SEC filings, issuer IR, and
+audited statements that remain the financial-Fact authority. Governed target-security and peer
+prices remain locked until the canonical research and price-blind inputs are frozen. The valuation
+route invokes the byte-pinned private kernel exactly once. The public Python wheel contains the
+verified client, not OpenD or credentials. Live access additionally requires the exact private
+`sidecars/futu-opend` distribution: its protocol guard, official-SDK adapter, protobuf parser,
+encrypted CAS, signed sequenced UDS session, rootless launcher, SBOM, and provenance are separate
+release authorities. A client-only install or protocol document is not a live Futu implementation.
+The kernel's McKinsey/Penman result and strict six-file archive remain unchanged. Downstream
+`PROJECT_EXTENSION` layers add an independently frozen comparables panel and compute current-value
+and twelve-month medians only when McKinsey, Penman, and comparables are all eligible; either
+composite is `null` when any required panel is missing, partial, blocked, ineligible, or contested.
+Each of the four isolated investment-principle lenses has five fixed 0-20 items. `Unknown` or
+partial evidence is nonnumeric, never zero, and prevents a lens and overall score. The package also
+contains the fixed recommendation label and a manifest-closed Chinese Markdown/LaTeX/PDF report
+written by a local-only Publisher. Trading, orders, positions, balances, holdings, and account
+mutation remain forbidden.
+
+Recommendation labels are deterministic: `无法评级` for any partial, blocked,
+`specialist_required`, or contested run; otherwise `回避` for an overall score below 50, a
+market price at least 15% above intrinsic value, or a permanent-capital-loss critical red flag;
+otherwise `重点关注` at overall/confidence/margin-of-safety/twelve-month-upside thresholds of
+80/80%/25%/20% with no critical red flag; otherwise `关注` at 70/70%/15%/10% with no critical
+red flag; every other complete run is `观察`.
+The frozen scorecard recommendation remains an audit field. The public result, report decision
+summary, and publication manifest expose a separately derived effective recommendation, so a
+later partial market-expectations phase becomes `无法评级` without rewriting the frozen scorecard.
+
+The reviewed-file valuation entry remains available for deterministic development and replay:
+
+```text
+owner-research-valuation complete \
+  --price-blind-dir <dir> \
+  --market-receipt <reviewed.json> \
+  --raw-market-evidence <file> \
+  --kernel-wheel <cas-wheel> \
+  --output <dir>
+```
+
+Generate the canonical `valuation-run-input.json` beside the price-blind directory with
+`write_valuation_run_input_context`, and set `OWNER_VALUATION_REPO` (or pass
+`--kernel-repository`) to the exact pinned private checkout. A successful core run writes only the
+six registered valuation archive files; blocked or specialist routes write no partial archive.
+The comprehensive PR3 route binds that immutable core inside a separate publication package
+instead of adding members to it.
+
+The comprehensive installed entry is intentionally fail closed and exposes the six fixed routes:
+
+```text
+owner-equity-research --help
+owner-equity-research research  --runtime-config <canonical.json> ...
+owner-equity-research quarterly --runtime-config <canonical.json> ...
+owner-equity-research valuation --runtime-config <canonical.json> ...
+owner-equity-research report    --runtime-config <canonical.json> --output <new-dir> ...
+owner-equity-research publish   --runtime-config <canonical.json> ...
+owner-equity-research audit     --runtime-config <canonical.json> ...
+```
+
+Ordinary `research`, `quarterly`, report-only, and audit routes do not construct or contact the
+Futu transport. The explicit valuation route requires the signed private-sidecar authorities and
+returns a typed blocked result when any authority is missing; it never substitutes sample data.
+The report-only route requires `--output` and atomically writes a strictly reloaded
+`research_only` package to that new directory. Its directly usable PDF is
+`<new-dir>/report/report.pdf`; the package also retains Markdown, LaTeX, report data, the report
+build receipt, and the exact frozen research inputs. Delivery verifies the in-memory report from
+the same run and does not reacquire research, invoke valuation, or contact Futu. The output parent
+must already exist, be owned by the current user, and not be group/world writable. A delivery
+failure returns exit code 2 with `status=output_error`; a blocked workflow keeps its phase exit
+code and reports `delivery.status=not_written`.
+
+Package and plugin versions remain development versions throughout PR3. Neither
+`v1.0.0-rc.1` nor `v1.0.0` is currently authorized. The dated
+`docs/phase5-v1-stable-release-block.json` record binds the still-pending external Futu Legal,
+Account, and Protocol authorities and the missing real end-to-end canary. No RC tag may be created
+until one entitled, quote-only, isolated Futu run on the exact merged commit consumes real market,
+financial-statement, and company-information data, reconciles SEC/IR authority, strictly reloads
+the six-file archive, verifies the exact signed private sidecar and session-finalization receipts,
+and publishes/reloads the local PDF package. Scraping, free APIs, trading-account data, reviewed
+files, manual or simulated prices, an unsigned sidecar, and technical documentation cannot
+substitute for that canary.
 
 ## Historical phase record
 
@@ -222,11 +307,70 @@ original implementation and governance audit `2.3.2.3`, but independent semantic
 P0 cross-source share-event identity gap. Phase 5E-2B.1-0 is frozen under audit `2.3.2.3.1`;
 production grouping is accepted/closed under audit `2.3.2.3.2`, and the contract-only successor
 remains historical under audit `2.3.2.3.3`. Its former dual-state authorization is retired.
-None of these phases asserts complete valuation-request
+None of these historical pre-PR3 phases asserts complete valuation-request
 data, invokes the kernel, or writes valuation artifacts. The system does
-**not** implement company or management grading,
-scoring, valuation execution, recommendations, target prices, report generation, PDF, or
-publishing.
+not attribute PR3 scoring, valuation execution, recommendations, target prices, report
+generation, PDF, or publishing authority to those frozen predecessors.
+
+## Install the release Skill and CLIs
+
+The Plugin ZIP is a closed local Codex marketplace, not a directly installable plugin selector.
+Verify the release `SHA256SUMS` and the exact release commit before extracting it. Use fresh,
+absolute directories for both the Python environment and `CODEX_HOME`:
+
+```bash
+python3 -m venv /absolute/path/owner-equity-venv
+/absolute/path/owner-equity-venv/bin/python -m pip install \
+  /absolute/path/owner_equity_research-1.0.0rc1-py3-none-any.whl
+export PATH="/absolute/path/owner-equity-venv/bin:$PATH"
+
+mkdir /absolute/path/owner-equity-plugin-release
+python3 -m zipfile -e \
+  /absolute/path/owner-equity-research-plugin-1.0.0-rc.1.zip \
+  /absolute/path/owner-equity-plugin-release
+
+mkdir -m 700 /absolute/path/clean-home
+export HOME=/absolute/path/clean-home
+mkdir -m 700 "$HOME/.codex"
+export CODEX_HOME="$HOME/.codex"
+codex --version
+codex plugin marketplace add /absolute/path/owner-equity-plugin-release --json
+codex plugin add owner-equity-research@owner-equity-research-release --json
+codex plugin list --json
+```
+
+The release compatibility target is Codex CLI `0.139.0`. The marketplace contains exactly one
+plugin at `./plugins/owner-equity-research`; its version is read from the exact Plugin manifest.
+The default `ON_INSTALL` authentication policy is the schema default and does not launch
+authentication because this Plugin declares no App or MCP dependency.
+
+Verify the three installed Python entry points and the six-command unified surface:
+
+```bash
+owner-equity-research --help
+owner-research-validate --help
+owner-research-valuation --help
+owner-equity-research research --help
+owner-equity-research quarterly --help
+owner-equity-research valuation --help
+owner-equity-research report --help
+owner-equity-research publish --help
+owner-equity-research audit --help
+```
+
+This deterministic command renders the model-visible prompt without making a model call. Among
+the four packaged Owner Research Skills, only `owner-equity-research` may appear implicitly:
+
+```bash
+codex debug prompt-input \
+  'Perform an ordinary price-blind owner research routing preflight.'
+```
+
+Start a new Codex task after installation before invoking `$owner-equity-research`. A full
+valuation still fails closed unless the protected quote-only Futu and private-kernel authorities
+required by the release policy are present. Do not copy a personal `auth.json` into the clean
+home to simulate an authenticated release invocation; the real canary uses its separately
+authorized protected environment.
 
 ## Verify
 
@@ -285,5 +429,6 @@ candidate code runs, and never persisted in the checkout; verification then runs
 access. CI uploads only canonical, credential-free verification summaries. The former
 protected-base Controller, external Gate Author, recursive status publication, and merged-main
 acceptance audit remain frozen under `legacy_governance`; the narrowly scoped Kernel Reader is the
-only retained App authority. Phase 6 through Phase 9 still require a separate reviewed
-authorization after Phase 5.
+only retained App authority. ADR 0044 folds the former Phase 6 scoring and Phase 7 local Publisher
+work into the single comprehensive PR3; later multi-company expansion and legacy cleanup remain
+outside this authorization.

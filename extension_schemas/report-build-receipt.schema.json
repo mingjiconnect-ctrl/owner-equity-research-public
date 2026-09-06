@@ -1,0 +1,444 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/report-build-receipt.schema.json",
+  "title": "ReportBuildReceipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "report_build_id",
+    "profile",
+    "valuation_context_status",
+    "issuer_id",
+    "data_cutoff_date",
+    "research_bundle_id",
+    "research_bundle_fingerprint",
+    "research_run_id",
+    "research_source_index_fingerprint",
+    "research_source_publication_manifest_fingerprint",
+    "valuation_archive_id",
+    "valuation_archive_fingerprint",
+    "futu_session_evidence_fingerprint",
+    "futu_session_publication_manifest_fingerprint",
+    "futu_market_execution_evidence_fingerprint",
+    "futu_peer_evidence_set_fingerprint",
+    "futu_partial_session_evidence_fingerprint",
+    "futu_partial_session_publication_manifest_fingerprint",
+    "futu_optional_data_disposition_fingerprints",
+    "futu_optional_data_disposition_publication_manifest_fingerprints",
+    "forward_reoi_fingerprint",
+    "comparable_valuation_fingerprint",
+    "composite_valuation_fingerprint",
+    "report_spec_id",
+    "report_spec_fingerprint",
+    "report_content_fingerprint",
+    "score_fingerprints",
+    "score_v2_fingerprints",
+    "owner_scorecard_fingerprint",
+    "forward_reoi_publication_manifest_fingerprint",
+    "comparable_valuation_publication_manifest_fingerprint",
+    "composite_valuation_publication_manifest_fingerprint",
+    "score_v2_publication_manifest_fingerprints",
+    "owner_scorecard_publication_manifest_fingerprint",
+    "market_expectations_fingerprint",
+    "market_expectations_publication_manifest_fingerprint",
+    "runtime_gap_fingerprint",
+    "runtime_gap_publication_manifest_fingerprint",
+    "renderer",
+    "artifacts",
+    "qa",
+    "receipt_fingerprint"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "artifact_type": {"const": "report-build-receipt"},
+    "report_build_id": {"type": "string", "minLength": 1},
+    "profile": {"enum": ["research_only", "full_valuation"]},
+    "valuation_context_status": {
+      "enum": ["not_applicable", "complete", "post_context_not_run"]
+    },
+    "issuer_id": {"type": "string", "minLength": 1},
+    "data_cutoff_date": {"type": "string", "format": "date"},
+    "research_bundle_id": {"type": "string", "minLength": 1},
+    "research_bundle_fingerprint": {"$ref": "#/$defs/sha256"},
+    "research_run_id": {"type": "string", "minLength": 1},
+    "research_source_index_fingerprint": {"$ref": "#/$defs/sha256"},
+    "research_source_publication_manifest_fingerprint": {"$ref": "#/$defs/sha256"},
+    "valuation_archive_id": {"type": ["string", "null"], "minLength": 1},
+    "valuation_archive_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "futu_session_evidence_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "futu_session_publication_manifest_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "futu_market_execution_evidence_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "futu_peer_evidence_set_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "futu_partial_session_evidence_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "futu_partial_session_publication_manifest_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "futu_optional_data_disposition_fingerprints": {
+      "type": "array", "maxItems": 4, "uniqueItems": true,
+      "items": {"$ref": "#/$defs/sha256"}
+    },
+    "futu_optional_data_disposition_publication_manifest_fingerprints": {
+      "type": "array", "maxItems": 4, "uniqueItems": true,
+      "items": {"$ref": "#/$defs/sha256"}
+    },
+    "forward_reoi_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "comparable_valuation_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "composite_valuation_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "report_spec_id": {"type": "string", "minLength": 1},
+    "report_spec_fingerprint": {"$ref": "#/$defs/sha256"},
+    "report_content_fingerprint": {"$ref": "#/$defs/sha256"},
+    "score_fingerprints": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/sha256"}
+    },
+    "score_v2_fingerprints": {
+      "type": "array",
+      "maxItems": 4,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/sha256"}
+    },
+    "owner_scorecard_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "forward_reoi_publication_manifest_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "comparable_valuation_publication_manifest_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "composite_valuation_publication_manifest_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "score_v2_publication_manifest_fingerprints": {
+      "type": "array", "maxItems": 4, "uniqueItems": true,
+      "items": {"$ref": "#/$defs/sha256"}
+    },
+    "owner_scorecard_publication_manifest_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "market_expectations_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "market_expectations_publication_manifest_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "runtime_gap_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "runtime_gap_publication_manifest_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "renderer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "renderer_id", "renderer_version", "engine", "toolchain_authority_id",
+        "toolchain_authority_fingerprint"
+      ],
+      "properties": {
+        "renderer_id": {"type": "string", "minLength": 1},
+        "renderer_version": {"type": "string", "minLength": 1},
+        "engine": {
+          "enum": ["tectonic", "injected-test-renderer"]
+        },
+        "toolchain_authority_id": {"type": ["string", "null"], "minLength": 1},
+        "toolchain_authority_fingerprint": {
+          "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"engine": {"const": "tectonic"}}},
+          "then": {
+            "properties": {
+              "toolchain_authority_id": {"type": "string", "minLength": 1},
+              "toolchain_authority_fingerprint": {"$ref": "#/$defs/sha256"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"engine": {"const": "injected-test-renderer"}}},
+          "then": {
+            "properties": {
+              "toolchain_authority_id": {"type": "null"},
+              "toolchain_authority_fingerprint": {"type": "null"}
+            }
+          }
+        }
+      ]
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 7,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/member"}
+    },
+    "qa": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "page_count",
+        "minimum_pages",
+        "maximum_pages",
+        "rendered_page_count",
+        "extracted_text_sha256",
+        "page_text_character_counts",
+        "rendered_page_sha256",
+        "page_non_white_ratios",
+        "pdf_text_backend",
+        "pdf_render_backend",
+        "language",
+        "simplified_chinese_detected",
+        "required_section_ids",
+        "verified_section_ids",
+        "substantive_unit_count",
+        "anti_padding"
+      ],
+      "properties": {
+        "status": {"const": "passed"},
+        "page_count": {"type": "integer", "minimum": 30, "maximum": 60},
+        "minimum_pages": {"const": 30},
+        "maximum_pages": {"const": 60},
+        "rendered_page_count": {"type": "integer", "minimum": 30, "maximum": 60},
+        "extracted_text_sha256": {"$ref": "#/$defs/sha256"},
+        "page_text_character_counts": {
+          "type": "array", "minItems": 30, "maxItems": 60,
+          "items": {"type": "integer", "minimum": 0}
+        },
+        "rendered_page_sha256": {
+          "type": "array", "minItems": 30, "maxItems": 60,
+          "items": {"$ref": "#/$defs/sha256"}
+        },
+        "page_non_white_ratios": {
+          "type": "array", "minItems": 30, "maxItems": 60,
+          "items": {"type": "string", "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)$"}
+        },
+        "pdf_text_backend": {
+          "oneOf": [{"type": "null"}, {"$ref": "#/$defs/pdf_backend"}]
+        },
+        "pdf_render_backend": {
+          "oneOf": [{"type": "null"}, {"$ref": "#/$defs/pdf_backend"}]
+        },
+        "language": {"const": "zh-CN"},
+        "simplified_chinese_detected": {"const": true},
+        "required_section_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "verified_section_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "substantive_unit_count": {"type": "integer", "minimum": 30},
+        "anti_padding": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status", "method", "verified_paragraph_count", "unique_paragraph_count",
+            "blank_page_count", "low_density_non_cover_page_count",
+            "minimum_non_cover_characters", "page_character_counts_sha256"
+          ],
+          "properties": {
+            "status": {"const": "passed"},
+            "method": {"const": "unique-evidence-bound-narrative-v1"},
+            "verified_paragraph_count": {"type": "integer", "minimum": 30, "maximum": 48},
+            "unique_paragraph_count": {"type": "integer", "minimum": 30, "maximum": 48},
+            "blank_page_count": {"const": 0},
+            "low_density_non_cover_page_count": {"const": 0},
+            "minimum_non_cover_characters": {"type": "integer", "minimum": 64},
+            "page_character_counts_sha256": {"$ref": "#/$defs/sha256"}
+          }
+        }
+      }
+    },
+    "receipt_fingerprint": {"$ref": "#/$defs/sha256"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"profile": {"const": "research_only"}}},
+      "then": {
+        "properties": {
+          "valuation_context_status": {"const": "not_applicable"},
+          "valuation_archive_id": {"type": "null"},
+          "valuation_archive_fingerprint": {"type": "null"},
+          "futu_session_evidence_fingerprint": {"type": "null"},
+          "futu_session_publication_manifest_fingerprint": {"type": "null"},
+          "futu_market_execution_evidence_fingerprint": {"type": "null"},
+          "futu_peer_evidence_set_fingerprint": {"type": "null"},
+          "futu_partial_session_evidence_fingerprint": {"type": "null"},
+          "futu_partial_session_publication_manifest_fingerprint": {"type": "null"},
+          "futu_optional_data_disposition_fingerprints": {"maxItems": 0},
+          "futu_optional_data_disposition_publication_manifest_fingerprints": {"maxItems": 0},
+          "forward_reoi_fingerprint": {"type": "null"},
+          "comparable_valuation_fingerprint": {"type": "null"},
+          "composite_valuation_fingerprint": {"type": "null"},
+          "score_v2_fingerprints": {"maxItems": 0},
+          "owner_scorecard_fingerprint": {"type": "null"},
+          "forward_reoi_publication_manifest_fingerprint": {"type": "null"},
+          "comparable_valuation_publication_manifest_fingerprint": {"type": "null"},
+          "composite_valuation_publication_manifest_fingerprint": {"type": "null"},
+          "score_v2_publication_manifest_fingerprints": {"maxItems": 0},
+          "owner_scorecard_publication_manifest_fingerprint": {"type": "null"},
+          "market_expectations_fingerprint": {"type": "null"},
+          "market_expectations_publication_manifest_fingerprint": {"type": "null"},
+          "runtime_gap_fingerprint": {"type": "null"},
+          "runtime_gap_publication_manifest_fingerprint": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"profile": {"const": "full_valuation"}}},
+      "then": {
+        "properties": {
+          "valuation_archive_id": {"type": "string", "minLength": 1},
+          "valuation_archive_fingerprint": {"$ref": "#/$defs/sha256"},
+          "futu_optional_data_disposition_fingerprints": {"minItems": 4, "maxItems": 4},
+          "futu_optional_data_disposition_publication_manifest_fingerprints": {"minItems": 4, "maxItems": 4},
+          "composite_valuation_fingerprint": {"$ref": "#/$defs/sha256"},
+          "score_fingerprints": {"maxItems": 0},
+          "score_v2_fingerprints": {"minItems": 4, "maxItems": 4},
+          "owner_scorecard_fingerprint": {"$ref": "#/$defs/sha256"},
+          "composite_valuation_publication_manifest_fingerprint": {"$ref": "#/$defs/sha256"},
+          "score_v2_publication_manifest_fingerprints": {"minItems": 4, "maxItems": 4},
+          "owner_scorecard_publication_manifest_fingerprint": {"$ref": "#/$defs/sha256"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"valuation_context_status": {"const": "complete"}}},
+      "then": {
+        "properties": {
+          "profile": {"const": "full_valuation"},
+          "futu_session_evidence_fingerprint": {"$ref": "#/$defs/sha256"},
+          "futu_session_publication_manifest_fingerprint": {"$ref": "#/$defs/sha256"},
+          "futu_market_execution_evidence_fingerprint": {"type": "null"},
+          "futu_peer_evidence_set_fingerprint": {"type": "null"},
+          "futu_partial_session_evidence_fingerprint": {"type": "null"},
+          "futu_partial_session_publication_manifest_fingerprint": {"type": "null"},
+          "forward_reoi_fingerprint": {"$ref": "#/$defs/sha256"},
+          "comparable_valuation_fingerprint": {"$ref": "#/$defs/sha256"},
+          "forward_reoi_publication_manifest_fingerprint": {"$ref": "#/$defs/sha256"},
+          "comparable_valuation_publication_manifest_fingerprint": {"$ref": "#/$defs/sha256"},
+          "market_expectations_fingerprint": {"$ref": "#/$defs/sha256"},
+          "market_expectations_publication_manifest_fingerprint": {"$ref": "#/$defs/sha256"},
+          "runtime_gap_fingerprint": {"type": "null"},
+          "runtime_gap_publication_manifest_fingerprint": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"valuation_context_status": {"const": "post_context_not_run"}}
+      },
+      "then": {
+        "properties": {
+          "profile": {"const": "full_valuation"},
+          "futu_session_evidence_fingerprint": {"type": "null"},
+          "futu_session_publication_manifest_fingerprint": {"type": "null"},
+          "futu_market_execution_evidence_fingerprint": {"$ref": "#/$defs/sha256"},
+          "futu_peer_evidence_set_fingerprint": {"$ref": "#/$defs/sha256"},
+          "futu_partial_session_evidence_fingerprint": {"$ref": "#/$defs/sha256"},
+          "futu_partial_session_publication_manifest_fingerprint": {"$ref": "#/$defs/sha256"},
+          "market_expectations_fingerprint": {"type": "null"},
+          "market_expectations_publication_manifest_fingerprint": {"type": "null"},
+          "runtime_gap_fingerprint": {"$ref": "#/$defs/sha256"},
+          "runtime_gap_publication_manifest_fingerprint": {"$ref": "#/$defs/sha256"}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "renderer": {
+            "properties": {"engine": {"const": "tectonic"}},
+            "required": ["engine"]
+          }
+        },
+        "required": ["renderer"]
+      },
+      "then": {
+        "properties": {
+          "qa": {
+            "properties": {
+              "pdf_text_backend": {"$ref": "#/$defs/pdf_backend"},
+              "pdf_render_backend": {"$ref": "#/$defs/pdf_backend"}
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "renderer": {
+            "properties": {"engine": {"const": "injected-test-renderer"}},
+            "required": ["engine"]
+          }
+        },
+        "required": ["renderer"]
+      },
+      "then": {
+        "properties": {
+          "qa": {
+            "properties": {
+              "pdf_text_backend": {"type": "null"},
+              "pdf_render_backend": {"type": "null"}
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "pdf_backend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["distribution", "version", "tree_sha256", "member_count", "total_bytes"],
+      "properties": {
+        "distribution": {"enum": ["pypdf", "pypdfium2"]},
+        "version": {"type": "string", "minLength": 1},
+        "tree_sha256": {"$ref": "#/$defs/sha256"},
+        "member_count": {"type": "integer", "minimum": 1, "maximum": 4096},
+        "total_bytes": {"type": "integer", "minimum": 1, "maximum": 402653184}
+      }
+    },
+    "member": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "media_type", "size", "sha256"],
+      "properties": {
+        "path": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._/-]*$"},
+        "media_type": {"type": "string", "minLength": 1},
+        "size": {"type": "integer", "minimum": 1},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  }
+}

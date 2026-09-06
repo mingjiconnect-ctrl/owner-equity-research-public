@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .calculation_integrity import build_calculation_result
+from .component_lock import read_stable_file_bytes
 from .contracts import (
     CalculationResult,
     Claim,
@@ -405,7 +406,9 @@ def _calculation(
         "generator": "deterministic_program",
         "calculator_id": calculator_id,
         "calculator_version": "1.0.0",
-        "code_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        "code_sha256": hashlib.sha256(
+            read_stable_file_bytes(Path(__file__))
+        ).hexdigest(),
         "input_fact_ids": input_ids,
         "input_assumption_ids": [],
         "input_calculation_ids": [],

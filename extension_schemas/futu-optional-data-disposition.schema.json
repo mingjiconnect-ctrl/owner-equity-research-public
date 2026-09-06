@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://owner-research.local/schemas/futu-optional-data-disposition.schema.json",
+  "title": "Futu Optional Data Disposition",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "disposition_id",
+    "disposition_fingerprint",
+    "issuer_id",
+    "data_cutoff_date",
+    "protocol_id",
+    "protocol_name",
+    "data_family",
+    "status",
+    "reason_code",
+    "execution_bundle",
+    "review_authority",
+    "requests",
+    "responses",
+    "observations"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "artifact_type": {"const": "futu-optional-data-disposition"},
+    "disposition_id": {
+      "type": "string",
+      "pattern": "^futu-optional-disposition:(3235|3244|3245|3246):[0-9a-f]{24}$"
+    },
+    "disposition_fingerprint": {"$ref": "#/$defs/sha256"},
+    "issuer_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "data_cutoff_date": {"type": "string", "format": "date"},
+    "protocol_id": {"enum": [3235, 3244, 3245, 3246]},
+    "protocol_name": {"type": "string", "minLength": 1, "maxLength": 128},
+    "data_family": {"enum": ["corporate_actions", "company_profile", "operating_metrics"]},
+    "status": {
+      "enum": [
+        "available",
+        "not_comparable",
+        "unavailable",
+        "not_requested",
+        "not_supported_for_us_sec_primary"
+      ]
+    },
+    "reason_code": {
+      "enum": [
+        "vendor_observations_available",
+        "vendor_fields_not_comparable_to_official_facts",
+        "vendor_returned_no_observations",
+        "named_human_review_not_selected",
+        "official_registry_excludes_us_sec_primary"
+      ]
+    },
+    "execution_bundle": {"$ref": "#/$defs/reference"},
+    "review_authority": {"$ref": "#/$defs/reference"},
+    "requests": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/reference"}
+    },
+    "responses": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/reference"}
+    },
+    "observations": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/reference"}
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["object_id", "fingerprint"],
+      "properties": {
+        "object_id": {"type": "string", "minLength": 1, "maxLength": 512},
+        "fingerprint": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  }
+}

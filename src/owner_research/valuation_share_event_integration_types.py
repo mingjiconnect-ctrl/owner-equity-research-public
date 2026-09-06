@@ -21,7 +21,7 @@ from .capital_allocation_policies import (
     OFFICIAL_AUTHORITY_LEVELS,
     SOURCE_FAMILIES,
 )
-from .component_lock import file_sha256
+from .component_lock import file_sha256, read_stable_file_bytes
 from .contracts import (
     AnalyticalClaimCandidate,
     AnalyticalClaimReviewDecision,
@@ -328,7 +328,7 @@ def coverage_search_authority_sha256() -> str:
             "tool_version": COVERAGE_SEARCH_TOOL_VERSION,
             "endpoint_ids": COVERAGE_SEARCH_ENDPOINTS,
             "source_search_module_sha256": hashlib.sha256(
-                Path(source_search_receipt_module.__file__).read_bytes()
+                read_stable_file_bytes(Path(source_search_receipt_module.__file__))
             ).hexdigest(),
         }
     )
@@ -598,13 +598,15 @@ def current_share_integration_contract_sha256() -> str:
 def current_share_integration_code_sha256() -> str:
     """Return the exact source-byte identity of this validation boundary."""
 
-    return hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+    return hashlib.sha256(read_stable_file_bytes(Path(__file__))).hexdigest()
 
 
 def current_share_integration_policy_sha256() -> str:
     """Return the exact byte identity of the closed integration policy resource."""
 
-    return hashlib.sha256(CURRENT_SHARE_INTEGRATION_POLICY_PATH.read_bytes()).hexdigest()
+    return hashlib.sha256(
+        read_stable_file_bytes(CURRENT_SHARE_INTEGRATION_POLICY_PATH)
+    ).hexdigest()
 
 
 def _nonempty(value: str, label: str) -> None:

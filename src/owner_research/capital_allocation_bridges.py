@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .calculation_integrity import build_calculation_result
 from .capital_allocation_policies import OFFICIAL_AUTHORITY_LEVELS
+from .component_lock import read_stable_file_bytes
 from .contracts import CalculationResult, CapitalAllocationEvent, Fact, SourceDocument
 from .fingerprints import canonical_sha256
 from .units import normalize_value, unit_spec
@@ -318,7 +319,7 @@ def run_capital_allocation_bridge(
     )
     value, currency = _calculate(policy, facts_by_role)
     facts = {item.fact_id: item for item in selected}
-    code_sha = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+    code_sha = hashlib.sha256(read_stable_file_bytes(Path(__file__))).hexdigest()
     calculation_id = (
         f"calc:{event.issuer_id}:{policy.policy_id}:"
         f"{canonical_sha256({'event': event.fingerprint, 'facts': sorted(facts)})[:20]}"

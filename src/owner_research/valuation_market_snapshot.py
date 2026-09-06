@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .calculation_integrity import build_calculation_result
+from .component_lock import file_sha256, read_stable_file_bytes
 from .contracts import CalculationResult, Fact, MarketReferenceSnapshot, SourceDocument
 from .fingerprints import canonical_sha256
 from .validation import ContractGraph
@@ -60,7 +61,7 @@ def _fact_number(value: Decimal, label: str) -> int | float:
 
 
 def _calculation_code_sha256() -> str:
-    return hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+    return hashlib.sha256(read_stable_file_bytes(Path(__file__))).hexdigest()
 
 
 @dataclass(frozen=True, slots=True)
@@ -296,9 +297,7 @@ def build_reviewed_market_reference_snapshot(
         "market_policy_version": MARKET_REFERENCE_POLICY_VERSION,
         "authorization_handoff_id": authorization.handoff_id,
         "authorization_handoff_fingerprint": authorization.fingerprint,
-        "component_lock_sha256": hashlib.sha256(
-            working.component_lock_path.read_bytes()
-        ).hexdigest(),
+        "component_lock_sha256": file_sha256(working.component_lock_path),
         "market_access_result_fingerprint": access.fingerprint,
         "market_quote_request": {
             "request_id": request.request_id,

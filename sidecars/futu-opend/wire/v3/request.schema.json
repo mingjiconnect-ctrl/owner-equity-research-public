@@ -1,0 +1,340 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://owner-research.invalid/futu-sidecar/v3/request.schema.json",
+  "$defs": {
+    "open": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "wire_schema_version": {
+          "const": "3.0.0"
+        },
+        "command": {
+          "const": "open_quote_only_session"
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "challenge_nonce": {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 256
+        },
+        "expected_supply_attestation": {
+          "$ref": "common.schema.json#/$defs/supplyAttestation"
+        },
+        "expected_runtime_authorization_fingerprint": {
+          "$ref": "common.schema.json#/$defs/sha256"
+        },
+        "expected_authorized_security_codes": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^US\\.[A-Z0-9][A-Z0-9.-]{0,31}$"
+          }
+        },
+        "expected_request_plan": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 128,
+          "items": {
+            "$ref": "common.schema.json#/$defs/requestPlanItem"
+          }
+        },
+        "expected_request_plan_fingerprint": {
+          "$ref": "common.schema.json#/$defs/sha256"
+        },
+        "expected_maximum_planned_requests": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 128
+        },
+        "expected_maximum_pages_per_protocol": {
+          "const": 64
+        },
+        "expected_signer_key_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "wire_schema_version",
+        "command",
+        "run_id",
+        "challenge_nonce",
+        "expected_supply_attestation",
+        "expected_runtime_authorization_fingerprint",
+        "expected_authorized_security_codes",
+        "expected_request_plan",
+        "expected_request_plan_fingerprint",
+        "expected_maximum_planned_requests",
+        "expected_maximum_pages_per_protocol",
+        "expected_signer_key_id"
+      ]
+    },
+    "fetch": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "wire_schema_version": {
+          "const": "3.0.0"
+        },
+        "command": {
+          "const": "fetch_quote_data_with_global_state_guards"
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "request_fingerprint": {
+          "$ref": "common.schema.json#/$defs/sha256"
+        },
+        "protocol": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "enum": [
+                3103,
+                3104,
+                3202,
+                3227,
+                3228,
+                3229,
+                3230,
+                3232,
+                3234,
+                3236,
+                3243,
+                3244,
+                3245,
+                3246
+              ]
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          "required": [
+            "id",
+            "name"
+          ]
+        },
+        "security": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "market": {
+              "const": "US"
+            },
+            "code": {
+              "type": "string",
+              "pattern": "^US\\.[A-Z0-9][A-Z0-9.-]{0,31}$"
+            },
+            "security_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            }
+          },
+          "required": [
+            "market",
+            "code",
+            "security_id"
+          ]
+        },
+        "parameters": {
+          "type": "object",
+          "maxProperties": 16
+        },
+        "page_index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 63
+        },
+        "page_key": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "expected_supply_attestation": {
+          "$ref": "common.schema.json#/$defs/supplyAttestation"
+        },
+        "global_state_guards": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "protocol_id": {
+              "const": 1002
+            },
+            "required_pre_request_fingerprint": {
+              "$ref": "common.schema.json#/$defs/sha256"
+            },
+            "required_post_request_fingerprint": {
+              "$ref": "common.schema.json#/$defs/sha256"
+            },
+            "qot_logined": {
+              "const": true
+            }
+          },
+          "required": [
+            "protocol_id",
+            "required_pre_request_fingerprint",
+            "required_post_request_fingerprint",
+            "qot_logined"
+          ]
+        },
+        "session_id": {
+          "$ref": "common.schema.json#/$defs/sha256"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 129
+        },
+        "boot_receipt_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "wire_schema_version",
+        "command",
+        "run_id",
+        "request_id",
+        "request_fingerprint",
+        "protocol",
+        "security",
+        "parameters",
+        "page_index",
+        "page_key",
+        "expected_supply_attestation",
+        "global_state_guards",
+        "session_id",
+        "sequence",
+        "boot_receipt_id"
+      ]
+    },
+    "finalize": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "wire_schema_version": {
+          "const": "3.0.0"
+        },
+        "command": {
+          "const": "finalize_quote_only_session"
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "session_id": {
+          "$ref": "common.schema.json#/$defs/sha256"
+        },
+        "boot_receipt_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 129
+        },
+        "conditional_plan_disposition": {
+          "$ref": "common.schema.json#/$defs/conditionalPlanDisposition"
+        }
+      },
+      "required": [
+        "wire_schema_version",
+        "command",
+        "run_id",
+        "session_id",
+        "boot_receipt_id",
+        "sequence",
+        "conditional_plan_disposition"
+      ]
+    },
+    "abort": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "wire_schema_version": {
+          "const": "3.0.0"
+        },
+        "command": {
+          "const": "abort_quote_only_session"
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "session_id": {
+          "$ref": "common.schema.json#/$defs/sha256"
+        },
+        "boot_receipt_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 129
+        },
+        "reason_code": {
+          "enum": [
+            "host_failure",
+            "sidecar_response_invalid",
+            "quote_login_lost",
+            "caller_abort"
+          ]
+        }
+      },
+      "required": [
+        "wire_schema_version",
+        "command",
+        "run_id",
+        "session_id",
+        "boot_receipt_id",
+        "sequence",
+        "reason_code"
+      ]
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/open"
+    },
+    {
+      "$ref": "#/$defs/fetch"
+    },
+    {
+      "$ref": "#/$defs/finalize"
+    },
+    {
+      "$ref": "#/$defs/abort"
+    }
+  ]
+}

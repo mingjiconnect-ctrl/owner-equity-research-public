@@ -1,0 +1,219 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/score-v2.schema.json",
+  "title": "ScoreV2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "score_id", "extension_label", "issuer_id", "as_of_date", "lens",
+    "status", "research_bundle_fingerprint", "contract_graph_fingerprint", "review_authority_fingerprint", "composite_valuation_fingerprint", "components",
+    "total_score", "confidence_percent", "red_flags", "missing_evidence"
+  ],
+  "properties": {
+    "schema_version": {"const": "2.0.0"},
+    "score_id": {"type": "string", "pattern": "^score-v2:.+:(?:graham|buffett|munger|duan_yongping):[a-f0-9]{24}$"},
+    "extension_label": {"const": "PROJECT_EXTENSION_OWNER_SCORE_V2"},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "as_of_date": {"type": "string", "format": "date"},
+    "lens": {"enum": ["graham", "buffett", "munger", "duan_yongping"]},
+    "status": {"enum": ["complete", "partial", "blocked"]},
+    "research_bundle_fingerprint": {"$ref": "#/$defs/sha256"},
+    "contract_graph_fingerprint": {"$ref": "#/$defs/sha256"},
+    "review_authority_fingerprint": {"$ref": "#/$defs/sha256"},
+    "composite_valuation_fingerprint": {"$ref": "#/$defs/sha256"},
+    "components": {"$ref": "#/$defs/components"},
+    "total_score": {"anyOf": [{"$ref": "#/$defs/score100"}, {"type": "null"}]},
+    "confidence_percent": {"anyOf": [{"$ref": "#/$defs/score100"}, {"type": "null"}]},
+    "red_flags": {"type": "array", "items": {"$ref": "#/$defs/redFlag"}},
+    "missing_evidence": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"lens": {"const": "graham"}}, "required": ["lens"]},
+      "then": {
+        "properties": {
+          "score_id": {"pattern": "^score-v2:.+:graham:[a-f0-9]{24}$"},
+          "components": {"$ref": "#/$defs/grahamComponents"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"lens": {"const": "buffett"}}, "required": ["lens"]},
+      "then": {
+        "properties": {
+          "score_id": {"pattern": "^score-v2:.+:buffett:[a-f0-9]{24}$"},
+          "components": {"$ref": "#/$defs/buffettComponents"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"lens": {"const": "munger"}}, "required": ["lens"]},
+      "then": {
+        "properties": {
+          "score_id": {"pattern": "^score-v2:.+:munger:[a-f0-9]{24}$"},
+          "components": {"$ref": "#/$defs/mungerComponents"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"lens": {"const": "duan_yongping"}}, "required": ["lens"]},
+      "then": {
+        "properties": {
+          "score_id": {"pattern": "^score-v2:.+:duan_yongping:[a-f0-9]{24}$"},
+          "components": {"$ref": "#/$defs/duanYongpingComponents"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"status": {"const": "complete"}}, "required": ["status"]},
+      "then": {
+        "properties": {
+          "components": {"items": {"properties": {"status": {"const": "complete"}}}},
+          "total_score": {"$ref": "#/$defs/score100"},
+          "confidence_percent": {"$ref": "#/$defs/score100"},
+          "missing_evidence": {"maxItems": 0}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"status": {"const": "partial"}}, "required": ["status"]},
+      "then": {
+        "properties": {
+          "components": {
+            "items": {"properties": {"status": {"enum": ["complete", "partial", "unknown"]}}},
+            "contains": {"properties": {"status": {"enum": ["partial", "unknown"]}}},
+            "minContains": 1
+          },
+          "total_score": {"type": "null"},
+          "confidence_percent": {"type": "null"},
+          "missing_evidence": {"minItems": 1}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"status": {"const": "blocked"}}, "required": ["status"]},
+      "then": {
+        "properties": {
+          "components": {
+            "contains": {"properties": {"status": {"const": "blocked"}}},
+            "minContains": 1
+          },
+          "total_score": {"type": "null"},
+          "confidence_percent": {"type": "null"},
+          "missing_evidence": {"minItems": 1}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "score20": {"type": "string", "pattern": "^(?:(?:0|[1-9]|1[0-9])(?:\\.[0-9]+)?|20(?:\\.0+)?)$"},
+    "score100": {"type": "string", "pattern": "^(?:(?:0|[1-9][0-9]?)(?:\\.[0-9]+)?|100(?:\\.0+)?)$"},
+    "evidenceBinding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["object_type", "object_id", "fingerprint"],
+      "properties": {
+        "object_type": {"type": "string", "minLength": 1},
+        "object_id": {"type": "string", "minLength": 1},
+        "fingerprint": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "redFlag": {
+      "type": "object", "additionalProperties": false,
+      "required": ["code", "severity", "rationale", "evidence_bindings"],
+      "properties": {
+        "code": {"type": "string", "minLength": 1},
+        "severity": {"enum": ["warning", "critical", "permanent_loss"]},
+        "rationale": {"type": "string", "minLength": 1},
+        "evidence_bindings": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/evidenceBinding"}}
+      }
+    },
+    "component": {
+      "type": "object", "additionalProperties": false,
+      "required": ["component_id", "status", "score", "max_score", "confidence_percent", "rationale", "evidence_bindings", "missing_evidence", "red_flags"],
+      "properties": {
+        "component_id": {"type": "string", "minLength": 1},
+        "status": {"enum": ["complete", "partial", "unknown", "blocked"]},
+        "score": {"anyOf": [{"$ref": "#/$defs/score20"}, {"type": "null"}]},
+        "max_score": {"const": "20"},
+        "confidence_percent": {"anyOf": [{"$ref": "#/$defs/score100"}, {"type": "null"}]},
+        "rationale": {"type": "string", "minLength": 1},
+        "evidence_bindings": {"type": "array", "items": {"$ref": "#/$defs/evidenceBinding"}},
+        "missing_evidence": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "red_flags": {"type": "array", "items": {"$ref": "#/$defs/redFlag"}}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "complete"}}, "required": ["status"]},
+          "then": {
+            "properties": {
+              "score": {"$ref": "#/$defs/score20"},
+              "confidence_percent": {"$ref": "#/$defs/score100"},
+              "evidence_bindings": {"minItems": 1},
+              "missing_evidence": {"maxItems": 0}
+            }
+          },
+          "else": {
+            "properties": {
+              "score": {"type": "null"},
+              "confidence_percent": {"type": "null"},
+              "missing_evidence": {"minItems": 1}
+            }
+          }
+        }
+      ]
+    },
+    "components": {
+      "type": "array", "minItems": 5, "maxItems": 5,
+      "items": {"$ref": "#/$defs/component"}
+    },
+    "grahamComponents": {
+      "allOf": [
+        {"$ref": "#/$defs/components"},
+        {"prefixItems": [
+          {"properties": {"component_id": {"const": "normalized_earnings"}}},
+          {"properties": {"component_id": {"const": "balance_sheet_strength"}}},
+          {"properties": {"component_id": {"const": "asset_protection"}}},
+          {"properties": {"component_id": {"const": "earnings_record"}}},
+          {"properties": {"component_id": {"const": "margin_of_safety"}}}
+        ]}
+      ]
+    },
+    "buffettComponents": {
+      "allOf": [
+        {"$ref": "#/$defs/components"},
+        {"prefixItems": [
+          {"properties": {"component_id": {"const": "owner_earnings"}}},
+          {"properties": {"component_id": {"const": "moat_durability"}}},
+          {"properties": {"component_id": {"const": "management_candor"}}},
+          {"properties": {"component_id": {"const": "capital_allocation"}}},
+          {"properties": {"component_id": {"const": "long_run_economics"}}}
+        ]}
+      ]
+    },
+    "mungerComponents": {
+      "allOf": [
+        {"$ref": "#/$defs/components"},
+        {"prefixItems": [
+          {"properties": {"component_id": {"const": "incentives"}}},
+          {"properties": {"component_id": {"const": "accounting_complexity"}}},
+          {"properties": {"component_id": {"const": "hidden_leverage"}}},
+          {"properties": {"component_id": {"const": "terminal_risk"}}},
+          {"properties": {"component_id": {"const": "inversion_failure_modes"}}}
+        ]}
+      ]
+    },
+    "duanYongpingComponents": {
+      "allOf": [
+        {"$ref": "#/$defs/components"},
+        {"prefixItems": [
+          {"properties": {"component_id": {"const": "good_business"}}},
+          {"properties": {"component_id": {"const": "good_culture"}}},
+          {"properties": {"component_id": {"const": "consumer_mindshare"}}},
+          {"properties": {"component_id": {"const": "good_price"}}},
+          {"properties": {"component_id": {"const": "not_understandable_risks"}}}
+        ]}
+      ]
+    }
+  }
+}

@@ -14,6 +14,11 @@ from typing import Any
 
 import pytest
 import test_phase5_v1_market_slice as market_slice_fixtures
+from phase5_v1_public_kernel_fixture import (
+    PUBLIC_KERNEL_REPOSITORY,
+    install_public_kernel_schema_oracle,
+    public_kernel_example,
+)
 
 import owner_research.valuation_market_provider as market_provider_module
 from owner_research.contracts import Claim, Fact, SourceDocument
@@ -56,7 +61,7 @@ EXPECTED_WHEEL_INVENTORY_SHA256 = "1caf6f35d5045714ef99952c2061f19e53597fa1f867a
 EXPECTED_RUNTIME_AUTHORITY_SHA256 = (
     "0a317935d257e2fb406bc8efd9c90d42b1e572a6f8e6baa3c6d75b7cb48530dd"
 )
-EXPECTED_MATERIALIZER_SHA256 = "d5becc51a3708ec43a5a5712f835bccff3b66a132aa36f3304aeea4eff9fb5c2"
+EXPECTED_MATERIALIZER_SHA256 = "99ef65386015acfdf962140471a5277fdf492027b1f28b1aa61e3ce25e5785d6"
 EXPECTED_CONTAINER_IMAGE = (
     "docker.io/library/python@"
     "sha256:eaeffb6e8511935426934aac863940fbd004ef31dab0d7fc27a129bb7c19d9a8"
@@ -77,11 +82,18 @@ EXPECTED_WORKFLOW_READ_ONLY_MOUNTS = [
     {"role": "trusted_attestation_directory", "target": "/run/owner-research"},
 ]
 EXPECTED_WORKFLOW_WRITABLE_MOUNTS = [{"role": "canonical_summary_output", "target": "/output"}]
-EXPECTED_REQUEST_SHA256 = "28af1dcdb23102e5b74f648600fabe5afddc0859cf6653ea34649194e41f15ff"
-EXPECTED_RESULT_SHA256 = "2e161729f012d19ed7e6fc636a427e4aea9f3927d9044d93fc611b12d2b8882e"
-EXPECTED_MARKET_RECEIPT_ID = "market-quote-receipt:caf5287d7fab5546255b2e1d"
+# The native runtime correction updates component-lock-bound market provenance.
+# The request assumptions, numerical facts, method inputs, and output panels are unchanged.
+EXPECTED_REQUEST_SHA256 = "e73c172482484537eccf95f59f218eeb2c8a5e93d89f49af1d4b840cfbf309ff"
+EXPECTED_PUBLIC_REQUEST_SHA256 = "dc2b88b678fee34257932b8115e867d3612a9fe439d15ffbc8644537dc3b9789"
+EXPECTED_RESULT_SHA256 = "b5c03431aff85fce392143c6f073f77bf3376b19405b8dd61a9ae283850e5204"
+EXPECTED_MARKET_RECEIPT_ID = "market-quote-receipt:82d56b5b49452cbe9cbe565d"
+EXPECTED_PUBLIC_MARKET_RECEIPT_ID = "market-quote-receipt:74d92d46b234176dc6f75f3b"
 EXPECTED_MARKET_RECEIPT_FINGERPRINT = (
-    "b50814e885d8e3ecc32bca277db84cde5bdd2c138f49e922549f23a242d2b039"
+    "9fbf47d14d386b59b5a5450b4934a4473ae13fba79068bf7cbcc159733c4e95f"
+)
+EXPECTED_PUBLIC_MARKET_RECEIPT_FINGERPRINT = (
+    "ab607fe316438255c645f62b98e1b4b43fb07e39c3f28000bba811391fdfe520"
 )
 COMPANY_NAME = "Synthetic Nonfinancial Company"
 COMPANY_NAME_FACT_ID = "fact:acme:issuer-legal-name"
@@ -102,6 +114,27 @@ ASSUMPTION_SOURCES = {
     "hurdle_rate": ["fact-risk-free", "fact-method-policy"],
     "growth_rate": ["fact-revenue", "fact-market-growth"],
 }
+_KERNEL_ENV = os.environ.get("OWNER_VALUATION_REPO")
+_PRIVATE_KERNEL = Path(_KERNEL_ENV).expanduser().resolve() if _KERNEL_ENV else None
+_PRIVATE_EXAMPLE = (
+    _PRIVATE_KERNEL / "examples" / "synthetic_nonfinancial.json"
+    if _PRIVATE_KERNEL is not None
+    else None
+)
+PRIVATE_KERNEL_AVAILABLE = bool(
+    _PRIVATE_KERNEL is not None
+    and (_PRIVATE_KERNEL / ".git").is_dir()
+    and _PRIVATE_EXAMPLE is not None
+    and _PRIVATE_EXAMPLE.is_file()
+)
+
+
+@pytest.fixture(autouse=True)
+def _repo_owned_public_kernel_oracle(monkeypatch: pytest.MonkeyPatch) -> None:
+    if _KERNEL_ENV and not PRIVATE_KERNEL_AVAILABLE:
+        pytest.fail("OWNER_VALUATION_REPO is not a usable pinned kernel checkout")
+    if not _KERNEL_ENV:
+        install_public_kernel_schema_oracle(monkeypatch)
 
 
 def _bind_company_identity(graph):
@@ -620,15 +653,12 @@ def _request_ready_freeze(
     )
 
 
-def _private_kernel_checkout() -> tuple[Path, dict[str, Any]]:
-    kernel_value = os.environ.get("OWNER_VALUATION_REPO")
-    if not kernel_value:
-        pytest.skip("private kernel checkout is intentionally unavailable in this job")
-    kernel = Path(kernel_value).expanduser().resolve()
-    example_path = kernel / "examples" / "synthetic_nonfinancial.json"
-    if not (kernel / ".git").is_dir() or not example_path.is_file():
-        pytest.fail("OWNER_VALUATION_REPO is not a usable pinned kernel checkout")
-    return kernel, json.loads(example_path.read_text(encoding="utf-8"))
+def _kernel_fixture() -> tuple[Path, dict[str, Any]]:
+    if PRIVATE_KERNEL_AVAILABLE:
+        assert _PRIVATE_KERNEL is not None
+        assert _PRIVATE_EXAMPLE is not None
+        return _PRIVATE_KERNEL, json.loads(_PRIVATE_EXAMPLE.read_text(encoding="utf-8"))
+    return PUBLIC_KERNEL_REPOSITORY, public_kernel_example()
 
 
 def _compile_pr1_request(
@@ -711,7 +741,7 @@ def test_compiler_rejects_integer_assumption_before_isolated_execution(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    kernel, example = _private_kernel_checkout()
+    kernel, example = _kernel_fixture()
     compiled, _freeze = _compile_pr1_request(
         sample_payloads=sample_payloads,
         monkeypatch=monkeypatch,
@@ -728,14 +758,14 @@ def test_compiler_rejects_integer_assumption_before_isolated_execution(
     assert compiled.request_sha256 is None
 
 
-def test_nonrelease_source_tree_request_oracle_is_byte_exact(
+def test_public_request_contract_is_byte_exact_and_private_oracle_runs_when_available(
     sample_payloads: dict[str, dict[str, Any]],
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     """Diagnostic only; release acceptance requires the isolated runtime test below."""
 
-    kernel, example = _private_kernel_checkout()
+    kernel, example = _kernel_fixture()
     compiled, _freeze = _compile_pr1_request(
         sample_payloads=sample_payloads,
         monkeypatch=monkeypatch,
@@ -745,8 +775,17 @@ def test_nonrelease_source_tree_request_oracle_is_byte_exact(
     )
     assert compiled.status == "compiled", compiled.issue_codes
     assert compiled.canonical_request_json is not None
-    assert compiled.request_sha256 == EXPECTED_REQUEST_SHA256
+    expected_request_sha256 = (
+        EXPECTED_REQUEST_SHA256 if PRIVATE_KERNEL_AVAILABLE else EXPECTED_PUBLIC_REQUEST_SHA256
+    )
+    assert compiled.request_sha256 == expected_request_sha256
     request_bytes = compiled.canonical_request_json.encode("utf-8")
+    request = json.loads(request_bytes)
+    assert request_bytes == canonical_json(request).encode("utf-8")
+    assert set(request) >= {"mckinsey", "penman"}
+    assert "weighted_multi_model_target_price" not in request_bytes.decode("utf-8")
+    if not PRIVATE_KERNEL_AVAILABLE:
+        return
     script = (
         "import json,sys; from owner_valuation import run_dual_panel; "
         "request=json.loads(sys.stdin.buffer.read()); "
@@ -780,8 +819,6 @@ def test_pr1_rollforward_compiles_and_executes_exact_dual_panel_oracle(
     tmp_path: Path,
 ) -> None:
     runtime = {name: os.environ.get(name) for name in RUNTIME_ENV}
-    if not os.environ.get("OWNER_VALUATION_REPO"):
-        pytest.skip("private kernel checkout is intentionally unavailable in this job")
     execution_required = os.environ.get("PHASE5_V1_KERNEL_EXECUTION_REQUIRED")
     runtime_supplied = tuple(bool(runtime[name]) for name in RUNTIME_ENV)
     if any(runtime_supplied) and not all(runtime_supplied):
@@ -790,9 +827,11 @@ def test_pr1_rollforward_compiles_and_executes_exact_dual_panel_oracle(
         pytest.fail("PHASE5_V1_KERNEL_EXECUTION_REQUIRED must be exactly 0 or 1")
     if execution_required == "1" and not all(runtime_supplied):
         pytest.fail("required release execution has no complete pinned-kernel runtime")
+    if execution_required == "1" and not PRIVATE_KERNEL_AVAILABLE:
+        pytest.fail("required release execution has no private kernel checkout")
     if execution_required != "1" and any(runtime_supplied):
         pytest.fail("pinned-kernel runtime was supplied outside the authorized execution job")
-    kernel, example = _private_kernel_checkout()
+    kernel, example = _kernel_fixture()
     compiled, freeze = _compile_pr1_request(
         sample_payloads=sample_payloads,
         monkeypatch=monkeypatch,
@@ -847,7 +886,7 @@ def test_pr1_rollforward_compiles_and_executes_exact_dual_panel_oracle(
     projection = compiled.fact_ledger_result.current_share_projection
     assert projection.status == "eligible"
     assert projection.evidence_kind == "completed_event_rollforward"
-    assert projection.current_share_fact_id == ("derived:current-shares:653037511cae3cfaace34bd3")
+    assert projection.current_share_fact_id == ("derived:current-shares:96632f26dd3058892be92854")
     projected_facts = {item["fact_id"]: item for item in projection.facts}
     current = projected_facts[projection.current_share_fact_id]
     assert projected_facts["fact:shares:opening"]["value"] == 100.0
@@ -895,8 +934,18 @@ def test_pr1_rollforward_compiles_and_executes_exact_dual_panel_oracle(
     assert final_sources[quote["source_id"]]["publisher"] != compiled.issuer_id
     fact_result = compiled.fact_ledger_result
     assert fact_result.market_provider_id == ("provider:human-reviewed-file")
-    assert fact_result.market_provider_receipt_id == EXPECTED_MARKET_RECEIPT_ID
-    assert fact_result.market_provider_receipt_fingerprint == EXPECTED_MARKET_RECEIPT_FINGERPRINT
+    expected_receipt_id = (
+        EXPECTED_MARKET_RECEIPT_ID
+        if PRIVATE_KERNEL_AVAILABLE
+        else EXPECTED_PUBLIC_MARKET_RECEIPT_ID
+    )
+    expected_receipt_fingerprint = (
+        EXPECTED_MARKET_RECEIPT_FINGERPRINT
+        if PRIVATE_KERNEL_AVAILABLE
+        else EXPECTED_PUBLIC_MARKET_RECEIPT_FINGERPRINT
+    )
+    assert fact_result.market_provider_receipt_id == expected_receipt_id
+    assert fact_result.market_provider_receipt_fingerprint == expected_receipt_fingerprint
     assert (
         fact_result.current_share_compilation_fingerprint
         == (projection.research_evidence_attestation["current_share_compilation_fingerprint"])
@@ -941,9 +990,12 @@ def test_pr1_rollforward_compiles_and_executes_exact_dual_panel_oracle(
 
     request_bytes = compiled.canonical_request_json.encode("utf-8")
     assert request_bytes == canonical_json(request).encode("utf-8")
-    assert compiled.request_sha256 == EXPECTED_REQUEST_SHA256
+    expected_request_sha256 = (
+        EXPECTED_REQUEST_SHA256 if PRIVATE_KERNEL_AVAILABLE else EXPECTED_PUBLIC_REQUEST_SHA256
+    )
+    assert compiled.request_sha256 == expected_request_sha256
     if execution_required != "1":
-        pytest.skip("request oracle compiled; pinned execution is authorized only in the 3.11 job")
+        return
     runtime_manifest = Path(runtime["OWNER_RESEARCH_KERNEL_RUNTIME_MANIFEST"])
     runtime_manifest_bytes = runtime_manifest.read_bytes()
     manifest = json.loads(runtime_manifest_bytes)

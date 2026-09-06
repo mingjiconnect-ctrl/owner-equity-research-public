@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/comparable-valuation-result.schema.json",
+  "title": "ComparableValuationResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "result_id", "extension_label", "status", "issuer_id",
+    "basis_receipt", "input_receipt", "metric_results", "scenarios", "valid_peer_count",
+    "valid_multiple_count", "issue_codes"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "result_id": {"type": "string", "pattern": "^comparable-result:.+:[a-f0-9]{24}$"},
+    "extension_label": {"const": "PROJECT_EXTENSION_COMPARABLE_VALUATION"},
+    "status": {"const": "complete"},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "basis_receipt": {"$ref": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/valuation-basis-receipt.schema.json"},
+    "input_receipt": {"$ref": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/comparable-input-receipt.schema.json"},
+    "metric_results": {"type": "array", "minItems": 2, "maxItems": 4, "items": {"$ref": "#/$defs/metricResult"}},
+    "scenarios": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/scenarioResult"}},
+    "valid_peer_count": {"type": "integer", "minimum": 5, "maximum": 15},
+    "valid_multiple_count": {"type": "integer", "minimum": 2, "maximum": 4},
+    "issue_codes": {"type": "array", "maxItems": 0}
+  },
+  "$defs": {
+    "positiveDecimal": {"type": "string", "pattern": "^(?:[1-9][0-9]*(?:\\.[0-9]+)?|0\\.[0-9]*[1-9][0-9]*)$"},
+    "scenarioValue": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "current_implied_value_per_share", "twelve_month_implied_value_per_share"],
+      "properties": {
+        "name": {"enum": ["black_swan", "base", "bull"]},
+        "current_implied_value_per_share": {"$ref": "#/$defs/positiveDecimal"},
+        "twelve_month_implied_value_per_share": {"$ref": "#/$defs/positiveDecimal"}
+      }
+    },
+    "metricResult": {
+      "type": "object", "additionalProperties": false,
+      "required": ["metric", "valid_peer_ids", "current_peer_median_multiple", "twelve_month_peer_median_multiple", "scenario_values"],
+      "properties": {
+        "metric": {"enum": ["price_earnings", "price_fcf"]},
+        "valid_peer_ids": {"type": "array", "minItems": 5, "maxItems": 15, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "current_peer_median_multiple": {"$ref": "#/$defs/positiveDecimal"},
+        "twelve_month_peer_median_multiple": {"$ref": "#/$defs/positiveDecimal"},
+        "scenario_values": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/scenarioValue"}}
+      }
+    },
+    "scenarioResult": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "method_label", "current_value_per_share", "twelve_month_value_per_share", "metric_values"],
+      "properties": {
+        "name": {"enum": ["black_swan", "base", "bull"]},
+        "method_label": {"const": "PROJECT_EXTENSION_COMPARABLE_VALUATION"},
+        "current_value_per_share": {"$ref": "#/$defs/positiveDecimal"},
+        "twelve_month_value_per_share": {"$ref": "#/$defs/positiveDecimal"},
+        "metric_values": {"type": "array", "minItems": 2, "maxItems": 4, "items": {"$ref": "#/$defs/scenarioValue"}}
+      }
+    }
+  }
+}

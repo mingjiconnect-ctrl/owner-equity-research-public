@@ -1,0 +1,17 @@
+{
+  "artifact_type": "owner-equity-release-supply-identity",
+  "inventory_scope": "direct_runtime_only",
+  "lock": {
+    "path": "scripts/phase5-v1-release-dependency-lock.json",
+    "sha256": "66a5ebf540bef3e3216d8be09ea0c76cdbed896465da3984f48713ea7f9732fc"
+  },
+  "schema_version": "1.0.0",
+  "supply_manifest": {
+    "path": "scripts/phase5-v1-release-supply-manifest.json",
+    "sha256": "983bd8943376f7ea31c28b3aa605e3023bb6ff69a8590080ecaf303437a0d93d"
+  },
+  "validator": {
+    "path": "scripts/phase5_v1_dependency_lock.py",
+    "sha256": "43c77f1ae2895b4e4f4213c32cb3630fad18a8c57d1e30963fce8b2a07eefa1a"
+  }
+}

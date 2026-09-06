@@ -67,6 +67,41 @@ def _sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
+def _validate_request_result_company_binding(
+    *,
+    request_bytes: bytes,
+    result_bytes: bytes,
+) -> None:
+    """Require kernel stdout company identity to replay canonical request bytes."""
+
+    try:
+        request_payload = json.loads(request_bytes)
+        result_payload = json.loads(result_bytes)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise OwnerValuationExecutionError(
+            "request/result company binding lacks valid preserved JSON bytes"
+        ) from exc
+    if not isinstance(request_payload, dict) or not isinstance(result_payload, dict):
+        raise OwnerValuationExecutionError(
+            "request/result company binding lacks object payloads"
+        )
+    request_company = request_payload.get("company")
+    if not isinstance(request_company, dict):
+        raise OwnerValuationExecutionError(
+            "canonical request bytes lack company identity"
+        )
+    name = request_company.get("name")
+    company_type = request_company.get("type")
+    if type(name) is not str or not name or type(company_type) is not str or not company_type:
+        raise OwnerValuationExecutionError(
+            "canonical request bytes contain invalid company identity"
+        )
+    if result_payload.get("company") != {"name": name, "type": company_type}:
+        raise OwnerValuationExecutionError(
+            "kernel result company does not bind canonical request bytes"
+        )
+
+
 def _preparation_fingerprint(
     preparation: OwnerValuationPreparationResult,
     *,
@@ -709,6 +744,7 @@ class OwnerValuationExecutionResult:
             or request.valuation_date != self.data_cutoff_date
             or request.request_sha256 is None
             or request.request_payload is None
+            or request.canonical_request_json is None
             or execution is None
             or request_receipt is None
             or execution_receipt is None
@@ -719,6 +755,10 @@ class OwnerValuationExecutionResult:
             != ("request_compiled", "kernel_result_frozen")
         ):
             raise ValueError("completed owner execution is incomplete")
+        _validate_request_result_company_binding(
+            request_bytes=request.canonical_request_json.encode("utf-8"),
+            result_bytes=self.result_bytes,
+        )
         request_handoff, result_handoff = handoffs
         authorization = _active_market_authorization(preparation)
         _replay_request_provenance(preparation=preparation, request=request)
@@ -1233,6 +1273,10 @@ def _verify_kernel_result(
     request = context.final_request.request_payload
     if request is None:
         raise OwnerValuationExecutionError("kernel execution lacks request payload")
+    _validate_request_result_company_binding(
+        request_bytes=context.request_bytes,
+        result_bytes=result_bytes,
+    )
     fact_fingerprint = canonical_sha256(request["fact_ledger"])
     assumption_fingerprint = canonical_sha256(request["assumption_ledger"])
     for value, label in (

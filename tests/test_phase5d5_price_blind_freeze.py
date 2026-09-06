@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import copy
 import inspect
 import json
+import sys
+import tempfile
 from dataclasses import FrozenInstanceError, dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -40,7 +43,7 @@ class _FakeResult:
         return self.payload
 
 
-def _context(sample_payloads, monkeypatch):
+def _context(sample_payloads, monkeypatch, *, kernel_example: dict | None = None):
     graph = replace_graph(_valid_graph(sample_payloads), valuation_handoffs=())
     bundle = graph.research_bundles[0]
     candidate = graph.valuation_assumption_candidates[0]
@@ -59,26 +62,46 @@ def _context(sample_payloads, monkeypatch):
         assumption_evidence_policy_sha256=assumption_evidence_policy_sha256(),
         candidates=(candidate,),
     )
-    fact_ledger = {
-        "schema_version": "1.0.0",
-        "entity_id": bundle.issuer_id,
-        "valuation_date": bundle.data_cutoff_date,
-        "reporting_currency": "USD",
-        "sources": [],
-        "facts": [],
-    }
-    assumptions = [
-        {
-            "assumption_id": decision.reserved_kernel_assumption_id,
-            "value": candidate.value,
-            "unit": "decimal",
-            "concept": candidate.kernel_concept,
-            "scope": candidate.method_scope,
-            "rationale": candidate.rationale,
-            "source_fact_ids": [],
-            "scenario": candidate.scenario,
+    if kernel_example is None:
+        fact_ledger = {
+            "schema_version": "1.0.0",
+            "entity_id": bundle.issuer_id,
+            "valuation_date": bundle.data_cutoff_date,
+            "reporting_currency": "USD",
+            "sources": [],
+            "facts": [],
         }
-    ]
+        assumptions = [
+            {
+                "assumption_id": decision.reserved_kernel_assumption_id,
+                "value": candidate.value,
+                "unit": "decimal",
+                "concept": candidate.kernel_concept,
+                "scope": candidate.method_scope,
+                "rationale": candidate.rationale,
+                "source_fact_ids": [],
+                "scenario": candidate.scenario,
+            }
+        ]
+    else:
+        kernel_example = copy.deepcopy(kernel_example)
+        fact_ledger = kernel_example["fact_ledger"]
+        fact_ledger["entity_id"] = bundle.issuer_id
+        fact_ledger["valuation_date"] = bundle.data_cutoff_date
+        fact_ledger["facts"] = [
+            item
+            for item in fact_ledger["facts"]
+            if item["concept"]
+            not in {
+                "market_price_per_current_common_share",
+                "market_equity_value",
+            }
+        ]
+        fact_ledger["sources"][0]["published_date"] = bundle.data_cutoff_date
+        fact_ledger["sources"][0]["retrieved_at"] = (
+            f"{bundle.data_cutoff_date}T00:00:00Z"
+        )
+        assumptions = kernel_example["assumption_ledger"]["assumptions"]
     ledger = AssumptionLedgerCompilationResult(
         issuer_id=bundle.issuer_id,
         data_cutoff_date=bundle.data_cutoff_date,
@@ -141,8 +164,12 @@ def _context(sample_payloads, monkeypatch):
     return graph, candidate_result, ledger, authorization
 
 
-def _compile(sample_payloads, monkeypatch):
-    graph, candidates, _ledger, authorization = _context(sample_payloads, monkeypatch)
+def _compile(sample_payloads, monkeypatch, *, kernel_example: dict | None = None):
+    graph, candidates, _ledger, authorization = _context(
+        sample_payloads,
+        monkeypatch,
+        kernel_example=kernel_example,
+    )
     result = compile_price_blind_input_freeze(
         bundle_artifact_directory=Path("/unused/bundle"),
         graph=graph,
@@ -169,6 +196,17 @@ def test_canonical_freeze_binds_protected_hashes_and_adjacent_handoffs(
     assert result.artifact.payload["protected_mckinsey_sha256"]
     assert result.artifact.payload["protected_penman_assumptions_sha256"]
     assert "market_equity_value_fact_id" not in canonical_json(result.artifact.to_dict())
+    assert {
+        item["concept"]
+        for item in result.artifact.payload["reviewed_assumptions"][
+            "augmented_fact_ledger_payload"
+        ]["facts"]
+    }.isdisjoint(
+        {
+            "market_price_per_current_common_share",
+            "market_equity_value",
+        }
+    )
     assert result.handoffs[-1].market_reference_snapshot_id is None
     assert not graph.market_reference_snapshots
     with pytest.raises(FrozenInstanceError):
@@ -210,6 +248,106 @@ def test_writer_and_reloader_are_atomic_canonical_and_strict(
     )
     with pytest.raises(PriceBlindFreezeError, match="canonically"):
         load_price_blind_input_artifact(output, graph=graph, expected_result=result)
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Darwin fixed root alias")
+@pytest.mark.parametrize("temporary_root", ("/tmp", "/var/tmp"))
+def test_price_blind_writer_and_loader_accept_platform_tmp_root_alias(
+    sample_payloads,
+    monkeypatch,
+    temporary_root: str,
+) -> None:
+    graph, result = _compile(sample_payloads, monkeypatch)
+    with tempfile.TemporaryDirectory(dir=temporary_root) as directory:
+        output = Path(directory) / "price-blind"
+
+        receipt = write_price_blind_input_artifact(
+            graph,
+            result,
+            output_directory=output,
+        )
+        loaded = load_price_blind_input_artifact(
+            output,
+            graph=graph,
+            expected_result=result,
+        )
+
+        assert receipt.output_directory == output.absolute()
+        assert loaded.fingerprint == result.fingerprint
+
+
+def test_price_blind_reader_is_bounded_descriptor_first_and_stable(
+    sample_payloads, monkeypatch, tmp_path: Path
+) -> None:
+    graph, result = _compile(sample_payloads, monkeypatch)
+    output = tmp_path / "price-blind-bounded"
+    write_price_blind_input_artifact(graph, result, output_directory=output)
+
+    def forbidden_path_read(*_args, **_kwargs):
+        raise AssertionError("price-blind loader reopened the caller path")
+
+    monkeypatch.setattr(Path, "read_text", forbidden_path_read)
+    monkeypatch.setattr(Path, "read_bytes", forbidden_path_read)
+    assert load_price_blind_input_artifact(
+        output, graph=graph, expected_result=result
+    ).fingerprint == result.fingerprint
+
+    path = output / freeze_module.PRICE_BLIND_INPUT_FILENAME
+    original_read = freeze_module.os.read
+    changed = False
+
+    def racing_read(descriptor: int, maximum: int) -> bytes:
+        nonlocal changed
+        chunk = original_read(descriptor, maximum)
+        if chunk and not changed:
+            changed = True
+            with path.open("ab") as stream:
+                stream.write(b" ")
+        return chunk
+
+    monkeypatch.setattr(freeze_module.os, "read", racing_read)
+    with pytest.raises(PriceBlindFreezeError, match="changed while being read"):
+        load_price_blind_input_artifact(output, graph=graph, expected_result=result)
+
+
+def test_price_blind_reader_rejects_oversize_symlink_and_different_overwrite(
+    sample_payloads, monkeypatch, tmp_path: Path
+) -> None:
+    graph, result = _compile(sample_payloads, monkeypatch)
+    output = tmp_path / "price-blind-attacks"
+    write_price_blind_input_artifact(graph, result, output_directory=output)
+    path = output / freeze_module.PRICE_BLIND_INPUT_FILENAME
+    original = path.read_bytes()
+    path.write_bytes(b"different")
+    with pytest.raises(PriceBlindFreezeError, match="different content"):
+        write_price_blind_input_artifact(
+            graph,
+            result,
+            output_directory=output,
+            overwrite=True,
+        )
+    with path.open("wb") as stream:
+        stream.truncate(freeze_module.PRICE_BLIND_INPUT_MAX_BYTES + 1)
+    with pytest.raises(PriceBlindFreezeError, match="bounded regular file"):
+        load_price_blind_input_artifact(output, graph=graph, expected_result=result)
+
+    path.unlink()
+    target = tmp_path / "outside-price-blind.json"
+    target.write_bytes(original)
+    path.symlink_to(target)
+    with pytest.raises(PriceBlindFreezeError, match="unsafe entry"):
+        load_price_blind_input_artifact(output, graph=graph, expected_result=result)
+
+    real_parent = tmp_path / "real-price-blind-parent"
+    real_parent.mkdir()
+    symlink_parent = tmp_path / "symlink-price-blind-parent"
+    symlink_parent.symlink_to(real_parent, target_is_directory=True)
+    with pytest.raises(PriceBlindFreezeError, match="symlink"):
+        write_price_blind_input_artifact(
+            graph,
+            result,
+            output_directory=symlink_parent / "nested" / "price-blind",
+        )
 
 
 def test_freeze_rejects_nonhuman_or_nonchronological_authorization() -> None:

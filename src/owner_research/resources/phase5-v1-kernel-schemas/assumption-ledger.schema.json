@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.owner-valuation/schemas/assumption-ledger.schema.json",
+  "title": "Source-Linked Assumption Ledger",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "fact_ledger_fingerprint", "assumptions"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "fact_ledger_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["assumption_id", "value", "unit", "concept", "scope", "rationale", "source_fact_ids", "scenario"],
+        "properties": {
+          "assumption_id": {"type": "string", "minLength": 1},
+          "value": {"type": "number"},
+          "unit": {"type": "string", "minLength": 1},
+          "concept": {"enum": ["revenue", "nopat", "ending_invested_capital", "wacc", "terminal_growth", "terminal_ronic", "terminal_margin", "terminal_roic", "steady_state_tolerance", "sales", "operating_income_after_tax", "ending_noa", "hurdle_rate", "growth_rate"]},
+          "scope": {"enum": ["mckinsey", "penman", "shared", "project_extension"]},
+          "rationale": {"type": "string", "minLength": 1},
+          "source_fact_ids": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1}
+          },
+          "scenario": {"type": ["string", "null"], "minLength": 1}
+        },
+        "allOf": [
+          {
+            "if": {"properties": {"scope": {"const": "mckinsey"}}},
+            "then": {"properties": {"scenario": {"type": "string", "minLength": 1}}},
+            "else": {"properties": {"scenario": {"type": "null"}}}
+          }
+        ]
+      }
+    }
+  }
+}

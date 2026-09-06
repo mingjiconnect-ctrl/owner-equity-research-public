@@ -1,6 +1,6 @@
 interface:
   display_name: "Owner Research Audit"
   short_description: "Audit evidence and integration contracts"
-  default_prompt: "Use $owner-research-audit to audit the source-backed research chain, deterministic ResearchBundle and FactLedger replay, accounting and method views, price-blind freeze, quote-date current common shares, cross-source exactly-once event grouping, reviewed market-reference Snapshot, append-only final request, pinned isolated kernel execution, component locks, determinism, and forbidden outputs. Remain read-only and classify every finding P0-P3."
+  default_prompt: "Use $owner-research-audit to audit the exact SEC/IR, quote-only Futu, one-call kernel, six-file archive, three-panel synthesis, scorecard, Chinese PDF, and local Publisher chain. Remain read-only and classify every finding P0-P3."
 policy:
   allow_implicit_invocation: false

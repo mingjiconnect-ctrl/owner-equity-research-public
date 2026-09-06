@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -13,7 +14,7 @@ from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
 
-from .component_lock import file_sha256
+from .component_lock import read_stable_file_bytes
 from .contracts import ValuationAssumptionReviewDecision
 from .fingerprints import canonical_sha256, to_json_value
 from .research_bundle_artifacts import (
@@ -69,11 +70,27 @@ def _load_assumption_schema(kernel_repository: Path) -> dict[str, Any]:
             "kernel release tag does not resolve to the pinned commit"
         )
     path = kernel / "schemas" / "assumption-ledger.schema.json"
-    if not path.is_file() or file_sha256(path) != KERNEL_ASSUMPTION_SCHEMA_SHA256:
+    try:
+        raw = read_stable_file_bytes(path)
+    except (OSError, ValueError) as exc:
+        raise AssumptionLedgerCompilationError(
+            "pinned AssumptionLedger Schema is missing or changed"
+        ) from exc
+    if hashlib.sha256(raw).hexdigest() != KERNEL_ASSUMPTION_SCHEMA_SHA256:
         raise AssumptionLedgerCompilationError(
             "pinned AssumptionLedger Schema is missing or changed"
         )
-    return json.loads(path.read_text(encoding="utf-8"))
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise AssumptionLedgerCompilationError(
+            "pinned AssumptionLedger Schema cannot be loaded"
+        ) from exc
+    if not isinstance(payload, dict):
+        raise AssumptionLedgerCompilationError(
+            "pinned AssumptionLedger Schema cannot be loaded"
+        )
+    return payload
 
 
 def _decision_id(candidate: Any, request: AssumptionReviewRequest) -> str:

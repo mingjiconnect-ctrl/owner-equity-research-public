@@ -1,0 +1,390 @@
+{
+  "$id": "https://owner-research.local/schemas/owner-equity-research-result.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_type": {
+      "const": "owner-equity-research-result"
+    },
+    "effective_recommendation": {
+      "oneOf": [
+        {
+          "enum": [
+            "重点关注",
+            "关注",
+            "观察",
+            "回避",
+            "无法评级"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "input_receipt": {
+      "$ref": "#/$defs/input_receipt"
+    },
+    "issue_codes": {
+      "$ref": "#/$defs/issues"
+    },
+    "phases": {
+      "additionalProperties": false,
+      "properties": {
+        "audit": {
+          "$ref": "#/$defs/nullable_phase"
+        },
+        "futu_nonprice": {
+          "$ref": "#/$defs/nullable_phase"
+        },
+        "kernel": {
+          "$ref": "#/$defs/nullable_phase"
+        },
+        "market_expectations": {
+          "$ref": "#/$defs/nullable_phase"
+        },
+        "market_reference": {
+          "$ref": "#/$defs/nullable_phase"
+        },
+        "official_research": {
+          "$ref": "#/$defs/nullable_phase"
+        },
+        "price_blind": {
+          "$ref": "#/$defs/nullable_phase"
+        },
+        "publication": {
+          "$ref": "#/$defs/nullable_phase"
+        },
+        "quarterly": {
+          "$ref": "#/$defs/nullable_phase"
+        },
+        "report": {
+          "$ref": "#/$defs/nullable_phase"
+        },
+        "score": {
+          "$ref": "#/$defs/nullable_phase"
+        },
+        "synthesis": {
+          "$ref": "#/$defs/nullable_phase"
+        }
+      },
+      "required": [
+        "official_research",
+        "quarterly",
+        "futu_nonprice",
+        "price_blind",
+        "market_reference",
+        "kernel",
+        "synthesis",
+        "score",
+        "market_expectations",
+        "report",
+        "publication",
+        "audit"
+      ],
+      "type": "object"
+    },
+    "quarantine_receipt": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/quarantine"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "result_fingerprint": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "result_id": {
+      "maxLength": 512,
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "status": {
+      "$ref": "#/$defs/status"
+    },
+    "trace": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "phase": {
+            "$ref": "#/$defs/phase_name"
+          },
+          "sequence": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/$defs/status"
+          }
+        },
+        "required": [
+          "sequence",
+          "phase",
+          "status"
+        ],
+        "type": "object"
+      },
+      "maxItems": 12,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "result_id",
+    "result_fingerprint",
+    "status",
+    "effective_recommendation",
+    "input_receipt",
+    "phases",
+    "quarantine_receipt",
+    "trace",
+    "issue_codes"
+  ],
+  "type": "object",
+  "$defs": {
+    "hex": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "input_receipt": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_type": {
+          "const": "owner-equity-research-input-receipt"
+        },
+        "receipt_fingerprint": {
+          "$ref": "#/$defs/hex"
+        },
+        "receipt_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        },
+        "request": {
+          "additionalProperties": false,
+          "properties": {
+            "data_cutoff_date": {
+              "format": "date",
+              "type": "string"
+            },
+            "intent": {
+              "enum": [
+                "research",
+                "quarterly",
+                "valuation",
+                "report",
+                "publish",
+                "audit"
+              ]
+            },
+            "issuer_id": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "profile": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "research_only",
+                    "full_valuation"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "requested_at": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "requested_by": {
+              "maxLength": 256,
+              "pattern": "^human:.+",
+              "type": "string"
+            }
+          },
+          "required": [
+            "issuer_id",
+            "data_cutoff_date",
+            "intent",
+            "profile",
+            "requested_by",
+            "requested_at"
+          ],
+          "type": "object"
+        },
+        "schema_version": {
+          "const": "1.0.0"
+        }
+      },
+      "required": [
+        "schema_version",
+        "artifact_type",
+        "receipt_id",
+        "receipt_fingerprint",
+        "request"
+      ],
+      "type": "object"
+    },
+    "issues": {
+      "items": {
+        "maxLength": 256,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "nullable_phase": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/phase_result"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "phase_name": {
+      "enum": [
+        "official_research_freeze",
+        "quarterly",
+        "futu_nonprice_verification",
+        "price_blind_refreeze",
+        "futu_market_reference",
+        "owner_valuation_kernel",
+        "three_panel_synthesis",
+        "owner_scorecard",
+        "futu_market_expectations",
+        "report",
+        "publication",
+        "audit"
+      ]
+    },
+    "phase_result": {
+      "additionalProperties": false,
+      "properties": {
+        "issue_codes": {
+          "$ref": "#/$defs/issues"
+        },
+        "receipt_fingerprint": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/hex"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "receipt_id": {
+          "oneOf": [
+            {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/status"
+        }
+      },
+      "required": [
+        "status",
+        "receipt_id",
+        "receipt_fingerprint",
+        "issue_codes"
+      ],
+      "type": "object"
+    },
+    "quarantine": {
+      "additionalProperties": false,
+      "properties": {
+        "data_cutoff_date": {
+          "format": "date",
+          "type": "string"
+        },
+        "final_request_receipt_fingerprint": {
+          "$ref": "#/$defs/hex"
+        },
+        "input_receipt_fingerprint": {
+          "$ref": "#/$defs/hex"
+        },
+        "input_receipt_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        },
+        "issue_codes": {
+          "$ref": "#/$defs/issues"
+        },
+        "issuer_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "kernel_execution_receipt_fingerprint": {
+          "$ref": "#/$defs/hex"
+        },
+        "kernel_result_sha256": {
+          "$ref": "#/$defs/hex"
+        },
+        "valuation_run_input_receipt_fingerprint": {
+          "$ref": "#/$defs/hex"
+        },
+        "phase": {
+          "enum": [
+            "three_panel_synthesis",
+            "owner_scorecard",
+            "futu_market_expectations",
+            "report",
+            "publication"
+          ]
+        },
+        "receipt_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "receipt_id",
+        "phase",
+        "input_receipt_id",
+        "input_receipt_fingerprint",
+        "issuer_id",
+        "data_cutoff_date",
+        "valuation_run_input_receipt_fingerprint",
+        "final_request_receipt_fingerprint",
+        "kernel_execution_receipt_fingerprint",
+        "kernel_result_sha256",
+        "issue_codes"
+      ],
+      "type": "object"
+    },
+    "status": {
+      "enum": [
+        "completed",
+        "partial",
+        "blocked",
+        "specialist_required",
+        "contested"
+      ]
+    }
+  }
+}

@@ -30,11 +30,11 @@ def current_share_compile_context(sample_payloads, monkeypatch, tmp_path: Path):
         expected_freeze=freeze,
         proposal=security.proposal,
     )
+    directory = tmp_path / "price-blind-phase5c"
     write_price_blind_input_artifact(
         graph,
         freeze,
         output_directory=directory,
-        overwrite=True,
     )
     graph = replace_graph(
         graph,
@@ -92,4 +92,3 @@ def current_share_compile_context(sample_payloads, monkeypatch, tmp_path: Path):
         facts=graph.facts + (phase5c_shares, current_shares),
     )
     return graph, freeze, directory, security, access, current_shares
-

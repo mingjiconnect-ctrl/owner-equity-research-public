@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mingjiconnect-ctrl/owner-equity-research/extension_schemas/research-report-content.schema.json",
+  "title": "ResearchReportContent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "artifact_type", "profile", "status", "issuer_id", "data_cutoff_date",
+    "research_source_index_fingerprint", "valuation_archive_fingerprint",
+    "sections", "tables", "charts", "paragraph_count", "distinct_paragraph_count",
+    "anti_padding_method", "substantive_unit_count",
+    "binding_fingerprints", "content_fingerprint"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "artifact_type": {"const": "research-report-content"},
+    "profile": {"enum": ["research_only", "full_valuation"]},
+    "status": {"enum": ["complete", "partial", "blocked"]},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "data_cutoff_date": {"type": "string", "format": "date"},
+    "research_source_index_fingerprint": {"$ref": "#/$defs/sha256"},
+    "valuation_archive_fingerprint": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]
+    },
+    "sections": {
+      "type": "array", "minItems": 8, "maxItems": 32,
+      "items": {"$ref": "#/$defs/section"}
+    },
+    "tables": {
+      "type": "array", "minItems": 2, "maxItems": 32,
+      "items": {"$ref": "#/$defs/table"}
+    },
+    "charts": {
+      "type": "array", "minItems": 0, "maxItems": 16,
+      "items": {"$ref": "#/$defs/chart"}
+    },
+    "paragraph_count": {"type": "integer", "minimum": 30, "maximum": 48},
+    "distinct_paragraph_count": {"type": "integer", "minimum": 30, "maximum": 48},
+    "anti_padding_method": {"const": "unique-evidence-bound-narrative-v1"},
+    "substantive_unit_count": {"type": "integer", "minimum": 30},
+    "binding_fingerprints": {
+      "type": "array", "minItems": 16, "uniqueItems": true,
+      "items": {"$ref": "#/$defs/sha256"}
+    },
+    "content_fingerprint": {"$ref": "#/$defs/sha256"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"profile": {"const": "research_only"}}},
+      "then": {"properties": {"valuation_archive_fingerprint": {"type": "null"}}}
+    },
+    {
+      "if": {"properties": {"profile": {"const": "full_valuation"}}},
+      "then": {
+        "properties": {
+          "valuation_archive_fingerprint": {"$ref": "#/$defs/sha256"},
+          "sections": {"minItems": 16},
+          "tables": {"minItems": 7},
+          "charts": {"minItems": 1}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "binding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["object_type", "object_id", "fingerprint"],
+      "properties": {
+        "object_type": {"type": "string", "minLength": 1},
+        "object_id": {"type": "string", "minLength": 1},
+        "fingerprint": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "paragraph": {
+      "type": "object", "additionalProperties": false,
+      "required": ["paragraph_id", "text_zh", "text_en", "bindings", "missing_evidence"],
+      "properties": {
+        "paragraph_id": {"type": "string", "pattern": "^paragraph:[a-z0-9_-]+:[a-f0-9]{16}$"},
+        "text_zh": {"type": "string", "minLength": 24},
+        "text_en": {"type": "string", "minLength": 12},
+        "bindings": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/binding"}},
+        "missing_evidence": {
+          "type": "array", "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "section": {
+      "type": "object", "additionalProperties": false,
+      "required": ["section_id", "title_zh", "title_en", "status", "paragraphs"],
+      "properties": {
+        "section_id": {"type": "string", "pattern": "^[a-z0-9_-]+$"},
+        "title_zh": {"type": "string", "minLength": 2},
+        "title_en": {"type": "string", "minLength": 3},
+        "status": {"enum": ["complete", "partial", "blocked"]},
+        "paragraphs": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/paragraph"}}
+      }
+    },
+    "table": {
+      "type": "object", "additionalProperties": false,
+      "required": ["table_id", "section_id", "title_zh", "title_en", "columns", "rows", "bindings"],
+      "properties": {
+        "table_id": {"type": "string", "pattern": "^table:[a-z0-9_-]+$"},
+        "section_id": {"type": "string", "pattern": "^[a-z0-9_-]+$"},
+        "title_zh": {"type": "string", "minLength": 2},
+        "title_en": {"type": "string", "minLength": 3},
+        "columns": {"type": "array", "minItems": 2, "maxItems": 8, "items": {"type": "string", "minLength": 1}},
+        "rows": {
+          "type": "array", "minItems": 1,
+          "items": {"type": "array", "minItems": 2, "maxItems": 8, "items": {"type": "string"}}
+        },
+        "bindings": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/binding"}}
+      }
+    },
+    "point": {
+      "type": "object", "additionalProperties": false,
+      "required": ["label", "value", "binding"],
+      "properties": {
+        "label": {"type": "string", "minLength": 1},
+        "value": {"type": ["string", "null"]},
+        "binding": {"$ref": "#/$defs/binding"}
+      }
+    },
+    "series": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "points"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "points": {"type": "array", "minItems": 2, "items": {"$ref": "#/$defs/point"}}
+      }
+    },
+    "chart": {
+      "type": "object", "additionalProperties": false,
+      "required": ["chart_id", "section_id", "title_zh", "title_en", "unit", "series"],
+      "properties": {
+        "chart_id": {"type": "string", "pattern": "^chart:[a-z0-9_-]+$"},
+        "section_id": {"type": "string", "pattern": "^[a-z0-9_-]+$"},
+        "title_zh": {"type": "string", "minLength": 2},
+        "title_en": {"type": "string", "minLength": 3},
+        "unit": {"type": "string", "minLength": 1},
+        "series": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/series"}}
+      }
+    }
+  }
+}

@@ -1,8 +1,37 @@
 {
   "authorized_next": [
-    "PR2 final-request and pinned-kernel vertical slice"
+    "single PR3 comprehensive Skill delivery with four ordered implementation slices"
   ],
-  "current_phase": "Phase 5 v1 final-request and pinned-kernel vertical slice",
+  "current_phase": "Phase 5 v1 comprehensive Skill single-PR3 delivery",
+  "delivery": {
+    "acceptance_points": 1,
+    "mode": "single_pull_request",
+    "pull_request": "PR3",
+    "slices": [
+      {
+        "id": "trusted_run_archive_core",
+        "ordinal": 1,
+        "status": "implemented"
+      },
+      {
+        "id": "sec_ir_and_futu_data_plane",
+        "ordinal": 2,
+        "status": "implemented"
+      },
+      {
+        "id": "valuation_synthesis_and_four_lens_scoring",
+        "ordinal": 3,
+        "status": "implemented"
+      },
+      {
+        "id": "report_pdf_local_publisher_and_skill",
+        "ordinal": 4,
+        "status": "implemented"
+      }
+    ],
+    "successor_gate": "none",
+    "verification_head": "exact_final_pr_head"
+  },
   "legacy_governance": {
     "archive": "legacy_governance/phase5e2b12a-acceptance-gate.yml",
     "archive_sha256": "51d3e43dffb66b507fe6a1718cd85b1e21dfac77938cb44c6a4045afeb29cf08",
@@ -12,6 +41,137 @@
     "status_file": "docs/phase-status.json",
     "test_policy": "explicit historical replay only"
   },
+  "product_invariants": {
+    "initial_supported_universe": "one SEC-reporting XNYS/XNAS USD ordinary common stock",
+    "futu_activation": "explicit_valuation_intent_only",
+    "futu_financial_and_company_data_role": "secondary_to_sec_ir",
+    "futu_runtime": "quote_only_no_trade_or_account_protocols",
+    "futu_runtime_profiles": ["linux_vm_read_only", "macos_local_read_only"],
+    "kernel_call_count": 1,
+    "ordinary_research": "target_price_and_market_capitalization_blind_with_zero_futu_calls",
+    "publication": "local_only",
+    "score_reverse_dependency": "forbidden",
+    "valuation_archive_member_count": 6,
+    "valuation_synthesis": "post_kernel_project_extension_all_three_panels_required"
+  },
+  "bounded_io_policy": {
+    "core_json_member_bytes": 16777216,
+    "six_file_archive_cumulative_bytes": 67108864,
+    "research_input_member_bytes": 67108864,
+    "research_input_cumulative_bytes": 268435456,
+    "publisher_member_count": 512,
+    "publisher_cumulative_bytes": 536870912
+  },
+  "report_policy": {
+    "language": "simplified_chinese_with_bilingual_key_terms",
+    "page_count_min": 30,
+    "page_count_max": 60,
+    "profiles": [
+      "research_only",
+      "full_valuation"
+    ],
+    "typesetting": "latex_pdf_with_python_generated_models_tables_and_charts"
+  },
+  "valuation_synthesis_policy": {
+    "composites": [
+      "current_intrinsic_value",
+      "twelve_month_target"
+    ],
+    "missing_or_ineligible_result": null,
+    "panel_count_required": 3,
+    "panels": [
+      "mckinsey",
+      "penman",
+      "comparables"
+    ],
+    "two_panel_fallback": false,
+    "weighting": "unweighted_median_of_three_eligible_compatible_panels"
+  },
+  "scoring_policy": {
+    "item_points_max": 20,
+    "items_per_lens": 5,
+    "lens_points_max": 100,
+    "lenses": [
+      "graham",
+      "buffett",
+      "munger",
+      "duan_yongping"
+    ],
+    "overall": "equal_arithmetic_mean_of_four_complete_lenses",
+    "unknown_or_partial_numeric_coercion": "forbidden_score_is_null"
+  },
+  "recommendation_policy": {
+    "evaluation_order": [
+      "无法评级",
+      "回避",
+      "重点关注",
+      "关注",
+      "观察"
+    ],
+    "rules": {
+      "回避": {
+        "any_of": [
+          "overall_score < 50",
+          "market_price >= intrinsic_value * 1.15",
+          "permanent_capital_loss_critical_red_flag == true"
+        ]
+      },
+      "关注": {
+        "all_of": {
+          "confidence_percent_min": 70,
+          "critical_red_flag": false,
+          "margin_of_safety_percent_min": 15,
+          "overall_score_min": 70,
+          "twelve_month_upside_percent_min": 10
+        }
+      },
+      "观察": "complete_and_neither_higher_attention_nor_avoidance",
+      "无法评级": {
+        "any_run_state": [
+          "partial",
+          "blocked",
+          "specialist_required",
+          "contested"
+        ]
+      },
+      "重点关注": {
+        "all_of": {
+          "confidence_percent_min": 80,
+          "critical_red_flag": false,
+          "margin_of_safety_percent_min": 25,
+          "overall_score_min": 80,
+          "twelve_month_upside_percent_min": 20
+        }
+      }
+    }
+  },
+  "release_policy": {
+    "development_version_required_until_release_acceptance": true,
+    "release_candidate": {
+      "exact_merged_main_required": true,
+      "real_futu_canary_required": true,
+      "required_canary_data_families": [
+        "market",
+        "financial_statement",
+        "company_information"
+      ],
+      "required_canary_path": [
+        "signed_legal_account_protocol_receipts",
+        "qot_logged_in_with_closed_read_only_protocol_allowlist",
+        "private_cas_binding",
+        "sec_ir_reconciliation",
+        "strict_six_file_archive_reload",
+        "local_pdf_publication_reload"
+      ],
+      "status": "blocked",
+      "target_tag": "v1.0.0-rc.1"
+    },
+    "stable": {
+      "current_external_rights_and_isolation_required": true,
+      "status": "blocked",
+      "target_tag": "v1.0.0"
+    }
+  },
   "release_tag": null,
   "release_candidate_selector": "v*-rc* tag",
   "required_checks": [
@@ -20,13 +180,15 @@
     "verify (3.13)",
     "phase5/semantic-audit"
   ],
-  "schema_version": "1.0.0",
+  "schema_version": "2.0.0",
   "semantic_audit_policy": {
     "independent_fresh_context_review": {
-      "enforcement": "external PR review evidence before merge",
+      "enforcement": "external exact-head PR review evidence before merge",
       "pull_request_required_zero": [
         "P0",
-        "P1"
+        "P1",
+        "P2",
+        "P3"
       ],
       "release_required_zero": [
         "P0",
@@ -47,11 +209,13 @@
     },
     "main": "smoke and deterministic replay",
     "pull_request": {
-      "execution": "once at the exact pull-request head",
+      "execution": "once at the exact final pull-request head",
       "kind": "deterministic candidate replay, not independent review",
       "required_zero": [
         "P0",
-        "P1"
+        "P1",
+        "P2",
+        "P3"
       ]
     },
     "release_candidate": {
@@ -64,5 +228,5 @@
     },
     "run_ids_in_product_state": false
   },
-  "status": "in_progress"
+  "status": "code_complete_preview"
 }

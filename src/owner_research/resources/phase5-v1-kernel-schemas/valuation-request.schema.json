@@ -1,0 +1,250 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.owner-valuation/schemas/valuation-request.schema.json",
+  "title": "Owner Valuation Dual-Panel Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "model_unit", "share_unit", "fact_ledger", "assumption_ledger",
+    "company", "routing_assessments", "accounting_checks", "method_views"
+  ],
+  "properties": {
+    "schema_version": {"const": "2.0.0"},
+    "model_unit": {"type": "string", "minLength": 1},
+    "share_unit": {"type": "string", "minLength": 1},
+    "fact_ledger": {"$ref": "fact-ledger.schema.json"},
+    "assumption_ledger": {"$ref": "assumption-ledger.schema.json"},
+    "company": {"$ref": "#/$defs/company"},
+    "routing_assessments": {"$ref": "#/$defs/routingAssessments"},
+    "accounting_checks": {"$ref": "#/$defs/accountingChecks"},
+    "method_views": {"$ref": "#/$defs/methodViews"},
+    "mckinsey": {"$ref": "#/$defs/mckinsey"},
+    "penman": {"$ref": "#/$defs/penman"}
+  },
+  "$defs": {
+    "id": {"type": "string", "minLength": 1},
+    "idArray": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+    "company": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "type", "classification_rationale", "source_fact_ids"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "type": {"enum": ["nonfinancial_operating_company", "bank", "insurer", "conglomerate", "asset_based", "distressed"]},
+        "classification_rationale": {"type": "string", "minLength": 1},
+        "source_fact_ids": {"$ref": "#/$defs/idArray"}
+      }
+    },
+    "assessment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["value", "rationale", "source_fact_ids"],
+      "properties": {
+        "value": {"type": "boolean"},
+        "rationale": {"type": "string", "minLength": 1},
+        "source_fact_ids": {"$ref": "#/$defs/idArray"}
+      }
+    },
+    "routingAssessments": {
+      "type": "object", "additionalProperties": false,
+      "required": ["required_data_complete", "stable_capital_structure", "operating_financing_separable", "credible_noa", "credible_near_term_earnings", "equity_bridge_complete"],
+      "properties": {
+        "required_data_complete": {"$ref": "#/$defs/assessment"},
+        "stable_capital_structure": {"$ref": "#/$defs/assessment"},
+        "operating_financing_separable": {"$ref": "#/$defs/assessment"},
+        "credible_noa": {"$ref": "#/$defs/assessment"},
+        "credible_near_term_earnings": {"$ref": "#/$defs/assessment"},
+        "equity_bridge_complete": {"$ref": "#/$defs/assessment"}
+      }
+    },
+    "accountingChecks": {
+      "type": "object", "additionalProperties": false,
+      "required": ["balance_sheet", "clean_surplus", "quality_issues"],
+      "properties": {
+        "balance_sheet": {
+          "type": "object", "additionalProperties": false,
+          "required": ["assets_fact_id", "liabilities_fact_id", "equity_fact_id"],
+          "properties": {
+            "assets_fact_id": {"$ref": "#/$defs/id"},
+            "liabilities_fact_id": {"$ref": "#/$defs/id"},
+            "equity_fact_id": {"$ref": "#/$defs/id"}
+          }
+        },
+        "clean_surplus": {
+          "type": "object", "additionalProperties": false,
+          "required": ["beginning_equity_fact_id", "comprehensive_income_fact_id", "net_distributions_fact_id", "ending_equity_fact_id"],
+          "properties": {
+            "beginning_equity_fact_id": {"$ref": "#/$defs/id"},
+            "comprehensive_income_fact_id": {"$ref": "#/$defs/id"},
+            "net_distributions_fact_id": {"$ref": "#/$defs/id"},
+            "ending_equity_fact_id": {"$ref": "#/$defs/id"}
+          }
+        },
+        "quality_issues": {
+          "type": "array",
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["issue_id", "category", "material", "resolved", "rationale", "evidence_fact_ids"],
+            "properties": {
+              "issue_id": {"$ref": "#/$defs/id"},
+              "category": {"type": "string", "minLength": 1},
+              "material": {"type": "boolean"},
+              "resolved": {"type": "boolean"},
+              "rationale": {"type": "string", "minLength": 1},
+              "evidence_fact_ids": {"$ref": "#/$defs/idArray"}
+            }
+          }
+        }
+      }
+    },
+    "adjustment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["adjustment_id", "adjustment_group_id", "category", "target_fact_id", "amount_fact_id", "rationale"],
+      "properties": {
+        "adjustment_id": {"$ref": "#/$defs/id"},
+        "adjustment_group_id": {"$ref": "#/$defs/id"},
+        "category": {"enum": ["r_and_d", "brand_investment", "lease", "pension", "sbc", "goodwill", "deferred_tax", "non_recurring", "other"]},
+        "target_fact_id": {"$ref": "#/$defs/id"},
+        "amount_fact_id": {"$ref": "#/$defs/id"},
+        "rationale": {"type": "string", "minLength": 1}
+      }
+    },
+    "methodViews": {
+      "type": "object", "additionalProperties": false,
+      "required": ["mckinsey_adjustments", "penman_adjustments"],
+      "properties": {
+        "mckinsey_adjustments": {"type": "array", "items": {"$ref": "#/$defs/adjustment"}},
+        "penman_adjustments": {"type": "array", "items": {"$ref": "#/$defs/adjustment"}}
+      }
+    },
+    "mckinseyForecast": {
+      "type": "object", "additionalProperties": false,
+      "required": ["period_end", "revenue_assumption_id", "nopat_assumption_id", "ending_invested_capital_assumption_id"],
+      "properties": {
+        "period_end": {"type": "string", "format": "date"},
+        "revenue_assumption_id": {"$ref": "#/$defs/id"},
+        "nopat_assumption_id": {"$ref": "#/$defs/id"},
+        "ending_invested_capital_assumption_id": {"$ref": "#/$defs/id"}
+      }
+    },
+    "steadyState": {
+      "type": "object", "additionalProperties": false,
+      "required": ["terminal_nopat_margin_assumption_id", "terminal_roic_assumption_id", "tolerance_assumption_id"],
+      "properties": {
+        "terminal_nopat_margin_assumption_id": {"$ref": "#/$defs/id"},
+        "terminal_roic_assumption_id": {"$ref": "#/$defs/id"},
+        "tolerance_assumption_id": {"$ref": "#/$defs/id"}
+      }
+    },
+    "scenario": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "wacc_assumption_id", "terminal_growth_assumption_id", "terminal_ronic_assumption_id", "forecast", "steady_state"],
+      "properties": {
+        "name": {"enum": ["black_swan", "bear", "base", "bull"]},
+        "wacc_assumption_id": {"$ref": "#/$defs/id"},
+        "terminal_growth_assumption_id": {"$ref": "#/$defs/id"},
+        "terminal_ronic_assumption_id": {"$ref": "#/$defs/id"},
+        "forecast": {"type": "array", "minItems": 2, "items": {"$ref": "#/$defs/mckinseyForecast"}},
+        "steady_state": {"$ref": "#/$defs/steadyState"}
+      }
+    },
+    "bridgeItem": {
+      "type": "object", "additionalProperties": false,
+      "required": ["item_id", "fact_id"],
+      "properties": {"item_id": {"$ref": "#/$defs/id"}, "fact_id": {"$ref": "#/$defs/id"}}
+    },
+    "bridgeRoleAssertion": {
+      "type": "object", "additionalProperties": false,
+      "required": ["role", "status", "fact_id", "rationale", "source_fact_ids"],
+      "properties": {
+        "role": {"enum": ["nonoperating_asset", "debt", "debt_equivalent", "lease_liability", "unfunded_pension", "preferred_stock", "noncontrolling_interest", "option_or_dilution_claim", "other_senior_claim"]},
+        "status": {"enum": ["modeled", "explicitly_absent", "not_applicable", "unresolved"]},
+        "fact_id": {"type": ["string", "null"], "minLength": 1},
+        "rationale": {"type": "string", "minLength": 1},
+        "source_fact_ids": {"$ref": "#/$defs/idArray"}
+      },
+      "allOf": [
+        {"if": {"properties": {"status": {"const": "modeled"}}}, "then": {"properties": {"fact_id": {"type": "string", "minLength": 1}}}},
+        {"if": {"properties": {"status": {"enum": ["explicitly_absent", "not_applicable"]}}}, "then": {"properties": {"fact_id": {"type": "null"}}}}
+      ]
+    },
+    "mckinsey": {
+      "type": "object", "additionalProperties": false,
+      "required": ["base_invested_capital_fact_id", "scenarios", "equity_bridge"],
+      "properties": {
+        "base_invested_capital_fact_id": {"$ref": "#/$defs/id"},
+        "scenarios": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"$ref": "#/$defs/scenario"}},
+        "equity_bridge": {
+          "type": "object", "additionalProperties": false,
+          "required": ["share_denominator_fact_id", "share_denominator_kind", "share_denominator_evidence_kind", "items", "role_assertions"],
+          "properties": {
+            "share_denominator_fact_id": {"$ref": "#/$defs/id"},
+            "share_denominator_kind": {
+              "enum": [
+                "current_common_shares_outstanding",
+                "conversion_value_diluted_shares"
+              ]
+            },
+            "share_denominator_evidence_kind": {
+              "enum": [
+                "direct_point_in_time",
+                "issued_less_treasury",
+                "completed_event_rollforward",
+                null
+              ]
+            },
+            "items": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/bridgeItem"}},
+            "role_assertions": {"type": "array", "minItems": 9, "maxItems": 9, "items": {"$ref": "#/$defs/bridgeRoleAssertion"}}
+          },
+          "allOf": [
+            {
+              "if": {"properties": {"share_denominator_kind": {"const": "current_common_shares_outstanding"}}},
+              "then": {"properties": {"share_denominator_evidence_kind": {"enum": ["direct_point_in_time", "issued_less_treasury", "completed_event_rollforward"]}}}
+            },
+            {
+              "if": {"properties": {"share_denominator_kind": {"const": "conversion_value_diluted_shares"}}},
+              "then": {"properties": {"share_denominator_evidence_kind": {"type": "null"}}}
+            }
+          ]
+        }
+      }
+    },
+    "penmanForecast": {
+      "type": "object", "additionalProperties": false,
+      "required": ["period_end", "sales_assumption_id", "operating_income_assumption_id", "ending_noa_assumption_id"],
+      "properties": {
+        "period_end": {"type": "string", "format": "date"},
+        "sales_assumption_id": {"$ref": "#/$defs/id"},
+        "operating_income_assumption_id": {"$ref": "#/$defs/id"},
+        "ending_noa_assumption_id": {"$ref": "#/$defs/id"}
+      }
+    },
+    "challengeRow": {
+      "type": "object", "additionalProperties": false,
+      "required": ["period_end", "sales_assumption_id", "ending_noa_assumption_id"],
+      "properties": {
+        "period_end": {"type": "string", "format": "date"},
+        "sales_assumption_id": {"$ref": "#/$defs/id"},
+        "ending_noa_assumption_id": {"$ref": "#/$defs/id"}
+      }
+    },
+    "penman": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "current_noa_fact_id", "market_equity_value_fact_id", "net_financial_obligations_fact_id",
+        "primary_hurdle_assumption_id", "growth_rate_assumption_ids", "long_run_growth_assumption_id",
+        "forecast", "market_challenge_path", "include_cap_diagnostic"
+      ],
+      "properties": {
+        "current_noa_fact_id": {"$ref": "#/$defs/id"},
+        "market_equity_value_fact_id": {"$ref": "#/$defs/id"},
+        "net_financial_obligations_fact_id": {"$ref": "#/$defs/id"},
+        "primary_hurdle_assumption_id": {"$ref": "#/$defs/id"},
+        "hurdle_assumption_ids": {"$ref": "#/$defs/idArray"},
+        "growth_rate_assumption_ids": {"$ref": "#/$defs/idArray"},
+        "long_run_growth_assumption_id": {"$ref": "#/$defs/id"},
+        "forecast": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/penmanForecast"}},
+        "market_challenge_path": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/challengeRow"}},
+        "include_cap_diagnostic": {"type": "boolean"}
+      }
+    }
+  }
+}

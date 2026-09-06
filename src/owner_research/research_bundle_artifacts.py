@@ -6,7 +6,10 @@ import hashlib
 import json
 import os
 import shutil
+import stat
+import sys
 import uuid
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -17,6 +20,13 @@ from .research_bundle_policies import bundle_payload_sha256
 from .validation import ContractGraph, ContractGraphError
 
 ARTIFACT_FILENAMES = ("research-bundle.json", "run-manifest.json")
+RESEARCH_ARTIFACT_MEMBER_MAX_BYTES = 64 * 1024 * 1024
+RESEARCH_ARTIFACT_LOAD_MAX_BYTES = 256 * 1024 * 1024
+
+ResearchArtifactReadCallback = Callable[
+    [Path, int, Callable[[], bytes]],
+    bytes,
+]
 
 
 class ResearchBundleArtifactError(ValueError):
@@ -114,8 +124,26 @@ def _ensure_safe_existing_directory(path: Path) -> None:
 
 
 def _reject_symlink_path(path: Path) -> None:
-    for candidate in (path, *path.parents):
-        if candidate.is_symlink():
+    absolute = Path(path).expanduser().absolute()
+    allowed_alias: Path | None = None
+    if sys.platform == "darwin" and len(absolute.parts) >= 2:
+        root_alias = Path(absolute.anchor) / absolute.parts[1]
+        expected_target = Path("/private") / absolute.parts[1]
+        try:
+            alias_details = root_alias.lstat()
+            alias_target = root_alias.resolve(strict=True)
+        except OSError:
+            pass
+        else:
+            if (
+                stat.S_ISLNK(alias_details.st_mode)
+                and alias_details.st_uid == 0
+                and alias_target == expected_target
+                and alias_target.is_dir()
+            ):
+                allowed_alias = root_alias
+    for candidate in (absolute, *absolute.parents):
+        if candidate.is_symlink() and candidate != allowed_alias:
             raise ResearchBundleArtifactError(
                 "Artifact path cannot contain a symlink"
             )
@@ -129,11 +157,163 @@ def _fsync_directory(path: Path) -> None:
         os.close(directory_fd)
 
 
+def _read_artifact_snapshot(
+    path: Path,
+    *,
+    maximum_total_bytes: int = RESEARCH_ARTIFACT_LOAD_MAX_BYTES,
+    read_callback: ResearchArtifactReadCallback | None = None,
+) -> dict[str, bytes]:
+    """Capture the exact pair once through stable no-follow descriptors."""
+
+    if type(maximum_total_bytes) is not int or maximum_total_bytes < 0:
+        raise ResearchBundleArtifactError("Artifact cumulative byte limit is invalid")
+    _reject_symlink_path(path)
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    flags |= getattr(os, "O_DIRECTORY", 0)
+    try:
+        directory_fd = os.open(path, flags)
+    except OSError as exc:
+        raise ResearchBundleArtifactError(
+            f"Artifact directory is not safely readable: {exc}"
+        ) from exc
+    try:
+        before_directory = os.fstat(directory_fd)
+        names = tuple(sorted(os.listdir(directory_fd)))
+        unexpected = sorted(set(names) - set(ARTIFACT_FILENAMES))
+        if unexpected:
+            raise ResearchBundleArtifactError(
+                f"Artifact output directory contains unexpected entries: {unexpected}"
+            )
+        if names != tuple(sorted(ARTIFACT_FILENAMES)):
+            raise ResearchBundleArtifactError(
+                "Artifact directory must contain exactly the Bundle and RunManifest"
+            )
+        contents: dict[str, bytes] = {}
+        remaining = min(RESEARCH_ARTIFACT_LOAD_MAX_BYTES, maximum_total_bytes)
+        for name in names:
+            try:
+                descriptor = os.open(
+                    name,
+                    flags & ~getattr(os, "O_DIRECTORY", 0),
+                    dir_fd=directory_fd,
+                )
+            except OSError as exc:
+                raise ResearchBundleArtifactError(
+                    f"Artifact member is not safely readable: {name}"
+                ) from exc
+            try:
+                before = os.fstat(descriptor)
+                maximum = min(RESEARCH_ARTIFACT_MEMBER_MAX_BYTES, remaining)
+                if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1:
+                    raise ResearchBundleArtifactError(
+                        f"Artifact member is unsafe: {name}"
+                    )
+                if before.st_size > RESEARCH_ARTIFACT_MEMBER_MAX_BYTES:
+                    raise ResearchBundleArtifactError(
+                        f"Artifact member exceeds its byte limit: {name}"
+                    )
+                if before.st_size > remaining:
+                    raise ResearchBundleArtifactError(
+                        "Artifact pair exceeds its cumulative byte limit"
+                    )
+                read_started = False
+
+                def read_member(
+                    *,
+                    _name: str = name,
+                    _descriptor: int = descriptor,
+                    _maximum: int = maximum,
+                ) -> bytes:
+                    nonlocal read_started
+                    if read_started:
+                        raise ResearchBundleArtifactError(
+                            f"Artifact member reader may be invoked only once: {_name}"
+                        )
+                    read_started = True
+                    chunks: list[bytes] = []
+                    consumed = 0
+                    while True:
+                        chunk = os.read(
+                            _descriptor,
+                            min(1024 * 1024, _maximum - consumed + 1),
+                        )
+                        if not chunk:
+                            break
+                        consumed += len(chunk)
+                        if consumed > _maximum:
+                            raise ResearchBundleArtifactError(
+                                f"Artifact member exceeds its byte limit: {_name}"
+                            )
+                        chunks.append(chunk)
+                    return b"".join(chunks)
+
+                raw = (
+                    read_member()
+                    if read_callback is None
+                    else read_callback(path / name, before.st_size, read_member)
+                )
+                if type(raw) is not bytes or not read_started:
+                    raise ResearchBundleArtifactError(
+                        f"Artifact read callback did not return the exact byte snapshot: {name}"
+                    )
+                consumed = len(raw)
+                after = os.fstat(descriptor)
+                identity = (
+                    before.st_dev,
+                    before.st_ino,
+                    before.st_size,
+                    before.st_mtime_ns,
+                    before.st_ctime_ns,
+                    before.st_mode,
+                    before.st_nlink,
+                    before.st_uid,
+                    before.st_gid,
+                )
+                if consumed != before.st_size or identity != (
+                    after.st_dev,
+                    after.st_ino,
+                    after.st_size,
+                    after.st_mtime_ns,
+                    after.st_ctime_ns,
+                    after.st_mode,
+                    after.st_nlink,
+                    after.st_uid,
+                    after.st_gid,
+                ):
+                    raise ResearchBundleArtifactError(
+                        f"Artifact member changed while read: {name}"
+                    )
+                contents[name] = raw
+                remaining -= consumed
+            finally:
+                os.close(descriptor)
+        after_directory = os.fstat(directory_fd)
+        if tuple(sorted(os.listdir(directory_fd))) != names or (
+            before_directory.st_dev,
+            before_directory.st_ino,
+            before_directory.st_mtime_ns,
+            before_directory.st_ctime_ns,
+            before_directory.st_mode,
+            before_directory.st_uid,
+            before_directory.st_gid,
+        ) != (
+            after_directory.st_dev,
+            after_directory.st_ino,
+            after_directory.st_mtime_ns,
+            after_directory.st_ctime_ns,
+            after_directory.st_mode,
+            after_directory.st_uid,
+            after_directory.st_gid,
+        ):
+            raise ResearchBundleArtifactError("Artifact directory changed while read")
+        return contents
+    finally:
+        os.close(directory_fd)
+
+
 def _matches(path: Path, contents: dict[str, bytes]) -> bool:
-    _ensure_safe_existing_directory(path)
-    if {item.name for item in path.iterdir()} != set(ARTIFACT_FILENAMES):
-        return False
-    return all((path / name).read_bytes() == content for name, content in contents.items())
+    observed = _read_artifact_snapshot(path)
+    return observed == contents
 
 
 def _write_staging(path: Path, contents: dict[str, bytes]) -> None:
@@ -236,17 +416,58 @@ def load_research_bundle_artifacts(
 ) -> ResearchBundleBuildResult:
     """Load the exact artifact pair and recheck its internal binding."""
 
+    result, _ = load_research_bundle_artifact_snapshot(input_directory, graph=graph)
+    return result
+
+
+def load_research_bundle_artifact_snapshot(
+    input_directory: Path,
+    *,
+    graph: ContractGraph,
+    maximum_total_bytes: int = RESEARCH_ARTIFACT_LOAD_MAX_BYTES,
+    read_callback: ResearchArtifactReadCallback | None = None,
+) -> tuple[ResearchBundleBuildResult, dict[str, bytes]]:
+    """Load and return the exact bounded byte snapshot used for typed replay."""
+
     source = Path(input_directory).expanduser().absolute()
-    _reject_symlink_path(source)
-    _ensure_safe_existing_directory(source)
-    entries = {item.name for item in source.iterdir()}
-    if entries != set(ARTIFACT_FILENAMES):
+    contents = _read_artifact_snapshot(
+        source,
+        maximum_total_bytes=maximum_total_bytes,
+        read_callback=read_callback,
+    )
+    return replay_research_bundle_artifact_snapshot(contents, graph=graph), contents
+
+
+def replay_research_bundle_artifact_snapshot(
+    file_bytes: Mapping[str, bytes],
+    *,
+    graph: ContractGraph,
+) -> ResearchBundleBuildResult:
+    """Replay one already captured canonical pair without reopening its source path."""
+
+    if type(graph) is not ContractGraph:
+        raise ResearchBundleArtifactError("Artifact replay requires an exact ContractGraph")
+    if set(file_bytes) != set(ARTIFACT_FILENAMES):
         raise ResearchBundleArtifactError(
-            "Artifact directory must contain exactly the Bundle and RunManifest"
+            "Artifact snapshot must contain exactly the Bundle and RunManifest"
         )
+    contents: dict[str, bytes] = {}
+    total = 0
+    for name in ARTIFACT_FILENAMES:
+        raw = file_bytes[name]
+        if type(raw) is not bytes or len(raw) > RESEARCH_ARTIFACT_MEMBER_MAX_BYTES:
+            raise ResearchBundleArtifactError(
+                f"Artifact snapshot member is untyped or exceeds its byte limit: {name}"
+            )
+        total += len(raw)
+        if total > RESEARCH_ARTIFACT_LOAD_MAX_BYTES:
+            raise ResearchBundleArtifactError(
+                "Artifact snapshot exceeds its cumulative byte limit"
+            )
+        contents[name] = raw
     try:
-        bundle_payload = json.loads((source / "research-bundle.json").read_text("utf-8"))
-        manifest_payload = json.loads((source / "run-manifest.json").read_text("utf-8"))
+        bundle_payload = json.loads(contents["research-bundle.json"].decode("utf-8"))
+        manifest_payload = json.loads(contents["run-manifest.json"].decode("utf-8"))
         bundle = contract_from_dict("research-bundle", bundle_payload)
         manifest = contract_from_dict("run-manifest", manifest_payload)
     except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
@@ -256,6 +477,6 @@ def load_research_bundle_artifacts(
     result = ResearchBundleBuildResult(bundle=bundle, run_manifest=manifest)
     _validate_result(graph, result)
     expected = _expected_contents(graph, result)
-    if any((source / name).read_bytes() != content for name, content in expected.items()):
+    if contents != expected:
         raise ResearchBundleArtifactError("Artifact JSON is not canonically serialized")
     return result

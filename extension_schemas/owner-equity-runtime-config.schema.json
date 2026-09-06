@@ -1,0 +1,275 @@
+{
+  "$id": "https://owner-research.local/schemas/owner-equity-runtime-config.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_type": {
+      "const": "owner-equity-runtime-config"
+    },
+    "audit": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "package_directory": {
+              "$ref": "#/$defs/path"
+            }
+          },
+          "required": [
+            "package_directory"
+          ],
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "publication": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "output_directory": {
+              "$ref": "#/$defs/path"
+            }
+          },
+          "required": [
+            "output_directory"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "input_package_directory": {
+              "$ref": "#/$defs/path"
+            },
+            "output_directory": {
+              "$ref": "#/$defs/path"
+            }
+          },
+          "required": [
+            "input_package_directory",
+            "output_directory"
+          ],
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "report": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "report_spec_file": {
+              "$ref": "#/$defs/path"
+            }
+          },
+          "required": [
+            "report_spec_file"
+          ],
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "research": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "research_bundle_directory": {
+              "$ref": "#/$defs/path"
+            },
+            "research_graph_file": {
+              "$ref": "#/$defs/path"
+            }
+          },
+          "required": [
+            "research_graph_file",
+            "research_bundle_directory"
+          ],
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "valuation": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/valuation"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "research",
+    "report",
+    "publication",
+    "audit",
+    "valuation"
+  ],
+  "type": "object",
+  "$defs": {
+    "nullable_path": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/path"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "nullable_string": {
+      "oneOf": [
+        {
+          "maxLength": 4096,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "path": {
+      "maxLength": 4096,
+      "minLength": 1,
+      "type": "string"
+    },
+    "valuation": {
+      "additionalProperties": false,
+      "properties": {
+        "account_receipt_file": {
+          "$ref": "#/$defs/nullable_path"
+        },
+        "kernel_cas_root": {
+          "$ref": "#/$defs/nullable_path"
+        },
+        "kernel_repository": {
+          "$ref": "#/$defs/nullable_path"
+        },
+        "kernel_runtime_manifest": {
+          "$ref": "#/$defs/nullable_path"
+        },
+        "kernel_wheel": {
+          "$ref": "#/$defs/nullable_path"
+        },
+        "keyring_file": {
+          "$ref": "#/$defs/nullable_path"
+        },
+        "legal_receipt_file": {
+          "$ref": "#/$defs/nullable_path"
+        },
+        "futu_data_review_file": {
+          "$ref": "#/$defs/nullable_path"
+        },
+        "peer_review_file": {
+          "$ref": "#/$defs/nullable_path"
+        },
+        "price_blind_artifact_directory": {
+          "$ref": "#/$defs/nullable_path"
+        },
+        "run_input_file": {
+          "$ref": "#/$defs/nullable_path"
+        },
+        "runtime_authorization_file": {
+          "$ref": "#/$defs/nullable_path"
+        },
+        "runtime_receipt_file": {
+          "$ref": "#/$defs/nullable_path"
+        },
+        "score_review_file": {
+          "$ref": "#/$defs/nullable_path"
+        },
+        "security_identity_receipt_file": {
+          "$ref": "#/$defs/nullable_path"
+        },
+        "sidecar_expected_uid": {
+          "oneOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sidecar_signer_key_id": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "sidecar_socket": {
+          "$ref": "#/$defs/nullable_path"
+        },
+        "sidecar_timeout_seconds": {
+          "oneOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 60,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stage_plan_file": {
+          "$ref": "#/$defs/nullable_path"
+        },
+        "supply_chain_receipt_file": {
+          "$ref": "#/$defs/nullable_path"
+        },
+        "synthesis_review_file": {
+          "$ref": "#/$defs/nullable_path"
+        },
+        "valuation_output_directory": {
+          "$ref": "#/$defs/nullable_path"
+        }
+      },
+      "required": [
+        "keyring_file",
+        "legal_receipt_file",
+        "account_receipt_file",
+        "supply_chain_receipt_file",
+        "runtime_authorization_file",
+        "runtime_receipt_file",
+        "security_identity_receipt_file",
+        "sidecar_socket",
+        "sidecar_expected_uid",
+        "sidecar_timeout_seconds",
+        "sidecar_signer_key_id",
+        "kernel_wheel",
+        "kernel_repository",
+        "kernel_runtime_manifest",
+        "kernel_cas_root",
+        "valuation_output_directory",
+        "stage_plan_file",
+        "futu_data_review_file",
+        "peer_review_file",
+        "synthesis_review_file",
+        "score_review_file",
+        "run_input_file",
+        "price_blind_artifact_directory"
+      ],
+      "type": "object"
+    }
+  }
+}

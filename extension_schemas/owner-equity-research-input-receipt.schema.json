@@ -1,0 +1,90 @@
+{
+  "$id": "https://owner-research.local/schemas/owner-equity-research-input-receipt.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_type": {
+      "const": "owner-equity-research-input-receipt"
+    },
+    "receipt_fingerprint": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "receipt_id": {
+      "maxLength": 512,
+      "minLength": 1,
+      "type": "string"
+    },
+    "request": {
+      "$ref": "#/$defs/request"
+    },
+    "schema_version": {
+      "const": "1.0.0"
+    }
+  },
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "receipt_id",
+    "receipt_fingerprint",
+    "request"
+  ],
+  "type": "object",
+  "$defs": {
+    "request": {
+      "additionalProperties": false,
+      "properties": {
+        "data_cutoff_date": {
+          "format": "date",
+          "type": "string"
+        },
+        "intent": {
+          "enum": [
+            "research",
+            "quarterly",
+            "valuation",
+            "report",
+            "publish",
+            "audit"
+          ]
+        },
+        "issuer_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "profile": {
+          "oneOf": [
+            {
+              "enum": [
+                "research_only",
+                "full_valuation"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "requested_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "requested_by": {
+          "maxLength": 256,
+          "pattern": "^human:.+",
+          "type": "string"
+        }
+      },
+      "required": [
+        "issuer_id",
+        "data_cutoff_date",
+        "intent",
+        "profile",
+        "requested_by",
+        "requested_at"
+      ],
+      "type": "object"
+    }
+  }
+}

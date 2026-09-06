@@ -1,0 +1,17 @@
+{
+  "critical_concepts": {
+    "balance_sheet": ["cash_and_cash_equivalents", "common_equity", "interest_bearing_debt", "total_assets", "total_liabilities"],
+    "cash_flow": ["capital_expenditure_outflow", "operating_cash_flow"]
+  },
+  "mappings": [
+    {"accounting_standard_scope": "US_GAAP", "canonical_concept": "revenue", "data_family": "financial_statements", "field_id": "5001", "futu_api_version": "10.10.7008", "materiality_tier": "kernel_required", "normalized_display_name": "total revenue", "period_kind": "flow", "sign_convention": "reported_signed", "statement_type": "income", "unit": "currency_units"},
+    {"accounting_standard_scope": "US_GAAP", "canonical_concept": "operating_income", "data_family": "financial_statements", "field_id": "5034", "futu_api_version": "10.10.7008", "materiality_tier": "kernel_required", "normalized_display_name": "operating profit", "period_kind": "flow", "sign_convention": "reported_signed", "statement_type": "income", "unit": "currency_units"},
+    {"accounting_standard_scope": "US_GAAP", "canonical_concept": "pretax_income", "data_family": "financial_statements", "field_id": "5040", "futu_api_version": "10.10.7008", "materiality_tier": "kernel_required", "normalized_display_name": "pretax profit", "period_kind": "flow", "sign_convention": "reported_signed", "statement_type": "income", "unit": "currency_units"},
+    {"accounting_standard_scope": "US_GAAP", "canonical_concept": "income_tax_expense", "data_family": "financial_statements", "field_id": "5043", "futu_api_version": "10.10.7008", "materiality_tier": "kernel_required", "normalized_display_name": "tax", "period_kind": "flow", "sign_convention": "reported_signed", "statement_type": "income", "unit": "currency_units"},
+    {"accounting_standard_scope": "US_GAAP", "canonical_concept": "net_income", "data_family": "financial_statements", "field_id": "5045", "futu_api_version": "10.10.7008", "materiality_tier": "kernel_required", "normalized_display_name": "net profit", "period_kind": "flow", "sign_convention": "reported_signed", "statement_type": "income", "unit": "currency_units"}
+  ],
+  "registry_id": "futu-financial-field-registry",
+  "registry_version": "1.0.0",
+  "unknown_field_policy": "not_comparable",
+  "unmapped_critical_concept_policy": "block_before_price_blind_refreeze"
+}

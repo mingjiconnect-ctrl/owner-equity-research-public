@@ -1,0 +1,164 @@
+{
+  "account_boundary": {
+    "credentials_allowed_locations": [
+      "isolated_vm_tmpfs",
+      "user_managed_macos_opend"
+    ],
+    "credentials_forbidden_locations": [
+      "audit_artifacts",
+      "command_arguments",
+      "environment_variables",
+      "git",
+      "logs",
+      "public_receipts",
+      "research_wheel"
+    ],
+    "holdings_or_account_data_access_allowed": false,
+    "required_runtime_login_state": {
+      "qotLogined": true
+    },
+    "trade_login_transition_action": "record_actual_server_state_not_api_permission"
+  },
+  "cache_and_replay": {
+    "live_and_replay_modes_distinct": true,
+    "maximum_pages_per_protocol": 64,
+    "maximum_raw_bytes_per_response": 16777216,
+    "maximum_raw_bytes_per_run": 268435456,
+    "maximum_requests_per_run": 128,
+    "mutable_latest_cache_allowed": false,
+    "raw_store": "repository_external_private_encrypted_cas",
+    "replay_requires_current_replay_right": true
+  },
+  "fallback_policy": "blocked_no_scraping_free_api_manual_price_or_account_data",
+  "financial_authority": {
+    "futu_financials_may_create_or_overwrite_research_facts": false,
+    "futu_role": "vendor_secondary_cross_check_only",
+    "historical_point_in_time_use_without_publication_timestamp": "blocked",
+    "primary_sources": [
+      "sec_filing",
+      "issuer_ir"
+    ],
+    "unknown_or_unmapped_vendor_fields": "not_comparable"
+  },
+  "global_state_authority": {
+    "bound_protocol_id": 1002,
+    "operation": "GetGlobalState",
+    "required_before_and_after_each_data_request": true,
+    "required_values": {
+      "qotLogined": true
+    },
+    "observed_boolean_fields": ["trdLogined"]
+  },
+  "market_scope": {
+    "currencies": [
+      "USD"
+    ],
+    "issuer_identity": "sec_reporting_issuer",
+    "mics": [
+      "XNAS",
+      "XNYS"
+    ],
+    "security_structure": "single_primary_common"
+  },
+  "protocol_allowlist": {
+    "explicitly_forbidden_protocol_ids": [3237, 3238, 3239, 3240, 3241, 3242, 3248, 3249],
+    "market_reference": [3103],
+    "post_valuation_context": [3229, 3230, 3232],
+    "runtime_authority": [1002, 3104],
+    "valuation_pre_price_verification": [3202, 3227, 3228, 3234, 3236, 3243, 3244, 3245, 3246]
+  },
+  "protocol_point_in_time_limits": {
+    "analyst_and_multiples": "post_price_blind_freeze_context_only",
+    "company_and_operating_metrics": "current_snapshot_not_historical_point_in_time",
+    "corporate_actions": "current_snapshot_unless_event_publication_timestamp_is_retained",
+    "daily_close": "point_in_time_only_after_daily_close_semantics_gate",
+    "financials_and_revenue": "current_snapshot_vendor_cross_check_only",
+    "security_identity": "human_reviewed_effective_period_required"
+  },
+  "policy_id": "phase5e-futu-market-authority",
+  "policy_version": "2.0.0",
+  "price_authority": {
+    "adjustment": "AuType.NONE",
+    "daily_close_semantics": "external_signed_semantics_evidence_required",
+    "eligibility_gate": "pinned_opend_proto_canary_or_written_authority_required",
+    "extended_time": false,
+    "forbidden_modes": [
+      "after_hours",
+      "automatic_fallback",
+      "hfq",
+      "intraday",
+      "last_price",
+      "overnight",
+      "prev_close",
+      "qfq",
+      "snapshot"
+    ],
+    "kline_type": "KLType.K_DAY",
+    "request_api": "RequestHistoryKL",
+    "response_rules": {
+      "date_must_equal_expected_completed_trading_date": true,
+      "exact_row_count": 1,
+      "finite_positive_close_required": true,
+      "positive_volume_required": true
+    },
+    "session": "Session.RTH",
+    "source_authority_kind": "governed_broker_vendor",
+    "valuation_adapter_mapping": "official_unadjusted_close_only_after_eligibility_gate"
+  },
+  "publication_boundary": {
+    "derived_private_report_requires_explicit_right": true,
+    "derived_public_report_requires_explicit_right": true,
+    "licensed_raw_payload_in_git_wheel_pdf_or_release": false
+  },
+  "raw_evidence": {
+    "credentials_or_login_frames_in_cas": false,
+    "private_encrypted_cas_required": true,
+    "public_artifact_payload_allowed": false,
+    "public_objects_contain_only_hashes_and_cas_receipts": true
+  },
+  "required_live_session_attestations": [
+    "sidecar_boot_attestation",
+    "signed_request_response_envelopes"
+  ],
+  "required_post_run_signed_attestations": [
+    "runtime_isolation_receipt",
+    "sidecar_execution_attestation"
+  ],
+  "required_pre_run_signed_authorities": [
+    "legal_rights",
+    "account_entitlement",
+    "supply_chain",
+    "runtime_isolation_authorization",
+    "security_identity"
+  ],
+  "release_boundary": {
+    "release_candidate": "requires one exact-artifact isolated real-OpenD canary with all signed authorities; without it the build is code-complete preview only",
+    "stable": "requires current verified legal, account-entitlement, runtime-isolation, and supply-chain receipts plus an isolated real-OpenD smoke replay",
+    "stable_price_path": "additionally requires pinned daily-close semantic canary evidence or written authority"
+  },
+  "runtime_boundary": {
+    "external_quote_only_uds_facade": true,
+    "generic_raw_send_allowed": false,
+    "host_opend_port_mapping_allowed": false,
+    "rootless_linux_vm_required": false,
+    "allowed_runtime_profiles": {
+      "linux_vm_read_only": {
+        "receipt_schema_version": "1.0.0",
+        "vm_image_sha256_required": true,
+        "credentials_location": "isolated_vm_tmpfs",
+        "rootless_required": true
+      },
+      "macos_local_read_only": {
+        "receipt_schema_version": "2.0.0",
+        "vm_image_sha256": null,
+        "credentials_location": "user_managed_macos_opend",
+        "opend_endpoint": "127.0.0.1:11111",
+        "rootless_required": true,
+        "vm_or_network_namespace_isolation_claimed": false
+      }
+    },
+    "trade_and_account_protocols_rejected_before_opend": true
+  },
+  "schema_version": "2.0.0",
+  "supersedes": "phase5e-futu-market-authority/1.0.0"
+}
