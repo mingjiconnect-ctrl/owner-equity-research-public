@@ -27,7 +27,8 @@ jobs:
     name: verify (${{ matrix.python-version }})
     runs-on: ubuntu-24.04
     environment: phase5e-private-kernel-readonly
-    timeout-minutes: 180
+    # Python 3.11 needs more wall time for the unchanged, single-CPU full suite.
+    timeout-minutes: ${{ matrix.python-version == '3.11' && 360 || 180 }}
     strategy:
       fail-fast: false
       matrix:

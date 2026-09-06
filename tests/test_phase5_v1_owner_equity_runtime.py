@@ -34,10 +34,13 @@ from owner_research.owner_equity_research import (
 from owner_research.owner_equity_runtime import (
     Ed25519PublicKeyring,
     OwnerEquityRuntimeError,
+    RuntimeResearchAuthority,
     build_runtime_dependencies,
     load_owner_equity_runtime,
+    load_research_runtime_context,
     write_research_runtime_context,
 )
+from owner_research.owner_equity_types import build_research_source_index
 from owner_research.research_publisher import (
     load_owner_research_package as load_package_allowing_test_renderer,
 )
@@ -217,6 +220,50 @@ def _incomplete_research_graph(sample_payloads, status: str):
         documents=(*graph.documents, newer_source),
         manifests=(manifest,),
     )
+
+
+def _relocated_research_authorities(sample_payloads, tmp_path: Path):
+    research, original_index, _, _ = _typed_report_inputs(sample_payloads, tmp_path)
+    copied_lock = tmp_path / "identical-component-lock.json"
+    copied_lock.write_bytes(original_index.graph.component_lock_path.read_bytes())
+    copied_lock.chmod(0o600)
+    graph = replace(original_index.graph, component_lock_path=copied_lock)
+    index = build_research_source_index(graph=graph, research=original_index.research)
+    context_file = write_research_runtime_context(
+        graph=graph,
+        output_file=tmp_path / "relocated-research-context.json",
+    )
+    context = load_research_runtime_context(context_file)
+    assert context.graph.component_lock_path != graph.component_lock_path
+    assert context.graph != graph
+    assert runtime_module._research_context_payload(context.graph) == (
+        runtime_module._research_context_payload(graph)
+    )
+    return research, index, context, copied_lock
+
+
+def test_runtime_research_authority_accepts_byte_identical_lock_roundtrip(
+    sample_payloads, tmp_path: Path
+) -> None:
+    research, index, context, _ = _relocated_research_authorities(sample_payloads, tmp_path)
+    authority = RuntimeResearchAuthority(context=context, research=research, source_index=index)
+    assert authority.context is context
+    assert authority.research is research
+    assert authority.source_index is index
+    assert authority.context.graph.component_lock_path != (
+        authority.source_index.graph.component_lock_path
+    )
+
+
+def test_runtime_research_authority_replays_retained_component_lock_bytes(
+    sample_payloads, tmp_path: Path
+) -> None:
+    research, index, context, copied_lock = _relocated_research_authorities(
+        sample_payloads, tmp_path
+    )
+    copied_lock.write_bytes(copied_lock.read_bytes() + b"\n")
+    with pytest.raises(OwnerEquityRuntimeError, match="source index changed its exact authority"):
+        RuntimeResearchAuthority(context=context, research=research, source_index=index)
 
 
 def test_ed25519_keyring_verifies_only_exact_named_public_key(tmp_path: Path) -> None:

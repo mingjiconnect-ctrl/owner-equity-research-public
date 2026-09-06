@@ -74,11 +74,11 @@ SIDECAR_REQUIRED_DISTRIBUTIONS = {
     "typing-extensions": "4.16.0",
     "wheel": "0.48.0",
 }
-VERIFY_JOB_CANONICAL_SHA256 = "f86875eaa0db7a52358af89a5428be10ab429c7184a95858ac1ee390caa7edcc"
+VERIFY_JOB_CANONICAL_SHA256 = "19d7c65b239b0da435b4befbed0766764bf39dd9c71353153a4ad57311133b66"
 SEMANTIC_AUDIT_JOB_CANONICAL_SHA256 = (
     "45315c8cb09bcda3567800010814fc1e4fe4c2faba71257730268bd977f2bad9"
 )
-CI_WORKFLOW_SHA256 = "d25e48763eb729af3cf1ba038989afe9cc116612ea710e94575c360a154e3ce1"
+CI_WORKFLOW_SHA256 = "7dc29fe07ac9200e04969dac51da4b12e747e2603fb1d9894b386ba4f4c0107f"
 RELEASE_TAG_BLOCK_STEP = {
     "name": "Fail closed until external release control is deployed",
     "if": "startsWith(github.ref, 'refs/tags/')",

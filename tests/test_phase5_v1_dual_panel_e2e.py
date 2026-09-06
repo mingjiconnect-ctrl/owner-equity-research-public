@@ -82,18 +82,18 @@ EXPECTED_WORKFLOW_READ_ONLY_MOUNTS = [
     {"role": "trusted_attestation_directory", "target": "/run/owner-research"},
 ]
 EXPECTED_WORKFLOW_WRITABLE_MOUNTS = [{"role": "canonical_summary_output", "target": "/output"}]
-# The read-only Futu policy revision updates component-lock-bound market provenance.
+# The runtime locator correction updates component-lock-bound market provenance.
 # The request assumptions, numerical facts, method inputs, and output panels are unchanged.
-EXPECTED_REQUEST_SHA256 = "9fbdbbbe826be5aa0cb074cedaebb1fa99ec5e784b13c7102b91d8ac4bea453a"
-EXPECTED_PUBLIC_REQUEST_SHA256 = "f534e28165875bdb4de6c3612b03f59fe16c9fd43fdccf9f88d12607224b65f5"
-EXPECTED_RESULT_SHA256 = "02c99c2b30e59ab8bbd161be812322bfe22f97eb7821b492ea04d540e499dacb"
-EXPECTED_MARKET_RECEIPT_ID = "market-quote-receipt:1e7d921c5ed809ceb717ba46"
-EXPECTED_PUBLIC_MARKET_RECEIPT_ID = "market-quote-receipt:d648de1ed76fa76f4dce19ca"
+EXPECTED_REQUEST_SHA256 = "d97c74056b70fdb7b65fa3532920fd7012d7797be0ec5452aeddadffcac642d6"
+EXPECTED_PUBLIC_REQUEST_SHA256 = "bd8c04d9da05897c5fdcf81d17861b628e17e570fa4cabc6f30c9b20e31dc960"
+EXPECTED_RESULT_SHA256 = "98222e8cb0d0bc4ff8b1578bb4c5dc8672983fbe7ae3ffc2f473ad86fb8d6429"
+EXPECTED_MARKET_RECEIPT_ID = "market-quote-receipt:7c6d0821a173186601e3ccd4"
+EXPECTED_PUBLIC_MARKET_RECEIPT_ID = "market-quote-receipt:290b0542b4de076266369eeb"
 EXPECTED_MARKET_RECEIPT_FINGERPRINT = (
-    "6ad55c610768923312699104ec1a77afa94c8bc0fcf172255eca48f413a89bad"
+    "2ba50c6f2870abe800f03151ee17be55b8ca446d9b597894340f0eeaea53d1ed"
 )
 EXPECTED_PUBLIC_MARKET_RECEIPT_FINGERPRINT = (
-    "9a41247e006f36660cd25341c6a5c7477f815d407ca63b592a194048f8933baf"
+    "0380de411fb6ea1a4bfacdb3e46ec04f6049eebfaa87f10b31c45e50c933d55b"
 )
 COMPANY_NAME = "Synthetic Nonfinancial Company"
 COMPANY_NAME_FACT_ID = "fact:acme:issuer-legal-name"

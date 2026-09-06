@@ -950,11 +950,29 @@ class RuntimeResearchAuthority:
         }
         if dict(self.research.file_bytes) != expected_files:
             raise OwnerEquityRuntimeError("runtime research byte snapshot does not replay")
-        expected_index = build_research_source_index(
-            graph=self.context.graph,
-            research=self.research.result,
-        )
-        if expected_index != self.source_index:
+        try:
+            expected_index = build_research_source_index(
+                graph=self.context.graph,
+                research=self.research.result,
+            )
+            retained_index = build_research_source_index(
+                graph=self.source_index.graph,
+                research=self.source_index.research,
+            )
+            # Contexts retain component-lock bytes, not their installation location.
+            # Replay both typed graphs without rebinding either retained object's path.
+            changed = (
+                retained_index != self.source_index
+                or self.source_index.research != self.research.result
+                or canonical_json(_research_context_payload(self.source_index.graph))
+                != canonical_json(_research_context_payload(self.context.graph))
+                or expected_index.to_dict() != self.source_index.to_dict()
+            )
+        except (OSError, TypeError, ValueError) as exc:
+            raise OwnerEquityRuntimeError(
+                "runtime source index changed its exact authority"
+            ) from exc
+        if changed:
             raise OwnerEquityRuntimeError("runtime source index changed its exact authority")
 
 

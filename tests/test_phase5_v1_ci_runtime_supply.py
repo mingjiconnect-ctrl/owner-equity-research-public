@@ -288,7 +288,9 @@ def test_private_runtime_supply_and_containment_order_is_closed() -> None:
     assert verify["strategy"]["matrix"] == {
         "python-version": ["3.11", "3.12", "3.13"]
     }
-    assert verify["timeout-minutes"] == 180
+    assert verify["timeout-minutes"] == (
+        "${{ matrix.python-version == '3.11' && 360 || 180 }}"
+    )
     assert workflow["jobs"]["semantic-audit"]["name"] == "phase5/semantic-audit"
     assert workflow["jobs"]["semantic-audit"]["timeout-minutes"] == 90
     semantic_projection = json.dumps(workflow["jobs"]["semantic-audit"])
