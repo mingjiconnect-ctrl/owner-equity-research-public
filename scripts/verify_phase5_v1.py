@@ -1449,7 +1449,7 @@ def _governance_findings(expected_commit: str | None) -> list[Finding]:
             ],
             "required_canary_path": [
                 "signed_legal_account_protocol_receipts",
-                "qot_logged_in_and_trade_logged_out",
+                "qot_logged_in_with_closed_read_only_protocol_allowlist",
                 "private_cas_binding",
                 "sec_ir_reconciliation",
                 "strict_six_file_archive_reload",

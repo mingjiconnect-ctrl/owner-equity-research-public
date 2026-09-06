@@ -81,6 +81,10 @@ def test_stable_release_is_blocked_by_all_three_unsigned_external_gates() -> Non
     assert block["release_canary"]["bound_commit"] is None
     assert block["release_canary"]["bound_tree"] is None
     assert policy["account_boundary"]["required_runtime_login_state"] == {"qotLogined": True}
+    phase_status = json.loads((ROOT / "docs/phase5-v1-status.json").read_text())
+    canary_path = phase_status["release_policy"]["release_candidate"]["required_canary_path"]
+    assert "qot_logged_in_with_closed_read_only_protocol_allowlist" in canary_path
+    assert "qot_logged_in_and_trade_logged_out" not in canary_path
     read_only_evidence = (
         "qot_logged_in_true_with_observed_trading_server_state_and_closed_read_only_protocols"
     )
