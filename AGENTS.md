@@ -284,7 +284,9 @@ force; ADR 0041, ADR 0044, and `docs/phase5-v1-status.json` supersede it.
   above intrinsic value, or a permanent-capital-loss critical red flag; otherwise `重点关注` at
   80/80%/25%/20% overall/confidence/margin-of-safety/twelve-month-upside with no critical red flag;
   otherwise `关注` at 70/70%/15%/10% with no critical red flag; otherwise `观察`.
-- Every live Futu path is quote-only and must prove `qotLogined=true` and `trdLogined=false`.
+- Every live Futu path is quote-only and must prove `qotLogined=true`. Record `trdLogined`
+  faithfully as OpenD server-connection state; either boolean value is allowed. It is not API
+  permission and cannot by itself block a run (user-approved correction, 2026-09-06).
   Trading, orders, positions, balances, holdings, and account protocols remain forbidden.
   Credentials and raw licensed data never enter the repository, logs, receipts, wheel, plugin, or
   publication package.

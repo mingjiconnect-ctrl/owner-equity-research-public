@@ -868,7 +868,6 @@ class FutuMarketReferenceProvider:
             or request.request_started_at != ticket.request.request_started_at
             or response.status != "completed"
             or not response.qot_logined
-            or response.trd_logined
             or self.daily_close.issuer_id != ticket.request.issuer_id
             or self.daily_close.security_id != ticket.request.security_id
             or self.daily_close.trading_date != ticket.request.expected_trading_date

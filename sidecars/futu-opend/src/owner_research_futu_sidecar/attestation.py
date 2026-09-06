@@ -73,7 +73,7 @@ SESSION_REASON_CODES = frozenset(
         "sidecar_internal_failure",
         "startup_login_state_invalid",
         "supply_attestation_mismatch",
-        "trade_or_quote_login_transition",
+        "quote_login_lost",
         "pre_shutdown_login_state_invalid",
     }
 )
@@ -83,7 +83,6 @@ ABORT_REASON_CODES = frozenset(
         "host_failure",
         "quote_login_lost",
         "sidecar_response_invalid",
-        "trade_login_detected",
     }
 )
 
@@ -519,7 +518,7 @@ class SessionController:
             < _parse_time(self.runtime_claims.expires_at, "runtime authorization expires_at")
         ):
             raise AttestationError("sidecar startup is outside the authorization window")
-        if not checkpoint["qot_logined"] or checkpoint["trd_logined"]:
+        if not checkpoint["qot_logined"]:
             self.status = SessionStatus.QUARANTINED
             self._quarantine_reason = "startup_login_state_invalid"
             raise AttestationError("startup GlobalState is not quote-only")
@@ -694,11 +693,9 @@ class SessionController:
             raise AttestationError("fetch checkpoints are not monotonic")
         if (
             not pre["qot_logined"]
-            or pre["trd_logined"]
             or not post["qot_logined"]
-            or post["trd_logined"]
         ):
-            self.quarantine("trade_or_quote_login_transition")
+            self.quarantine("quote_login_lost")
             raise AttestationError("fetch GlobalState is not quote-only")
         if not (
             pre["serial_number"]
@@ -838,7 +835,7 @@ class SessionController:
         if not self._checkpoint_matches_pinned_opend(checkpoint):
             self.quarantine("supply_attestation_mismatch")
             raise AttestationError("shutdown OpenD server identity differs from pinned supply")
-        if not checkpoint["qot_logined"] or checkpoint["trd_logined"]:
+        if not checkpoint["qot_logined"]:
             self.quarantine("pre_shutdown_login_state_invalid")
             raise AttestationError("pre-shutdown GlobalState is not quote-only")
         ended_at = checkpoint["observed_at"]

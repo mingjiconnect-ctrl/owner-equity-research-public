@@ -6,7 +6,7 @@ from typing import Any
 
 from .canonical import SidecarContractError, canonical_bytes, load_canonical_json
 
-WIRE_SCHEMA_VERSION = "2.0.0"
+WIRE_SCHEMA_VERSION = "3.0.0"
 MAXIMUM_REQUEST_BYTES = 1024 * 1024
 MAXIMUM_RESPONSE_BYTES = 16 * 1024 * 1024
 _LENGTH = struct.Struct(">I")

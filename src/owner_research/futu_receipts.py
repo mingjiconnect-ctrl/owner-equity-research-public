@@ -1228,8 +1228,8 @@ def evaluate_futu_authority(
             issues.add("account_scope_mismatch")
         if not account.qot_logined:
             issues.add("qot_login_false")
-        if account.trd_logined:
-            issues.add("trade_login_true")
+        # OpenD's trading-server connection state is evidence, not API permission.
+        # Quote-only authority is enforced by the exact request protocol allowlist.
         observed_at = _utc_datetime(account.observed_at, "account observed_at")
         if (
             purpose == "live_preflight"
@@ -1291,10 +1291,8 @@ def evaluate_futu_authority(
         if isinstance(runtime, FutuRuntimeIsolationReceipt):
             if any(not item["qot_logined"] for item in runtime.checkpoints):
                 issues.add("qot_login_false")
-            if any(item["trd_logined"] for item in runtime.checkpoints):
-                issues.add("trade_login_true")
             if runtime.quarantined:
-                issues.add("trade_login_true")
+                issues.add("runtime_quarantined")
 
     if legal is not None and account is not None:
         if account.account_scope_sha256 != legal.account_scope_sha256:
@@ -1303,6 +1301,8 @@ def evaluate_futu_authority(
             startup = runtime.checkpoints[0]
             if (
                 startup["checkpoint"] != "startup"
+                or startup["qot_logined"] != account.qot_logined
+                or startup["trd_logined"] != account.trd_logined
                 or account.global_state_response_fingerprint
                 != startup["global_state_response_fingerprint"]
             ):
@@ -1321,7 +1321,7 @@ def evaluate_futu_authority(
             issues.add("account_protocol_version_mismatch")
 
     status = "blocked"
-    if "trade_login_true" in issues:
+    if "runtime_quarantined" in issues:
         status = "quarantined"
     elif not issues:
         status = "eligible"
@@ -1468,9 +1468,11 @@ class FutuDataResponseReceipt(FutuContract):
     qot_logined: bool
     trd_logined: bool
     pre_global_state_serial_number: int
+    pre_global_state_trd_logined: bool
     pre_global_state_request_fingerprint: str
     pre_global_state_response_fingerprint: str
     post_global_state_serial_number: int
+    post_global_state_trd_logined: bool
     post_global_state_request_fingerprint: str
     post_global_state_response_fingerprint: str
     raw_evidence_kind: str
@@ -1495,10 +1497,12 @@ class FutuDataResponseReceipt(FutuContract):
         )
         if self.status == "completed" and (self.ret_type != 0 or self.err_code != 0):
             raise FutuReceiptError("completed response must have zero return and error codes")
-        if self.trd_logined and self.status != "quarantined":
-            raise FutuReceiptError("trade-login response must be quarantined")
         if not self.qot_logined and self.status == "completed":
             raise FutuReceiptError("completed response must prove quote login")
+        if self.trd_logined != (
+            self.pre_global_state_trd_logined or self.post_global_state_trd_logined
+        ):
+            raise FutuReceiptError("response trading-server summary differs from its observations")
         if self.status == "completed" and self.raw_byte_count <= 0:
             raise FutuReceiptError("completed response must bind a non-empty raw object")
         if self.raw_evidence_kind != "opend_protobuf_s2c_frame":

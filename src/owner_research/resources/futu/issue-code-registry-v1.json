@@ -35,7 +35,7 @@
     "sidecar_response_invalid",
     "supply_chain_missing",
     "supply_chain_mismatch",
-    "trade_login_true",
+    "runtime_quarantined",
     "vendor_conflict_review_required",
     "vendor_field_unmapped"
   ],

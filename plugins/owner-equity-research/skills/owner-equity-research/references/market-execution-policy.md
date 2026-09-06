@@ -10,8 +10,9 @@ again with its current `market_reference_allowed` Handoff.
 - Use only the separately verified private Futu OpenD sidecar. Require current signed Legal,
   Account Entitlement, Supply Chain, Runtime Isolation Authorization, and Security Identity
   receipts before the session, plus signed completed isolation and execution attestations after
-  it. Every request must prove `qotLogined=true` and `trdLogined=false`; any trade login
-  quarantines the entire run.
+  it. Every request must prove `qotLogined=true` and retain the actual boolean `trdLogined`
+  observations. The latter describes OpenD's server connection and is not a trading capability;
+  true alone does not block a run. Enforce the closed read-only protocol allowlist throughout.
 - Validate protocol `3202` as exactly one active reviewed US common stock whose vendor code, MIC,
   currency, listing, and security type agree with official identity. Futu static and financial
   observations are secondary cross-checks only.

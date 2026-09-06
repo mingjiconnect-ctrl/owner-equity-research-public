@@ -202,9 +202,9 @@ def _source_inputs(*, budget: _ReadBudget) -> dict[str, Any]:
         "resources/futu-api-runtime-tree-v1.json",
         "resources/sdk-adapter-registry-v1.json",
         "supply/dependency-lock-v1.json",
-        "wire/v2/common.schema.json",
-        "wire/v2/request.schema.json",
-        "wire/v2/response.schema.json",
+        "wire/v3/common.schema.json",
+        "wire/v3/request.schema.json",
+        "wire/v3/response.schema.json",
     ]
     inputs = []
     for relative in paths:

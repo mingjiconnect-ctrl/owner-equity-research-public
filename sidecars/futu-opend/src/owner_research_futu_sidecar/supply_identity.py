@@ -43,9 +43,9 @@ _RUNTIME_SOURCE_MEMBERS = (
     "wire.py",
 )
 _WIRE_DESCRIPTOR_MEMBERS = (
-    "wire/v2/common.schema.json",
-    "wire/v2/request.schema.json",
-    "wire/v2/response.schema.json",
+    "wire/v3/common.schema.json",
+    "wire/v3/request.schema.json",
+    "wire/v3/response.schema.json",
 )
 _SOURCE_INPUT_PATHS = (
     "pyproject.toml",
@@ -65,7 +65,7 @@ _REQUIRED_SOURCE_MANIFEST_MEMBERS = (
     *(f"src/owner_research_futu_sidecar/{name}" for name in _RUNTIME_SOURCE_MEMBERS),
     "resources/futu-api-runtime-tree-v1.json",
     "resources/sdk-adapter-registry-v1.json",
-    "wire/v2/README.md",
+    "wire/v3/README.md",
     *_WIRE_DESCRIPTOR_MEMBERS,
     "launcher/README.md",
     "launcher/launch-rootless.sh",

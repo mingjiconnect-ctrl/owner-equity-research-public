@@ -556,7 +556,7 @@ def _authorities(
             "trade_and_account_protocols_rejected_before_opend": True,
             "allowed_protocol_ids": list(FUTU_RUNTIME_PROTOCOL_IDS),
             "checkpoints": checkpoints,
-            "quarantined": trd_logined,
+            "quarantined": False,
             "started_at": "2026-08-14T00:00:00Z",
             "ended_at": "2026-08-14T00:00:03Z",
             "issued_at": "2026-08-14T00:00:04Z",
@@ -744,6 +744,7 @@ class FakeTransport:
         *,
         qot_logined: bool = True,
         trd_logined: bool = False,
+        post_trd_logined: bool | None = None,
         canonical: bool = True,
         next_key: str | None = None,
         terminal: bool = True,
@@ -766,6 +767,7 @@ class FakeTransport:
     ) -> None:
         self.qot_logined = qot_logined
         self.trd_logined = trd_logined
+        self.post_trd_logined = trd_logined if post_trd_logined is None else post_trd_logined
         self.canonical = canonical
         self.next_key = next_key
         self.terminal = terminal
@@ -822,7 +824,7 @@ class FakeTransport:
                 "ret_type": 0,
                 "err_code": 0,
                 "qot_logined": self.qot_logined,
-                "trd_logined": self.trd_logined,
+                "trd_logined": self.trd_logined if phase == "pre" else self.post_trd_logined,
                 "opend_server_version": request["expected_supply_attestation"][
                     "opend_server_version"
                 ],
@@ -1649,7 +1651,7 @@ def build_futu_attested_finalization_fixture(
     verifier: DeterministicVerifier,
     skipped_conditional_conclusion: FutuFrozenConclusionReceipt | None = None,
 ) -> FutuAttestedSessionFinalization:
-    """Build deterministic signed WIRE v2 receipts, then strict-load and replay them."""
+    """Build deterministic signed WIRE v3 receipts, then strict-load and replay them."""
     if (
         runtime_receipt.runtime_authorization_fingerprint
         != runtime_authorization.fingerprint
@@ -2713,7 +2715,7 @@ def test_missing_signed_authority_returns_typed_block_without_transport_call() -
     ("qot_logined", "trd_logined", "status", "issue"),
     [
         (False, False, "blocked", "qot_login_false"),
-        (True, True, "quarantined", "trade_login_true"),
+        (False, True, "blocked", "qot_login_false"),
     ],
 )
 def test_authority_login_state_fails_closed(
@@ -2731,6 +2733,15 @@ def test_authority_signature_is_host_verified_and_missing_verifier_blocks() -> N
     decision, _, _, _ = _decision(valid_signature=False)
     assert decision.status == "blocked"
     assert "authority_signature_invalid" in decision.issue_codes
+
+
+def test_trading_server_connection_does_not_grant_or_remove_quote_authority() -> None:
+    disconnected, _, _, _ = _decision(trd_logined=False)
+    connected, _, _, _ = _decision(trd_logined=True)
+    assert disconnected.status == connected.status == "eligible"
+    assert disconnected.issue_codes == connected.issue_codes == ()
+    assert disconnected.allowed_protocol_ids == connected.allowed_protocol_ids
+    assert all(protocol < 2000 or protocol >= 3000 for protocol in connected.allowed_protocol_ids)
 
 
 def test_authority_decision_exposes_only_account_and_runtime_intersection() -> None:
@@ -3088,7 +3099,7 @@ def test_history_quota_protocol_is_exact_once_quote_only_and_rate_bounded() -> N
     assert protocol_ids.count(3104) == 1
     assert all(
         item["global_state_guards"]["qot_logined"] is True
-        and item["global_state_guards"]["trd_logined"] is False
+        and "trd_logined" not in item["global_state_guards"]
         for item in transport.calls
     )
     history_items = tuple(
@@ -4800,11 +4811,33 @@ def test_attested_finalize_closes_session_and_cannot_be_rebound_to_abort() -> No
         session.finalize(expected_executions=(expected,))
 
 
-def test_live_global_state_guards_quarantine_trade_transition() -> None:
-    result = _execute_market(FakeTransport(trd_logined=True))
-    assert result.bundle.status == "quarantined"
-    assert "trade_login_true" in result.bundle.issues
-    assert result.responses == ()
+@pytest.mark.parametrize("pre,post", [(False, False), (True, True), (False, True), (True, False)])
+def test_live_global_state_guards_retain_trading_server_state_without_blocking(
+    pre: bool, post: bool,
+) -> None:
+    result = _execute_market(FakeTransport(trd_logined=pre, post_trd_logined=post))
+    assert result.bundle.status == "complete"
+    assert result.bundle.issues == ()
+    assert result.responses
+    assert all(response.trd_logined == (pre or post) for response in result.responses)
+    assert all(response.pre_global_state_trd_logined is pre for response in result.responses)
+    assert all(response.post_global_state_trd_logined is post for response in result.responses)
+    assert all(response.qot_logined for response in result.responses)
+
+
+def test_response_trading_server_summary_cannot_replace_retained_observations() -> None:
+    result = _execute_market(FakeTransport(trd_logined=True, post_trd_logined=False))
+    response = result.responses[0]
+    payload = response.to_dict()
+    payload["trd_logined"] = False
+    payload.pop("response_id")
+    payload.pop("response_fingerprint")
+    response_id, fingerprint = content_identity(
+        "futu-response:", payload,
+        object_id_field="response_id", fingerprint_field="response_fingerprint",
+    )
+    with pytest.raises(FutuReceiptError, match="summary differs"):
+        type(response)(response_id=response_id, response_fingerprint=fingerprint, **payload)
 
 
 def test_live_global_state_binding_tamper_is_blocked() -> None:

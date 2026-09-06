@@ -573,7 +573,7 @@ def validate_futu_market_execution_evidence(
     responses = tuple(item for execution in evidence.executions for item in execution.responses)
     if len(requests) != len(responses) or not responses:
         raise FutuSessionEvidenceError("market-execution request/response graph is incomplete")
-    if any(not item.qot_logined or item.trd_logined for item in responses):
+    if any(not item.qot_logined for item in responses):
         raise FutuSessionEvidenceError("market-execution response violates quote-only state")
     checkpoint = _utc_datetime(evidence.checkpoint_at, "checkpoint_at")
     if any(
@@ -1909,13 +1909,14 @@ def validate_futu_session_evidence_replay(
         raise FutuSessionEvidenceError("account entitlement is not bound to runtime startup")
     expected_middle: list[dict[str, Any]] = []
     for response in all_responses:
-        if not response.qot_logined or response.trd_logined:
+        if not response.qot_logined:
             raise FutuSessionEvidenceError("response violates quote-only login invariants")
         expected_middle.extend(
             (
                 {
                     "checkpoint": "pre_request",
                     "serial_number": response.pre_global_state_serial_number,
+                    "trd_logined": response.pre_global_state_trd_logined,
                     "global_state_request_fingerprint": (
                         response.pre_global_state_request_fingerprint
                     ),
@@ -1926,6 +1927,7 @@ def validate_futu_session_evidence_replay(
                 {
                     "checkpoint": "post_request",
                     "serial_number": response.post_global_state_serial_number,
+                    "trd_logined": response.post_global_state_trd_logined,
                     "global_state_request_fingerprint": (
                         response.post_global_state_request_fingerprint
                     ),
@@ -1940,7 +1942,7 @@ def validate_futu_session_evidence_replay(
     ):
         if any(runtime_checkpoint[key] != value for key, value in expected.items()):
             raise FutuSessionEvidenceError("runtime GlobalState checkpoint was rebound")
-    if any(not item["qot_logined"] or item["trd_logined"] for item in checkpoints):
+    if any(not item["qot_logined"] for item in checkpoints):
         raise FutuSessionEvidenceError("runtime checkpoint violates quote-only login")
     serials = tuple(item["serial_number"] for item in checkpoints)
     if serials != tuple(sorted(serials)) or len(set(serials)) != len(serials):
@@ -2193,6 +2195,7 @@ def _partial_session_manifest_values(
                 {
                     "checkpoint": "pre_request",
                     "serial_number": response.pre_global_state_serial_number,
+                    "trd_logined": response.pre_global_state_trd_logined,
                     "global_state_request_fingerprint": (
                         response.pre_global_state_request_fingerprint
                     ),
@@ -2203,6 +2206,7 @@ def _partial_session_manifest_values(
                 {
                     "checkpoint": "post_request",
                     "serial_number": response.post_global_state_serial_number,
+                    "trd_logined": response.post_global_state_trd_logined,
                     "global_state_request_fingerprint": (
                         response.post_global_state_request_fingerprint
                     ),
@@ -2217,7 +2221,7 @@ def _partial_session_manifest_values(
             raise FutuSessionEvidenceError(
                 "partial-session runtime checkpoint was rebound"
             )
-    if any(not item["qot_logined"] or item["trd_logined"] for item in checkpoints):
+    if any(not item["qot_logined"] for item in checkpoints):
         raise FutuSessionEvidenceError(
             "partial-session runtime violates quote-only login"
         )
@@ -2510,7 +2514,7 @@ def _market_execution_manifest_values(
                     "serial_number": response.pre_global_state_serial_number,
                     "request_fingerprint": response.pre_global_state_request_fingerprint,
                     "qot_logined": response.qot_logined,
-                    "trd_logined": response.trd_logined,
+                    "trd_logined": response.pre_global_state_trd_logined,
                 },
                 {
                     "phase": "post_request",
@@ -2518,7 +2522,7 @@ def _market_execution_manifest_values(
                     "serial_number": response.post_global_state_serial_number,
                     "request_fingerprint": response.post_global_state_request_fingerprint,
                     "qot_logined": response.qot_logined,
-                    "trd_logined": response.trd_logined,
+                    "trd_logined": response.post_global_state_trd_logined,
                 },
             )
         )
@@ -2998,7 +3002,7 @@ def _validate_publication_projection(manifest: FutuSessionPublicationManifest) -
         manifest.global_state_guards[0]["checkpoint"] != "startup"
         or manifest.global_state_guards[-1]["checkpoint"] != "pre_shutdown"
         or any(
-            not item["qot_logined"] or item["trd_logined"]
+            not item["qot_logined"]
             for item in manifest.global_state_guards
         )
     ):
@@ -3064,7 +3068,7 @@ def _validate_partial_publication_projection(
         manifest.global_state_guards[0]["checkpoint"] != "startup"
         or manifest.global_state_guards[-1]["checkpoint"] != "pre_shutdown"
         or any(
-            not item["qot_logined"] or item["trd_logined"]
+            not item["qot_logined"]
             for item in manifest.global_state_guards
         )
     ):
@@ -3120,7 +3124,7 @@ def _validate_market_publication_projection(
             "market-execution publication omits request guard checkpoints"
         )
     if any(
-        not item["qot_logined"] or item["trd_logined"]
+        not item["qot_logined"]
         for item in manifest.global_state_guards
     ):
         raise FutuSessionEvidenceError(

@@ -55,7 +55,13 @@ gates would add control-plane work without improving the exact-head product revi
    third-party reports, news, and historical recommendations remain quarantined until the current
    conclusion is frozen.
 7. The Futu boundary remains read-only and quote-only. Every live run must attest
-   `qotLogined=true` and `trdLogined=false`; trading, orders, positions, balances, holdings, and
+   `qotLogined=true` and retain the actual boolean `trdLogined` observations. As explicitly
+   approved by the user on 2026-09-06, `trdLogined=true` alone is not a rejection condition:
+   the official GlobalState API defines it as OpenD's trading-server connection state, and its
+   quote-context example returns true. Quote-only capability is enforced by the closed protocol
+   allowlist, not inferred from that server connection. This supersedes the earlier false-only
+   condition in this ADR, completion overlays, and historical feasibility condition labels;
+   those records remain historical. Trading, orders, positions, balances, holdings, and
    account protocols are rejected before OpenD. Credentials stay outside arguments, environment
    variables, the repository, logs, receipts, and publication artifacts. Raw licensed bytes stay
    in a private encrypted content-addressed store and the public/local report package retains only

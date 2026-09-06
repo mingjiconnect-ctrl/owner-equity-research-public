@@ -870,7 +870,6 @@ def _verify_gate_payload(
             {
                 "status": "passed",
                 "qot_logined": True,
-                "trd_logined": False,
                 "quote_only": True,
             },
         ),
@@ -939,6 +938,8 @@ def _verify_gate_payload(
             label=f"{name} gate",
         )
     protocol = gates["runtime_isolation"]
+    if type(gates["session"]["trd_logined"]) is not bool:
+        raise ReleaseAssemblyError("session trading-server state must be an observed boolean")
     protocol_valid_from = _parse_time(
         protocol["valid_from"], label="runtime_isolation gate.valid_from"
     )
@@ -3234,7 +3235,7 @@ def _load_private_futu(
         cross_checked_observation_ids.add(cross_check.vendor_observation_id)
     if (
         any(response.status != "completed" for response in responses)
-        or any(not response.qot_logined or response.trd_logined for response in responses)
+        or any(not response.qot_logined for response in responses)
         or len({request.run_id for request in requests}) != 1
     ):
         raise ReleaseAssemblyError("Futu response set is not one quote-only completed run")
@@ -3505,7 +3506,7 @@ def _load_private_futu(
         or checkpoints[0]["checkpoint"] != "startup"
         or checkpoints[-1]["checkpoint"] != "pre_shutdown"
         or any(
-            item["protocol_id"] != 1002 or not item["qot_logined"] or item["trd_logined"]
+            item["protocol_id"] != 1002 or not item["qot_logined"]
             for item in checkpoints
         )
     ):
@@ -3588,6 +3589,7 @@ def _load_private_futu(
         "run_id": authority_decision.run_id,
         "runtime_authorization_fingerprint": runtime_authorization.fingerprint,
         "runtime_receipt_fingerprint": runtime.fingerprint,
+        "session_trd_logined": any(item["trd_logined"] for item in checkpoints),
         "replay_authority_decision": replay_authority.to_dict(),
         "replay_authority_decision_fingerprint": replay_authority.fingerprint,
         "security_fingerprint": security.fingerprint,
@@ -3951,6 +3953,7 @@ def _load_captured_private_canary_evidence(
         "pdf_pages": qa["page_count"],
         "runtime_authorization_fingerprint": futu["runtime_authorization_fingerprint"],
         "runtime_receipt_fingerprint": futu["runtime_receipt_fingerprint"],
+        "session_trd_logined": futu["session_trd_logined"],
         "replay_authority_decision_fingerprint": futu[
             "replay_authority_decision_fingerprint"
         ],
@@ -4416,6 +4419,8 @@ def verify_canary_receipt(
         )
     if gates["publisher_pdf"]["pdf_pages"] != evidence["pdf_pages"]:
         raise ReleaseAssemblyError("Publisher gate rebound the strictly loaded PDF")
+    if gates["session"]["trd_logined"] != evidence["session_trd_logined"]:
+        raise ReleaseAssemblyError("session gate rebound the observed trading-server state")
     root_payload = {
         "artifact_type": "owner-equity-rc-canary-root",
         "artifacts": artifacts,

@@ -18,7 +18,8 @@ or publish during the audit.
 
 - Verify explicit valuation intent precedes every Futu call. Replay signed Legal, Account
   Entitlement, Supply Chain, Runtime Isolation, and Security Identity receipts; the protocol
-  allowlist; `qotLogined=true`; `trdLogined=false`; private encrypted CAS receipts; SEC/IR-primary
+  allowlist; `qotLogined=true`; actual boolean `trdLogined` observations (either value allowed);
+  private encrypted CAS receipts; SEC/IR-primary
   cross-checks; and the governed daily-close adapter. Reject trade/account protocols and manual,
   scraped, simulated, free-API, or caller-authored prices.
 - Verify current-share event identity and exactly-once arithmetic, legal-name/provider provenance,

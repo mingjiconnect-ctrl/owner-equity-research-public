@@ -1738,7 +1738,7 @@ def _gates(evidence: dict[str, Any]) -> dict[str, dict[str, Any]]:
             "artifact_type": "owner-equity-canary-session-gate-receipt",
             "status": "passed",
             "qot_logined": True,
-            "trd_logined": False,
+            "trd_logined": evidence["session_trd_logined"],
             "quote_only": True,
             "attested_finalization_fingerprint": evidence["finalization_fingerprint"],
         },
@@ -1929,6 +1929,7 @@ def test_real_private_futu_evidence_reaches_market_and_post_request_validation(
     assert result["market_trading_date"] == market_record["requests"][0][
         "expected_trading_date"
     ]
+    assert result["session_trd_logined"] is True
     assert set(result["target_stage_requests"]) == {
         "market_reference",
         "post_valuation_context",
@@ -3184,6 +3185,42 @@ def test_resigned_crosscheck_cannot_escape_chronology_or_hide_conflict(
                 tzinfo=UTC
             ),
         )
+
+
+@pytest.mark.parametrize(
+    ("state", "error"),
+    ((False, "rebound the observed trading-server state"), ("false", "observed boolean")),
+)
+def test_resigned_session_gate_must_retain_actual_trading_server_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    real_evidence: Path,
+    state: Any,
+    error: str,
+) -> None:
+    kwargs = _case(tmp_path, monkeypatch, real_evidence)
+    key, private = _trusted_key(tmp_path / "resigner")
+    evidence = NAMESPACE["_load_private_canary_evidence"](
+        real_evidence,
+        executed_at=datetime.fromisoformat(EXECUTED_AT.replace("Z", "+00:00")),
+    )
+    assert evidence["session_trd_logined"] is True
+
+    def mutate(gates: dict[str, Any]) -> None:
+        gates["session"]["trd_logined"] = state
+
+    kwargs["canary_receipt"] = _signed_receipt(
+        tmp_path / "resigned-canary.json",
+        private=private,
+        commit=kwargs["expected_commit"],
+        tree=kwargs["expected_tree"],
+        artifacts=_artifact_records({role: kwargs[role] for role in ARTIFACT_ROLES}),
+        evidence=evidence,
+        mutate_gates=mutate,
+    )
+    kwargs["trusted_signer_key"] = key
+    with pytest.raises(ERROR, match=error):
+        ASSEMBLE(**kwargs)
 
 
 def test_invocation_attestation_cannot_rebind_actual_output_root(

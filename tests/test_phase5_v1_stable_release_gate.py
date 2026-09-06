@@ -59,9 +59,16 @@ def test_stable_release_is_blocked_by_all_three_unsigned_external_gates() -> Non
     for gate_name, gate in block["gates"].items():
         assert gate["status"] == "blocked", gate_name
         assert gate["external_signed_receipt_supplied"] is False
-        assert set(gate["required_conditions"]).issuperset(
-            trust["condition_coverage"][gate_name]
-        )
+        if gate_name == "account":
+            # ADR 0044's user-approved correction supersedes the historical
+            # false-only server-login label without changing the frozen trust file.
+            assert gate["required_conditions"] == [
+                "quote_login_true_with_closed_read_only_protocol_allowlist"
+            ]
+        else:
+            assert set(gate["required_conditions"]).issuperset(
+                trust["condition_coverage"][gate_name]
+            )
         assert gate["blockers"]
 
     assert block["release"]["release_candidate_status"] == "blocked"
@@ -73,6 +80,14 @@ def test_stable_release_is_blocked_by_all_three_unsigned_external_gates() -> Non
     assert block["release_canary"]["status"] == "blocked"
     assert block["release_canary"]["bound_commit"] is None
     assert block["release_canary"]["bound_tree"] is None
+    assert policy["account_boundary"]["required_runtime_login_state"] == {"qotLogined": True}
+    read_only_evidence = (
+        "qot_logged_in_true_with_observed_trading_server_state_and_closed_read_only_protocols"
+    )
+    assert read_only_evidence in block["release_canary"]["required_evidence"]
+    assert "qot_logged_in_true_and_trade_logged_in_false" not in (
+        block["release_canary"]["required_evidence"]
+    )
     assert block["fallbacks"]["reviewed_file"] == (
         "development_and_replay_only_not_release_canary"
     )

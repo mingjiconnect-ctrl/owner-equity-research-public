@@ -37,8 +37,9 @@ Use this route only for an explicit valuation intent. Read
   Facts, then refreeze the price-blind input before reading any price.
 - Require signed Legal, Account Entitlement, Supply Chain, pre-run Runtime Isolation Authorization,
   and Security Identity receipts. After the last request, require the signed completed Runtime
-  Isolation and sidecar-execution receipts. Require `qotLogined=true` and `trdLogined=false`;
-  quarantine the whole run if trade login appears. Raw licensed data stays in the private encrypted
+  Isolation and sidecar-execution receipts. Require `qotLogined=true`; record `trdLogined` as
+  OpenD server-connection state, never as permission to trade or a standalone reason to block.
+  The closed read-only protocol allowlist remains mandatory. Raw licensed data stays in the private encrypted
   CAS.
 - Read the final completed trading-day market reference only through the closed governed adapter.
   Never accept a caller-authored, manual, scraped, simulated, or free-API price.

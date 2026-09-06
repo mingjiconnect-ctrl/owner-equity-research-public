@@ -1,0 +1,589 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://owner-research.invalid/futu-sidecar/v3/common.schema.json",
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "signature": {
+      "type": "object",
+      "properties": {
+        "signature_algorithm": {
+          "const": "ed25519"
+        },
+        "signer_key_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "signature_hex": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{128}$"
+        }
+      },
+      "required": [
+        "signature_algorithm",
+        "signer_key_id",
+        "signature_hex"
+      ]
+    },
+    "requestPlanItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "plan_index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "security_code": {
+          "type": "string",
+          "pattern": "^US\\.[A-Z0-9][A-Z0-9.-]{0,31}$"
+        },
+        "protocol_id": {
+          "enum": [
+            3103,
+            3104,
+            3202,
+            3227,
+            3228,
+            3229,
+            3230,
+            3232,
+            3234,
+            3236,
+            3243,
+            3244,
+            3245,
+            3246
+          ]
+        },
+        "parameters_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "pagination_mode": {
+          "enum": [
+            "none",
+            "internal"
+          ]
+        },
+        "maximum_pages": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        },
+        "activation_condition": {
+          "enum": [
+            "always",
+            "eligible_conclusion_only"
+          ]
+        }
+      },
+      "required": [
+        "plan_index",
+        "security_code",
+        "protocol_id",
+        "parameters_sha256",
+        "pagination_mode",
+        "maximum_pages",
+        "activation_condition"
+      ]
+    },
+    "conditionalPlanDisposition": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "const": "completed"
+            },
+            "skipped_plan_indices": {
+              "const": []
+            },
+            "reason_code": {
+              "const": null
+            },
+            "conclusion_receipt_id": {
+              "const": null
+            },
+            "conclusion_fingerprint": {
+              "const": null
+            }
+          },
+          "required": [
+            "status",
+            "skipped_plan_indices",
+            "reason_code",
+            "conclusion_receipt_id",
+            "conclusion_fingerprint"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "const": "skipped"
+            },
+            "skipped_plan_indices": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 128,
+              "uniqueItems": true,
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 127
+              }
+            },
+            "reason_code": {
+              "const": "partial_or_contested_conclusion"
+            },
+            "conclusion_receipt_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            "conclusion_fingerprint": {
+              "$ref": "#/$defs/sha256"
+            }
+          },
+          "required": [
+            "status",
+            "skipped_plan_indices",
+            "reason_code",
+            "conclusion_receipt_id",
+            "conclusion_fingerprint"
+          ]
+        }
+      ]
+    },
+    "supplyAttestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "supply_receipt_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "provider_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "provider_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "opend_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "opend_server_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "opend_server_build_no": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "futu_api_version": {
+          "const": "10.10.7008"
+        },
+        "futu_api_distribution_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sdk_operation_registry_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "protobuf_descriptor_set_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "protocol_descriptor_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "facade_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "adapter_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "parser_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "required": [
+        "supply_receipt_fingerprint",
+        "provider_id",
+        "provider_version",
+        "opend_version",
+        "opend_server_version",
+        "opend_server_build_no",
+        "futu_api_version",
+        "futu_api_distribution_sha256",
+        "sdk_operation_registry_sha256",
+        "protobuf_descriptor_set_sha256",
+        "protocol_descriptor_sha256",
+        "facade_sha256",
+        "adapter_sha256",
+        "parser_sha256"
+      ]
+    },
+    "checkpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "checkpoint": {
+          "enum": [
+            "startup",
+            "pre_request",
+            "post_request",
+            "pre_shutdown"
+          ]
+        },
+        "protocol_id": {
+          "const": 1002
+        },
+        "serial_number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "global_state_request_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "global_state_response_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "qot_logined": {
+          "const": true
+        },
+        "trd_logined": {
+          "type": "boolean"
+        },
+        "opend_server_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "opend_server_build_no": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "checkpoint",
+        "protocol_id",
+        "serial_number",
+        "global_state_request_fingerprint",
+        "global_state_response_fingerprint",
+        "observed_at",
+        "qot_logined",
+        "trd_logined",
+        "opend_server_version",
+        "opend_server_build_no"
+      ]
+    },
+    "wireGlobalState": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "operation": {
+          "const": "GetGlobalState"
+        },
+        "protocol_id": {
+          "const": 1002
+        },
+        "serial_number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "request_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "retrieved_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "ret_type": {
+          "const": 0
+        },
+        "err_code": {
+          "const": 0
+        },
+        "qot_logined": {
+          "const": true
+        },
+        "trd_logined": {
+          "type": "boolean"
+        },
+        "opend_server_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "opend_server_build_no": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "response_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "required": [
+        "operation",
+        "protocol_id",
+        "serial_number",
+        "request_fingerprint",
+        "retrieved_at",
+        "ret_type",
+        "err_code",
+        "qot_logined",
+        "trd_logined",
+        "opend_server_version",
+        "opend_server_build_no",
+        "response_fingerprint"
+      ]
+    },
+    "rawEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "evidence_kind": {
+          "const": "opend_protobuf_s2c_frame"
+        },
+        "raw_plaintext_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "encrypted_object_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "cas_locator": {
+          "type": "string",
+          "pattern": "^cas://sha256/[a-f0-9]{64}$"
+        },
+        "envelope_key_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "raw_byte_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16777216
+        }
+      },
+      "required": [
+        "evidence_kind",
+        "raw_plaintext_sha256",
+        "encrypted_object_sha256",
+        "cas_locator",
+        "envelope_key_id",
+        "raw_byte_count"
+      ]
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "field_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "period": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "start": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "end": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "start",
+            "end"
+          ]
+        },
+        "qualifiers": {
+          "type": "object",
+          "maxProperties": 16,
+          "propertyNames": {
+            "enum": [
+              "accounting_standard",
+              "auditor_report",
+              "financial_type",
+              "fiscal_year",
+              "period_kind",
+              "statement_type",
+              "autype",
+              "ktype",
+              "price_basis",
+              "rth_semantics_attested",
+              "session",
+              "valuation_type",
+              "field_type",
+              "vendor_period",
+              "availability_status",
+              "reason_code",
+              "get_detail",
+              "quota_kind",
+              "quota_window_days",
+              "last_request_at",
+              "raw_market_code",
+              "raw_security_code",
+              "source_request_time",
+              "source_request_timestamp",
+              "vendor_security_code",
+              "financial_field_id",
+              "futu_api_version",
+              "normalized_display_name",
+              "announcement_date",
+              "current_shares_status",
+              "effective_date",
+              "rate_denominator",
+              "rate_numerator",
+              "rate_raw",
+              "reform_type",
+              "verification_status",
+              "event_type",
+              "event_set_status",
+              "dimension_type",
+              "segment_identity",
+              "segment_name",
+              "ratio_basis",
+              "event_identity",
+              "publication_date",
+              "record_date",
+              "ex_date",
+              "payable_date",
+              "process"
+            ]
+          },
+          "additionalProperties": {
+            "type": [
+              "string",
+              "integer",
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "value_type": {
+          "enum": [
+            "number",
+            "text",
+            "boolean",
+            "null"
+          ]
+        },
+        "value": {
+          "type": [
+            "string",
+            "boolean",
+            "null"
+          ]
+        },
+        "unit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "currency": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "binary64_hex": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{16}$"
+        },
+        "exact_binary64_decimal": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "field_id",
+        "period",
+        "qualifiers",
+        "value_type",
+        "value",
+        "unit",
+        "currency",
+        "binary64_hex",
+        "exact_binary64_decimal"
+      ]
+    },
+    "dataResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "serial_number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "retrieved_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "ret_type": {
+          "const": 0
+        },
+        "err_code": {
+          "const": 0
+        },
+        "next_key": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4096
+        },
+        "terminal": {
+          "type": "boolean"
+        },
+        "raw_evidence": {
+          "$ref": "#/$defs/rawEvidence"
+        },
+        "observations": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/observation"
+          }
+        }
+      },
+      "required": [
+        "serial_number",
+        "retrieved_at",
+        "ret_type",
+        "err_code",
+        "next_key",
+        "terminal",
+        "raw_evidence",
+        "observations"
+      ]
+    }
+  },
+  "type": "object"
+}

@@ -14,10 +14,9 @@
     ],
     "holdings_or_account_data_access_allowed": false,
     "required_runtime_login_state": {
-      "qotLogined": true,
-      "trdLogined": false
+      "qotLogined": true
     },
-    "trade_login_transition_action": "quarantine_entire_run"
+    "trade_login_transition_action": "record_actual_server_state_not_api_permission"
   },
   "cache_and_replay": {
     "live_and_replay_modes_distinct": true,
@@ -45,9 +44,9 @@
     "operation": "GetGlobalState",
     "required_before_and_after_each_data_request": true,
     "required_values": {
-      "qotLogined": true,
-      "trdLogined": false
-    }
+      "qotLogined": true
+    },
+    "observed_boolean_fields": ["trdLogined"]
   },
   "market_scope": {
     "currencies": [

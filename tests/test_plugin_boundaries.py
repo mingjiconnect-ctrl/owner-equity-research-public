@@ -148,7 +148,8 @@ def test_audit_skill_covers_vertical_slice_without_enabling_implicit_use() -> No
     assert "read-only" in text
     assert "signed Futu authorities" in text
     assert "qotLogined=true" in text
-    assert "trdLogined=false" in text
+    assert "trdLogined" in text
+    assert "trdLogined=false" not in text
     assert "call_count=1" in text
     assert "valuation-run-manifest.json" in text
     assert "P0=P1=P2=P3=0" in text

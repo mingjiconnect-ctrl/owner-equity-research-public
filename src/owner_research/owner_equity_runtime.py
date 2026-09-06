@@ -2283,8 +2283,8 @@ def _require_complete_execution(
         execution.history_quota is None or not execution.history_quota.sufficient
     ):
         raise _LiveBlocked((f"{label}:historical_kline_quota_missing",))
-    if any(not response.qot_logined or response.trd_logined for response in execution.responses):
-        raise _LiveBlocked((f"{label}:trade_login_true",))
+    if any(not response.qot_logined for response in execution.responses):
+        raise _LiveBlocked((f"{label}:qot_login_false",))
     return execution
 
 

@@ -1041,7 +1041,7 @@ class FutuNonPricePhaseResult:
                 or execution.bundle.issuer_id != self.issuer_id
                 or execution.bundle.issues
                 or any(
-                    not item.qot_logined or item.trd_logined
+                    not item.qot_logined
                     for item in execution.responses
                 )
             ):
@@ -1174,7 +1174,7 @@ class FutuMarketReferencePhaseResult:
                 self.market_reference.market_execution_evidence is not self.evidence_bundle
                 or self.evidence_bundle.executions[0].bundle.issuer_id != self.issuer_id
                 or any(
-                    not response.qot_logined or response.trd_logined
+                    not response.qot_logined
                     for execution in self.evidence_bundle.executions
                     for response in execution.responses
                 )

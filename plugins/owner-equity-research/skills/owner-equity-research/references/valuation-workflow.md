@@ -28,7 +28,9 @@ return `specialist_required`. Neither stopped status may retain kernel stdout or
 2. Call only allowlisted Futu non-price protocols for secondary financial/company/corporate-action
    verification. Preserve SEC/IR as primary and block material conflicts. Refreeze the canonical
    price-blind input after cross-checks and before any price access.
-3. Require `qotLogined=true` and `trdLogined=false` before and after every Futu request. Request
+3. Require `qotLogined=true` before and after every Futu request. Retain each actual boolean
+   `trdLogined` observation; true means a server connection, not that a trading API was called.
+   Either value is allowed, while all non-allowlisted and trade/account protocols remain forbidden. Request
    one eligible completed-trading-day bar with `K_DAY`, `AuType.NONE`, `Session.RTH`, and
    `extended_time=false`. The request token is not semantic proof: require the signed pinned
    canary or written authority before the governed adapter may admit the unadjusted RTH close.

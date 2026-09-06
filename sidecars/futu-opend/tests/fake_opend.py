@@ -15,6 +15,8 @@ from owner_research_futu_sidecar.frame_guard import (
 class FakeOpenD:
     push_notify_before_profile: bool = True
     trade_on_global_state_call: int | None = None
+    trade_logined: bool = False
+    quote_lost_on_global_state_call: int | None = None
     history_empty_then_next: bool = False
     server_version: int = 101007008
     server_build_no: int = 1
@@ -105,8 +107,12 @@ class FakeOpenD:
             response.s2c.marketSH = 0
             response.s2c.marketSZ = 0
             response.s2c.marketHKFuture = 0
-            response.s2c.qotLogined = True
-            response.s2c.trdLogined = self.global_state_calls == self.trade_on_global_state_call
+            response.s2c.qotLogined = (
+                self.global_state_calls != self.quote_lost_on_global_state_call
+            )
+            response.s2c.trdLogined = (
+                self.trade_logined or self.global_state_calls == self.trade_on_global_state_call
+            )
             server_version, server_build_no = self.global_state_server_identity_overrides.get(
                 self.global_state_calls,
                 (self.server_version, self.server_build_no),

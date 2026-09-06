@@ -201,7 +201,6 @@ class FutuSidecarService:
                 "required_pre_request_fingerprint",
                 "required_post_request_fingerprint",
                 "qot_logined",
-                "trd_logined",
             },
             "GlobalState guards",
         )
@@ -209,7 +208,6 @@ class FutuSidecarService:
             security["market"] != "US"
             or guards["protocol_id"] != 1002
             or guards["qot_logined"] is not True
-            or guards["trd_logined"] is not False
         ):
             raise FutuSidecarServerError("fetch request is not US quote-only")
         self._validate_host_global_fingerprints(request, guards)
@@ -240,8 +238,8 @@ class FutuSidecarService:
 
         pre = self.adapter.global_state()
         pre_time = utc_now()
-        if not pre.qot_logined or pre.trd_logined:
-            self.controller.quarantine("trade_or_quote_login_transition")
+        if not pre.qot_logined:
+            self.controller.quarantine("quote_login_lost")
             raise FutuSidecarServerError("pre-request GlobalState is not quote-only")
         data_call = self.adapter.fetch(
             protocol_id=protocol_id,
@@ -252,8 +250,8 @@ class FutuSidecarService:
         data_time = utc_now()
         post = self.adapter.global_state()
         post_time = utc_now()
-        if not post.qot_logined or post.trd_logined:
-            self.controller.quarantine("trade_or_quote_login_transition")
+        if not post.qot_logined:
+            self.controller.quarantine("quote_login_lost")
             raise FutuSidecarServerError("post-request GlobalState is not quote-only")
         parsed = data_call.parsed
         if not (
@@ -703,11 +701,13 @@ def _host_response_fingerprint(
         "err_code": data["err_code"],
         "status": "completed",
         "qot_logined": True,
-        "trd_logined": False,
+        "trd_logined": bool(pre["trd_logined"] or post["trd_logined"]),
         "pre_global_state_serial_number": pre["serial_number"],
+        "pre_global_state_trd_logined": pre["trd_logined"],
         "pre_global_state_request_fingerprint": pre["request_fingerprint"],
         "pre_global_state_response_fingerprint": pre["response_fingerprint"],
         "post_global_state_serial_number": post["serial_number"],
+        "post_global_state_trd_logined": post["trd_logined"],
         "post_global_state_request_fingerprint": post["request_fingerprint"],
         "post_global_state_response_fingerprint": post["response_fingerprint"],
         "raw_evidence_kind": raw["evidence_kind"],

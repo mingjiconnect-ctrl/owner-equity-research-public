@@ -132,7 +132,7 @@ EXPECTED_REPORT_ASSETS = {
 }
 PR3_FUTU_POLICY_MEMBER = "owner_research/resources/futu/market-authority-policy-v2.json"
 EXPECTED_PR3_FUTU_POLICY_SHA256 = (
-    "b41d2c8b169f7dc4e2fdd400d27e5aa93003437b9b7986111fe99e240abf7a74"
+    "c040d23627baebd61f6e96c8cca17807ab82943b889a5dc6979fdb68a025e26c"
 )
 EXPECTED_PR3_KERNEL_SCHEMA_RESOURCES = {
     "resources/phase5-v1-kernel-schemas/assumption-ledger.schema.json": (

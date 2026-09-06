@@ -25,7 +25,7 @@ instrument and its share-class identity; do not invoke any cybersecurity or Trus
 ## Futu, kernel, and valuation
 
 1. Verify explicit valuation intent, all signed Futu authorities, the protocol allowlist,
-   `qotLogined=true`, `trdLogined=false`, private encrypted CAS receipts, and SEC/IR-primary
+   `qotLogined=true`, faithfully recorded `trdLogined` observations, private encrypted CAS receipts, and SEC/IR-primary
    cross-checks. Reject trade/account protocols and substitute prices.
 2. Verify current-share event identity and exactly-once arithmetic, retained corroboration,
    specialist routing, legal-name/provider provenance, and deterministic Decimal/binary64 replay.

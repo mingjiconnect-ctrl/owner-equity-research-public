@@ -33,7 +33,7 @@ from .runtime_authorization import (
     VerifiedRuntimeAuthorization,
     verify_runtime_authorization,
 )
-from .wire import receive_message, send_message
+from .wire import WIRE_SCHEMA_VERSION, receive_message, send_message
 
 MAXIMUM_SIGNING_MESSAGE_BYTES = 20 * 1024 * 1024
 _BOOT_FIELDS = {
@@ -554,7 +554,7 @@ class _SigningPolicy:
         )
         supply = validate_supply_attestation(payload["supply_attestation"])
         startup = _validate_checkpoint(payload["startup_checkpoint"], expected_kind="startup")
-        if not startup["qot_logined"] or startup["trd_logined"]:
+        if not startup["qot_logined"]:
             raise SupervisorError("boot checkpoint is not quote-only")
         expected_session_id = canonical_sha256(
             {
@@ -614,7 +614,7 @@ class _SigningPolicy:
             raise SupervisorError("fetch envelope lacks pre-OpenD authorization")
         sequence = payload["sequence"]
         if (
-            payload["wire_schema_version"] != "2.0.0"
+            payload["wire_schema_version"] != WIRE_SCHEMA_VERSION
             or payload["run_id"] != self.run_id
             or payload["session_id"] != self.session_id
             or payload["boot_receipt_id"] != self.boot_receipt_id
@@ -656,9 +656,7 @@ class _SigningPolicy:
             < post["serial_number"]
             and prior_time <= pre_time <= data_time <= post_time
             and pre["qot_logined"] is True
-            and pre["trd_logined"] is False
             and post["qot_logined"] is True
-            and post["trd_logined"] is False
             and _global_state_matches_supply(pre, self.supply_attestation)
             and _global_state_matches_supply(post, self.supply_attestation)
         ):
@@ -836,7 +834,6 @@ class _SigningPolicy:
             < expires_at
             and prior["serial_number"] < final_checkpoint["serial_number"]
             and final_checkpoint["qot_logined"] is True
-            and final_checkpoint["trd_logined"] is False
             and all(
                 _global_state_matches_supply(checkpoint, self.supply_attestation)
                 for checkpoint in checkpoints
@@ -1081,11 +1078,13 @@ def _host_response_fingerprint(
         "err_code": data["err_code"],
         "status": "completed",
         "qot_logined": True,
-        "trd_logined": False,
+        "trd_logined": bool(pre["trd_logined"] or post["trd_logined"]),
         "pre_global_state_serial_number": pre["serial_number"],
+        "pre_global_state_trd_logined": pre["trd_logined"],
         "pre_global_state_request_fingerprint": pre["request_fingerprint"],
         "pre_global_state_response_fingerprint": pre["response_fingerprint"],
         "post_global_state_serial_number": post["serial_number"],
+        "post_global_state_trd_logined": post["trd_logined"],
         "post_global_state_request_fingerprint": post["request_fingerprint"],
         "post_global_state_response_fingerprint": post["response_fingerprint"],
         "raw_evidence_kind": raw["evidence_kind"],

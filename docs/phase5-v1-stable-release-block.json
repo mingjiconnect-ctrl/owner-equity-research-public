@@ -1,6 +1,6 @@
 {
   "decision": "release_candidate_and_stable_release_blocked",
-  "evaluated_on": "2026-08-26",
+  "evaluated_on": "2026-09-06",
   "fallbacks": {
     "free_api": "forbidden",
     "manual_price": "forbidden",
@@ -14,11 +14,11 @@
       "blockers": [
         "receipt_authority_status_is_bootstrap_pending",
         "account_signer_key_is_not_installed",
-        "no_signed_every_run_qot_true_trd_false_attestation_was_supplied"
+        "no_signed_every_run_quote_login_and_api_entitlement_attestation_was_supplied"
       ],
       "external_signed_receipt_supplied": false,
       "required_conditions": [
-        "qot_login_true_while_trade_login_false_is_enforceable"
+        "quote_login_true_with_closed_read_only_protocol_allowlist"
       ],
       "status": "blocked"
     },
@@ -64,7 +64,7 @@
     "path": "scripts/phase5e-futu-market-authority-policy-v2.json",
     "policy_id": "phase5e-futu-market-authority",
     "policy_version": "2.0.0",
-    "sha256": "b41d2c8b169f7dc4e2fdd400d27e5aa93003437b9b7986111fe99e240abf7a74",
+    "sha256": "c040d23627baebd61f6e96c8cca17807ab82943b889a5dc6979fdb68a025e26c",
     "status": "current_comprehensive_skill_policy"
   },
   "official_reference_observations": {
@@ -130,7 +130,7 @@
       "signed_protocol_and_isolation_receipt",
       "exact_private_sidecar_bundle_sbom_and_provenance",
       "signed_boot_fetch_finalize_and_execution_attestations",
-      "qot_logged_in_true_and_trade_logged_in_false",
+      "qot_logged_in_true_with_observed_trading_server_state_and_closed_read_only_protocols",
       "private_encrypted_cas_binding",
       "sec_ir_primary_authority_reconciliation",
       "strict_six_file_archive_reload",

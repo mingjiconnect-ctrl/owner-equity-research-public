@@ -49,7 +49,7 @@ from .futu_receipts import (
     signed_receipt_identity,
 )
 
-WIRE_SCHEMA_VERSION = "2.0.0"
+WIRE_SCHEMA_VERSION = "3.0.0"
 GLOBAL_STATE_PROTOCOL_ID = 1002
 MAXIMUM_PAGES_PER_PROTOCOL = 64
 MAXIMUM_RAW_BYTES_PER_RESPONSE = 16 * 1024 * 1024
@@ -406,7 +406,6 @@ _ABORT_REASON_CODES = frozenset(
         "host_failure",
         "sidecar_response_invalid",
         "quote_login_lost",
-        "trade_login_detected",
         "caller_abort",
     }
 )
@@ -668,7 +667,7 @@ def _conditional_plan_disposition(
 
 
 class AttestedFutuSidecarSession:
-    """Stateful signed v2 client for one isolated quote-only sidecar session."""
+    """Stateful signed v3 client for one isolated quote-only sidecar session."""
 
     def __init__(
         self,
@@ -1301,7 +1300,7 @@ def _validate_runtime_checkpoint(value: Any, *, expected_kind: str) -> dict[str,
         or type(checkpoint["serial_number"]) is not int
         or checkpoint["serial_number"] <= 0
         or checkpoint["qot_logined"] is not True
-        or checkpoint["trd_logined"] is not False
+        or type(checkpoint["trd_logined"]) is not bool
         or type(checkpoint["opend_server_version"]) is not int
         or checkpoint["opend_server_version"] <= 0
         or type(checkpoint["opend_server_build_no"]) is not int
@@ -1546,7 +1545,7 @@ def load_futu_attested_session_finalization(
     verifier: SignatureVerifier,
     skipped_conditional_conclusion: FutuFrozenConclusionReceipt | None = None,
 ) -> FutuAttestedSessionFinalization:
-    """Strictly reconstruct and replay a signed WIRE v2 finalization object."""
+    """Strictly reconstruct and replay a signed WIRE v3 finalization object."""
     values = _exact_members(
         payload,
         {"boot_attestation", "runtime_receipt", "execution_attestation"},
@@ -2382,7 +2381,6 @@ def load_reviewed_financial_field_registry(
             (request, response)
             for response in execution.responses
             if response.status == "completed"
-            and not response.trd_logined
             and response.qot_logined
             and response.raw_plaintext_sha256 == source_hash
             for request in (request_by_id.get(response.request_id),)
@@ -3140,19 +3138,6 @@ def execute_futu_plan(
                     envelope["pre_global_state"],
                     envelope["post_global_state"],
                 )
-                if any(state["trd_logined"] for state in guard_states):
-                    return _blocked_execution(
-                        authority=authority,
-                        run_id=run_id,
-                        issuer_id=issuer_id,
-                        security_id=security_id,
-                        stage=stage,
-                        status="quarantined",
-                        issues=(*issues, "trade_login_true"),
-                        requests=requests,
-                        responses=responses,
-                        observations=observations,
-                    )
                 if any(
                     not state["qot_logined"]
                     or state["ret_type"] != 0
@@ -3221,7 +3206,7 @@ def execute_futu_plan(
                     security_id=security_id,
                     stage=stage,
                     status="quarantined",
-                    issues=(*issues, "trade_login_true"),
+                    issues=(*issues, "runtime_quarantined"),
                     requests=requests,
                     responses=responses,
                     observations=observations,
@@ -3485,7 +3470,6 @@ def _wire_request(
                 request, "post"
             ),
             "qot_logined": True,
-            "trd_logined": False,
         },
     }
 
@@ -4495,9 +4479,7 @@ def _materialize_page(
     control_ok = all(
         state["ret_type"] == 0 and state["err_code"] == 0 for state in (pre, post)
     )
-    if trd_logined:
-        status = "quarantined"
-    elif not qot_logined or not control_ok or data["ret_type"] != 0 or data["err_code"] != 0:
+    if not qot_logined or not control_ok or data["ret_type"] != 0 or data["err_code"] != 0:
         status = "blocked"
     else:
         status = "completed"
@@ -4515,9 +4497,11 @@ def _materialize_page(
         "qot_logined": qot_logined,
         "trd_logined": trd_logined,
         "pre_global_state_serial_number": pre["serial_number"],
+        "pre_global_state_trd_logined": pre["trd_logined"],
         "pre_global_state_request_fingerprint": pre["request_fingerprint"],
         "pre_global_state_response_fingerprint": pre["response_fingerprint"],
         "post_global_state_serial_number": post["serial_number"],
+        "post_global_state_trd_logined": post["trd_logined"],
         "post_global_state_request_fingerprint": post["request_fingerprint"],
         "post_global_state_response_fingerprint": post["response_fingerprint"],
         "raw_evidence_kind": raw["evidence_kind"],

@@ -284,10 +284,20 @@ def test_pinned_sdk_fake_opend_exercises_every_allowed_data_protocol(
         fake.close()
 
 
+@pytest.mark.parametrize(
+    ("trade_logined", "trade_on_global_state_call"),
+    [(False, None), (True, None), (False, 2)],
+)
 def test_fake_opend_guard_to_signed_uds_fetch(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    trade_logined: bool,
+    trade_on_global_state_call: int | None,
 ) -> None:
-    fake = FakeOpenD()
+    fake = FakeOpenD(
+        trade_logined=trade_logined,
+        trade_on_global_state_call=trade_on_global_state_call,
+    )
     fake.start()
     guard = FrameGuardProxy(upstream_host="127.0.0.1", upstream_port=fake.port)
     guard.start()
@@ -451,7 +461,6 @@ def test_fake_opend_guard_to_signed_uds_fetch(
                     "required_pre_request_fingerprint": global_fingerprint("pre"),
                     "required_post_request_fingerprint": global_fingerprint("post"),
                     "qot_logined": True,
-                    "trd_logined": False,
                 },
                 "session_id": session_id,
                 "sequence": 1,
@@ -461,6 +470,10 @@ def test_fake_opend_guard_to_signed_uds_fetch(
         Ed25519Attestor.verify(fetch_response, public_key_hex=identity.public_key_hex)
         assert fetch_response["sequence"] == 1
         assert fetch_response["session_id"] == session_id
+        assert fetch_response["pre_global_state"]["trd_logined"] is (
+            trade_logined or trade_on_global_state_call == 2
+        )
+        assert fetch_response["post_global_state"]["trd_logined"] is trade_logined
         observations = fetch_response["data_response"]["observations"]
         assert [item["field_id"] for item in observations] == [
             "history_quota_used",
@@ -506,7 +519,6 @@ def test_fake_opend_guard_to_signed_uds_fetch(
                     "required_pre_request_fingerprint": second_global_fingerprint("pre"),
                     "required_post_request_fingerprint": second_global_fingerprint("post"),
                     "qot_logined": True,
-                    "trd_logined": False,
                 },
                 "session_id": session_id,
                 "sequence": 2,
@@ -566,7 +578,6 @@ def test_fake_opend_guard_to_signed_uds_fetch(
                         "required_pre_request_fingerprint": (high_risk_global_fingerprint("pre")),
                         "required_post_request_fingerprint": (high_risk_global_fingerprint("post")),
                         "qot_logined": True,
-                        "trd_logined": False,
                     },
                     "session_id": session_id,
                     "sequence": sequence,
@@ -648,7 +659,6 @@ def test_fake_opend_guard_to_signed_uds_fetch(
                     "required_pre_request_fingerprint": conditional_global_fingerprint("pre"),
                     "required_post_request_fingerprint": conditional_global_fingerprint("post"),
                     "qot_logined": True,
-                    "trd_logined": False,
                 },
                 "session_id": session_id,
                 "sequence": 8,
@@ -718,6 +728,8 @@ def test_fake_opend_guard_to_signed_uds_fetch(
         assert not guard.quarantined
         assert not any(2000 <= protocol < 3000 for protocol in fake.protocols)
         assert len(controller.executions) == 8
+        assert controller.checkpoints[0]["trd_logined"] is trade_logined
+        assert controller.checkpoints[-1]["trd_logined"] is trade_logined
         for execution in controller.executions:
             assert cas.load(execution.cas_receipt) == execution.frame_exchange.response.raw
     finally:
@@ -736,10 +748,10 @@ def test_fake_opend_guard_to_signed_uds_fetch(
     assert captured.err == ""
 
 
-def test_trade_login_failure_closes_adapter_and_allows_idempotent_signed_abort(
+def test_quote_login_loss_closes_adapter_and_allows_idempotent_signed_abort(
     tmp_path: Path,
 ) -> None:
-    fake = FakeOpenD(trade_on_global_state_call=2)
+    fake = FakeOpenD(quote_lost_on_global_state_call=2)
     fake.start()
     guard = FrameGuardProxy(upstream_host="127.0.0.1", upstream_port=fake.port)
     guard.start()
@@ -811,7 +823,6 @@ def test_trade_login_failure_closes_adapter_and_allows_idempotent_signed_abort(
                 "required_pre_request_fingerprint": global_fingerprint("pre"),
                 "required_post_request_fingerprint": global_fingerprint("post"),
                 "qot_logined": True,
-                "trd_logined": False,
             },
             "session_id": opened["session_id"],
             "sequence": 1,
@@ -829,7 +840,7 @@ def test_trade_login_failure_closes_adapter_and_allows_idempotent_signed_abort(
             "session_id": opened["session_id"],
             "boot_receipt_id": boot["receipt_id"],
             "sequence": 1,
-            "reason_code": "trade_login_detected",
+            "reason_code": "quote_login_lost",
         }
         aborted = service.handle(abort_request)
         assert set(aborted) == {
@@ -1030,7 +1041,6 @@ def test_fetch_timestamps_are_sampled_after_responses_and_propagated(
                     "required_pre_request_fingerprint": global_fingerprint("pre"),
                     "required_post_request_fingerprint": global_fingerprint("post"),
                     "qot_logined": True,
-                    "trd_logined": False,
                 },
                 "session_id": opened["session_id"],
                 "sequence": 1,
@@ -1187,7 +1197,6 @@ def test_signed_uds_can_skip_only_the_complete_conditional_suffix(
                     "required_pre_request_fingerprint": global_fingerprint("pre"),
                     "required_post_request_fingerprint": global_fingerprint("post"),
                     "qot_logined": True,
-                    "trd_logined": False,
                 },
                 "session_id": opened["session_id"],
                 "sequence": 1,

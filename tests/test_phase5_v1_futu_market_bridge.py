@@ -361,7 +361,8 @@ def _receipt_authority(
             "observed_at": "2026-07-14T00:54:00Z",
             "global_state_response_fingerprint": STARTUP_STATE_SHA256,
             "qot_logined": True,
-            "trd_logined": False,
+            # Exercise the normal OpenD server-connected state through full replay.
+            "trd_logined": True,
             "entitlements": {family: "granted" for family in families},
             "delay_class": "real_time",
             "promotion_status": "normal",
@@ -475,11 +476,15 @@ class BridgeTransport:
         close_currency: str = "USD",
         close_qualifiers: dict[str, Any] | None = None,
         target_mic: str = "XNYS",
+        trd_logined: bool = True,
+        post_trd_logined: bool | None = None,
     ) -> None:
         self.trading_date = trading_date
         self.close = close
         self.close_currency = close_currency
         self.target_mic = target_mic
+        self.trd_logined = trd_logined
+        self.post_trd_logined = trd_logined if post_trd_logined is None else post_trd_logined
         self.close_qualifiers = (
             {
                 "autype": "NONE",
@@ -555,7 +560,7 @@ class BridgeTransport:
                 "ret_type": 0,
                 "err_code": 0,
                 "qot_logined": True,
-                "trd_logined": False,
+                "trd_logined": self.trd_logined if phase == "pre" else self.post_trd_logined,
                 "opend_server_version": request["expected_supply_attestation"][
                     "opend_server_version"
                 ],
@@ -837,6 +842,7 @@ def _bridge_context(
     close_qualifiers: dict[str, Any] | None = None,
     current_share_value: int | float = 10_000_000,
     kernel_example: dict[str, Any] | None = None,
+    post_trd_logined: bool | None = None,
 ):
     def write_rebound_price_blind_artifact(*args, output_directory, **kwargs):
         # The upstream fixture first writes its pre-Phase-5c artifact. Remove that
@@ -938,6 +944,7 @@ def _bridge_context(
         trading_date=security.proposal.data_cutoff_date,
         close=close,
         close_qualifiers=close_qualifiers,
+        post_trd_logined=post_trd_logined,
     )
     pre_price = execute_futu_plan(
         transport=transport,
@@ -1245,6 +1252,7 @@ def _run_fixed_valuation(context, monkeypatch, tmp_path: Path):
 def _completed_runtime(authority_set: FutuAuthoritySet, executions) -> FutuRuntimeIsolationReceipt:
     assert authority_set.supply_chain is not None
     assert authority_set.runtime_authorization is not None
+    assert authority_set.account is not None
     responses = tuple(
         response for execution in executions for response in execution.responses
     )
@@ -1259,7 +1267,7 @@ def _completed_runtime(authority_set: FutuAuthoritySet, executions) -> FutuRunti
             "global_state_response_fingerprint": STARTUP_STATE_SHA256,
             "observed_at": "2026-07-14T00:54:00Z",
             "qot_logined": True,
-            "trd_logined": False,
+            "trd_logined": authority_set.account.trd_logined,
             "opend_server_version": authority_set.supply_chain.opend_server_version,
             "opend_server_build_no": authority_set.supply_chain.opend_server_build_no,
         }
@@ -1282,7 +1290,7 @@ def _completed_runtime(authority_set: FutuAuthoritySet, executions) -> FutuRunti
                     .isoformat()
                     .replace("+00:00", "Z"),
                     "qot_logined": True,
-                    "trd_logined": False,
+                    "trd_logined": response.pre_global_state_trd_logined,
                     "opend_server_version": authority_set.supply_chain.opend_server_version,
                     "opend_server_build_no": authority_set.supply_chain.opend_server_build_no,
                 },
@@ -1300,7 +1308,7 @@ def _completed_runtime(authority_set: FutuAuthoritySet, executions) -> FutuRunti
                     .isoformat()
                     .replace("+00:00", "Z"),
                     "qot_logined": True,
-                    "trd_logined": False,
+                    "trd_logined": response.post_global_state_trd_logined,
                     "opend_server_version": authority_set.supply_chain.opend_server_version,
                     "opend_server_build_no": authority_set.supply_chain.opend_server_build_no,
                 },
@@ -1319,7 +1327,7 @@ def _completed_runtime(authority_set: FutuAuthoritySet, executions) -> FutuRunti
             ),
             "observed_at": "2026-07-14T01:08:30Z",
             "qot_logined": True,
-            "trd_logined": False,
+            "trd_logined": responses[-1].post_global_state_trd_logined,
             "opend_server_version": authority_set.supply_chain.opend_server_version,
             "opend_server_build_no": authority_set.supply_chain.opend_server_build_no,
         }
@@ -1753,10 +1761,12 @@ def test_peer_static_identity_mic_mismatch_fails_closed(
         _peer_evidence_set(context)
 
 
+@pytest.mark.parametrize("post_trd_logined", (True, False))
 def test_two_stage_futu_checkpoint_builds_existing_kernel_input_without_post_prefetch(
     sample_payloads,
     monkeypatch,
     tmp_path: Path,
+    post_trd_logined: bool,
 ) -> None:
     _kernel_repository, kernel_example = _pinned_kernel_fixture()
     context = _bridge_context(
@@ -1764,6 +1774,7 @@ def test_two_stage_futu_checkpoint_builds_existing_kernel_input_without_post_pre
         monkeypatch,
         tmp_path,
         kernel_example=kernel_example,
+        post_trd_logined=post_trd_logined,
     )
     post_protocols = {3229, 3230, 3232}
     assert type(context["evidence"]) is FutuMarketExecutionEvidence
@@ -1789,6 +1800,9 @@ def test_two_stage_futu_checkpoint_builds_existing_kernel_input_without_post_pre
         context["evidence"],
         verifier=DeterministicVerifier(),
     )
+    guards = market_manifest.to_dict()["global_state_guards"]
+    assert all(item["trd_logined"] is True for item in guards[::2])
+    assert all(item["trd_logined"] is post_trd_logined for item in guards[1::2])
     disposition_bundle = build_futu_observation_disposition_publication_bundle(
         context["evidence"],
         verifier=DeterministicVerifier(),
