@@ -208,13 +208,13 @@ def test_distributions_bind_the_pr3_policy_and_exclude_shadow_evals(
         policy_raw = archive.read(policy_member)
         lock = json.loads(archive.read("owner_research/component-lock.json"))
     assert hashlib.sha256(policy_raw).hexdigest() == (
-        "c040d23627baebd61f6e96c8cca17807ab82943b889a5dc6979fdb68a025e26c"
+        "796126006627db64c0e9b3d0b8d7910b5c8cb375777e4a5da9991f65181dfd67"
     )
     assert lock["owner_equity_research"]["pr3_comprehensive"][
         "futu_authority_policy"
     ] == {
         "path": "resources/futu/market-authority-policy-v2.json",
-        "sha256": "c040d23627baebd61f6e96c8cca17807ab82943b889a5dc6979fdb68a025e26c",
+        "sha256": "796126006627db64c0e9b3d0b8d7910b5c8cb375777e4a5da9991f65181dfd67",
     }
     with tarfile.open(sdist, "r:gz") as archive:
         names = {member.name for member in archive.getmembers()}

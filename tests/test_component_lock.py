@@ -59,7 +59,7 @@ def test_component_lock_has_exact_pinned_identity() -> None:
     assert pr3["package_version"] == "1.0.0.dev0"
     assert pr3["futu_authority_policy"] == {
         "path": "resources/futu/market-authority-policy-v2.json",
-        "sha256": "c040d23627baebd61f6e96c8cca17807ab82943b889a5dc6979fdb68a025e26c",
+        "sha256": "796126006627db64c0e9b3d0b8d7910b5c8cb375777e4a5da9991f65181dfd67",
     }
     assert pr3["kernel_schema_resource_sha256"] == {
         "resources/phase5-v1-kernel-schemas/assumption-ledger.schema.json": (
